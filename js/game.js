@@ -389,7 +389,7 @@
   function drawPreview() {
     const c = $('#preview'), x = c.getContext('2d');
     x.imageSmoothingEnabled = false; x.clearRect(0, 0, c.width, c.height);
-    const sx = 6, sy = 10, gp = A.GRIP.R, b = A.baguette(0.35);
+    const sx = 6, sy = 8, gp = A.GRIP.R, b = A.baguette(0.35);
     x.drawImage(A.girl.idle1R, sx, sy);
     x.drawImage(b.c, sx + gp.x - b.ox, sy + gp.y - b.oy);
   }
@@ -582,7 +582,7 @@
     if (state !== 'loading' && state !== 'title') {
       const pose = girlPose();
       g.fillStyle = 'rgba(43,39,69,.22)';
-      g.fillRect(Math.round(kid.x) - 7, pose.sy + 31, 14, 2);
+      g.fillRect(Math.round(kid.x) - 7, pose.sy + A.GIRL_H - 1, 14, 2);
       const front = Math.sin(bag.a) * kid.face >= -0.05;
       const drawBag = () => {
         if (Math.abs(bag.w) > 12) {

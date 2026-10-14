@@ -179,7 +179,7 @@ body.boss .player-box { opacity: 1; transform: none; }
 .intro.hide { opacity: 0; visibility: hidden; }
 .intro-card { text-align: center; max-width: 420px; padding: 26px 24px 30px; margin: auto; }
 .eyebrow { font-family: var(--pixel); font-size: 9px; color: var(--blue); }
-.preview { width: 160px; height: 176px; image-rendering: pixelated; image-rendering: crisp-edges; display: block; margin: 12px auto 8px; animation: idle 1s steps(1) infinite; }
+.preview { width: 160px; height: 184px; image-rendering: pixelated; image-rendering: crisp-edges; display: block; margin: 12px auto 8px; animation: idle 1s steps(1) infinite; }
 @keyframes idle { 50% { transform: translateY(-4px); } }
 .intro h1 { font-family: var(--pixel); font-weight: 400; font-size: clamp(18px, 5.5vw, 26px); line-height: 1.5; text-transform: uppercase; }
 .intro h1 span { color: var(--blue); }

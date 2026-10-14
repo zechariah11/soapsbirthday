@@ -98,13 +98,18 @@ window.Art = (() => {
     return outline(c, '#59607c');
   }
 
-  /* ---------------- little Soap ---------------- */
-  // striped long-sleeve, light flared jeans, white/blue sneakers, one hand on her hip
+  /* ---------------- little Princess Soap ---------------- */
+  // same pose as the reference photo (one hand on her hip, the other at her side holding the
+  // baguette), now in a light-blue Cinderella ball gown with puff sleeves, gloves and a crown
   const GIRL_PAL = {
     H: '#3d2c3a', h: '#6e4f66', S: '#ffd9b8', s: '#efb28c', E: OUT, P: '#ff9db2', M: '#d65f7c',
-    N: '#2f4b93', w: '#f5f8ff', J: '#a3cbf2', j: '#7aa7de', k: '#d0e6fc', X: '#ffffff', x: '#76c6ea',
+    Y: '#ffd54a', y: '#e0a82a', B: '#3d7bff', D: '#9fd4ff', d: '#6fb0ef', L: '#dcf1ff', W: '#ffffff', G: '#bfe8ff',
   };
   const GIRL = [
+    '.....Y...YY...Y.....',   // crown
+    '.....YY.YYYY.YY.....',
+    '.....YYYYYYYYYY.....',
+    '.....yyByyyyByy.....',
     '......HHHHHHHH......',
     '....HHHHHHHHHHHH....',
     '...HHHhhhHHHHHHHH...',
@@ -118,35 +123,36 @@ window.Art = (() => {
     '..HHSSSSSMMSSSSSHH..',
     '..HHHsSSSSSSSSsHHH..',
     '..HHH...ssss...HHH..',
-    '....NNNNNNNNNNNN....',
-    '...wwwwwwwwwwwwwww..',
-    '...NNNNNNNNNNNNNNNN.',
-    '..wwwwwwwwwwwww.www.',
-    '..NNNNNNNNNNNNN.NN..',
-    '..www.wwwwwwwwwSS...',
-    '..NNN.NNNNNNNNN.....',
-    '..SS..JJJJJJJJJ.....',
-    '......JJJJJJJJJ.....',
-    '......JkJJJJJJJ.....',
-    '......JkJJ.JJJj.....',
-    '......JkJJ.JJJj.....',
-    '......JkJJ.JJJj.....',
+    '...LLLsDDDDDDsLLL...',   // puff sleeves + bodice
+    '..LLLLDDDDDDDDLLLL..',
+    '..LLLDDDDDDDDDDLLLL.',
+    '..WW.DDDDDDDDDD.WW..',   // long white gloves
+    '..WW.dDDDDDDDDd.WW..',
+    '..WW..BBBBBBBBWW....',   // sash, hand on her hip
+    '..WW.DDDDDDDDDD.....',
+    '..WW.DLDDDDDDLD.....',   // baguette hand
+    '....DDLDDDDDDLDD....',   // the skirt flares out
+    '...DDLDDWDDDDDLDD...',
+    '...DLDDDDDDDWDDLD...',
+    '..DDLDDWDDDDDDWLDD..',
+    '..DLDDDDDDWDDDDDLD..',
   ];
-  const LEGS = {
-    idle: ['.....JJkJJ.JJJjJ....', '.....JJJJj.JJJjJ....', '....XXXXX...XXXXX...', '....xXXXX...XXXXx...'],
-    walkA: ['.....JJkJJ.JJJjJ....', '....XXXXX..JJJjJ....', '....xXXXX...XXXXX...', '............XXXXx...'],
-    walkB: ['.....JJkJJ.JJJjJ....', '.....JJJJj..XXXXX...', '....XXXXX...XXXXx...', '....xXXXX...........'],
+  const HEM = ['.DDLDDDDDDDDDDDDLDD.', '.dDDdDDdDDdDDdDDdDd.', '..WWWWWWWWWWWWWWWW..'];
+  const LEGS = {   // glass slippers peeking out under the lace
+    idle: HEM.concat(['.....GG......GG.....']),
+    walkA: HEM.concat(['....GG.........GG...']),
+    walkB: HEM.concat(['......GG....GG......']),
   };
   const girl = {};
   for (const legs of Object.keys(LEGS)) for (const happy of [0, 1]) {
     const rows = GIRL.concat(LEGS[legs]);
-    if (happy) rows[8] = '..HHSSESESSESESSHH..';
+    if (happy) rows[12] = '..HHSSESESSESESSHH..';
     const img = outline(spr(rows, GIRL_PAL));
     girl[`${legs}${happy}L`] = img;          // baguette hand on the left
     girl[`${legs}${happy}R`] = flip(img);    // mirrored
   }
-  const GIRL_W = 22, GIRL_H = 32;
-  const GRIP = { L: { x: 3, y: 21 }, R: { x: GIRL_W - 1 - 3, y: 21 } };
+  const GIRL_W = 22, GIRL_H = 36;
+  const GRIP = { L: { x: 3, y: 25 }, R: { x: GIRL_W - 1 - 3, y: 25 } };
 
   /* ---------------- the baguette (rasterised at any angle, cached) ---------------- */
   const bagCache = new Map();
