@@ -164,7 +164,7 @@
   const cake = { show: false, alive: false, hp: 5, rope: -80, ropeV: 0, theta: 0, omega: 0, landed: false, flashT: 0, blinkT: 0, shakeT: 0, hurtT: 0, faintT: 0 };
   const parts = [];
   let state = 'loading';  // loading → title → intro → battle → win → ready → opening → letter
-  let hits = 0, hitCD = 0, swingCD = 0, stopT = 0, shakeT = 0, shakeA = 0, time = 0, runId = 0;
+  let hits = 0, hitCD = 0, swingCD = 0, swingT = 0, stopT = 0, shakeT = 0, shakeA = 0, time = 0, runId = 0;
   const NAME = () => C.name.toUpperCase();
   const BOSS = () => C.bossName.toUpperCase();
 
@@ -234,6 +234,7 @@
   function swing() {
     if (swingCD > 0) return;
     swingCD = 0.3;
+    swingT = 0.4;                           // only this click's swing can hurt the cake
     bag.a = restAngle() - kid.face * 0.5;   // quick wind-up...
     bag.w = kid.face * 30;                  // ...then the big bonk
     sfx.whoosh();
@@ -415,7 +416,7 @@
   }
   function startBattle() {
     runId++;
-    hits = 0; parts.length = 0; hitCD = 0; swingCD = 0;
+    hits = 0; parts.length = 0; hitCD = 0; swingCD = 0; swingT = 0;
     Object.assign(cake, { show: true, alive: true, hp: C.hitsToBreak, rope: -CAKE.h - 12, ropeV: 0, theta: rand(-0.2, 0.2), omega: 0, landed: false, flashT: 0, blinkT: 0, shakeT: 0, hurtT: 0, faintT: 0 });
     envWrap.classList.remove('show'); drawEnv(false);
     playerLv.textContent = C.age ? `Lv${C.age - 1}` : ''; playerLv.classList.remove('up');
@@ -495,22 +496,18 @@
 
   /* ================= update ================= */
   function update(dt) {
-    swingCD -= dt; hitCD -= dt; shakeT -= dt;
+    swingCD -= dt; swingT -= dt; hitCD -= dt; shakeT -= dt;
     if (state !== 'loading' && state !== 'title') updateKid(dt);
     updateCake(dt);
 
     if (state === 'battle' && cake.alive) {
       const pose = girlPose(), b = A.baguette(bag.a);
-      // she swings by herself when the cake is in reach
-      if (swingCD < -0.2 && Math.abs(bag.w) < 4) {
-        const fwd = restAngle() + kid.face * 1.4;
-        const near = [0.5, 0.8, 1].some((k) => inCake(pose.gx + Math.sin(fwd) * b.len * k, pose.gy - Math.cos(fwd) * b.len * k));
-        if (near || inCake(kid.x, kid.y)) swing();
-      }
-      if (hitCD <= 0 && Math.abs(bag.w) > 5) {
+      // damage only comes from a swing she was told to do (click / tap / space), once per swing;
+      // bumping into the cake or the baguette flailing while she runs does nothing
+      if (swingT > 0 && hitCD <= 0) {
         for (const k of [0.45, 0.75, 1]) {
           const px = pose.gx + Math.sin(bag.a) * b.len * k, py = pose.gy - Math.cos(bag.a) * b.len * k;
-          if (inCake(px, py)) { onHit(px, py); break; }
+          if (inCake(px, py)) { swingT = 0; onHit(px, py); break; }
         }
       }
     }
