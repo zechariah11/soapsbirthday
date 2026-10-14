@@ -62,7 +62,7 @@
 
   /* ================= sound: tiny 8-bit synth (no audio files) ================= */
   const sfx = (() => {
-    let ac = null, out = null, nbuf = null, muted = false;
+    let ac = null, out = null, nbuf = null, muted = false, songBus = null;
     function init() {
       try {
         if (!ac) {
@@ -78,12 +78,21 @@
       } catch (e) { ac = null; }
     }
     const ok = () => ac && !muted;
-    function tone(f, t, dur, vol, type = 'square', to) {
+    function tone(f, t, dur, vol, type = 'square', to, dest = out) {
       const o = ac.createOscillator(), gn = ac.createGain();
       o.type = type; o.frequency.setValueAtTime(f, t);
       if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
       gn.gain.setValueAtTime(vol, t); gn.gain.setValueAtTime(vol, t + dur * 0.7); gn.gain.linearRampToValueAtTime(0, t + dur);
-      o.connect(gn).connect(out); o.start(t); o.stop(t + dur + 0.02);
+      o.connect(gn).connect(dest); o.start(t); o.stop(t + dur + 0.02);
+    }
+    // the birthday song plays through its own channel so it can be cut off mid-song
+    function stopSong() {
+      if (!songBus) return;
+      const bus = songBus; songBus = null;
+      try {
+        bus.gain.setTargetAtTime(0, ac.currentTime, 0.02);
+        setTimeout(() => bus.disconnect(), 200);
+      } catch (e) { /* ignore */ }
     }
     function noise(t, dur, vol, freq, type = 'bandpass') {
       const s = ac.createBufferSource(), f = ac.createBiquadFilter(), gn = ac.createGain();
@@ -111,13 +120,16 @@
       levelUp: () => play((t) => { seq([523.25, 659.25, 783.99, 1046.5], t, 0.08, 0.13); tone(987.77, t + 0.36, 0.1, 0.13); tone(1046.5, t + 0.48, 0.4, 0.13); }),
       coin: () => play((t) => { tone(987.77, t, 0.07, 0.14); tone(1318.5, t + 0.07, 0.3, 0.14); }),
       blip: () => play((t) => tone(rand(860, 980), t, 0.025, 0.045)),
+      stopSong,
       birthday: () => play((t0) => {
+        stopSong();
+        songBus = ac.createGain(); songBus.connect(out);
         const N = { G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
         const song = 'G4 .75,G4 .25,A4 1,G4 1,C5 1,B4 2,G4 .75,G4 .25,A4 1,G4 1,D5 1,C5 2,G4 .75,G4 .25,G5 1,E5 1,C5 1,B4 1,A4 2,F5 .75,F5 .25,E5 1,C5 1,D5 1,C5 2';
         let t = t0 + 0.1; const beat = 0.3;
         song.split(',').forEach((n) => {
           const [k, d] = n.split(' ');
-          tone(N[k], t, d * beat * 0.9, 0.08); tone(N[k] / 2, t, d * beat * 0.9, 0.05, 'triangle');
+          tone(N[k], t, d * beat * 0.9, 0.08, 'square', null, songBus); tone(N[k] / 2, t, d * beat * 0.9, 0.05, 'triangle', null, songBus);
           t += d * beat;
         });
       }),
@@ -477,7 +489,7 @@
   letter.addEventListener('click', (e) => { if (e.target === letter) closeLetter(); });
   $('#closeLetter').addEventListener('click', closeLetter);
   $('#skip').addEventListener('click', () => dialog.finishTyping && dialog.finishTyping());
-  $('#replay').addEventListener('click', () => { closeLetter(); sfx.coin(); startBattle(); });
+  $('#replay').addEventListener('click', () => { closeLetter(); sfx.stopSong(); sfx.coin(); startBattle(); });
   startBtn.addEventListener('click', startGame);
   $('#mute').addEventListener('click', (e) => { e.currentTarget.classList.toggle('off', sfx.toggle()); e.currentTarget.blur(); });
 
