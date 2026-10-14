@@ -4,67 +4,54 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>happy birthday ♡</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="bg" aria-hidden="true">
-    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hud">
+    <div class="px-box hp">
+      <p id="cakeName" class="hp-label"></p>
+      <div id="hpBar" class="hp-bar"></div>
+    </div>
   </div>
 
-  <main id="stage" class="stage">
-    <div id="swing" class="swing">
-      <div id="rope" class="rope"></div>
-      <div id="pinataWrap" class="pinata-wrap"></div>
-    </div>
-  </main>
-
-  <canvas id="fx" aria-hidden="true"></canvas>
-
-  <footer class="caption">
-    <p id="hint" class="hint">swing her into the piñata</p>
-    <h1>happy birthday, <em data-name>you</em></h1>
-    <div id="progress" class="progress" aria-hidden="true"></div>
-  </footer>
-
-  <div id="face" class="face" aria-hidden="true"><div class="face-inner"><img class="her" alt="" draggable="false"></div></div>
+  <p id="hint" class="px-box hint"></p>
 
   <div id="envelopeWrap" class="envelope-wrap">
-    <button id="envelope" class="envelope" aria-label="open your letter">
-      <span class="env-back"></span>
-      <span class="env-letter">for <em data-name></em> ♡</span>
-      <span class="env-front"></span>
-      <span class="env-flap"></span>
-      <span class="env-seal">♡</span>
-    </button>
-    <p class="env-caption">something for you · tap to open</p>
+    <button id="envelope" class="envelope" aria-label="open your letter"><canvas id="envCanvas" width="32" height="34"></canvas></button>
+    <p class="px-box env-caption">▶ A LETTER FOR YOU</p>
   </div>
 
   <div id="letter" class="letter-overlay">
-    <article class="letter-card">
-      <button id="closeLetter" class="close" aria-label="close">×</button>
-      <p id="letterDate" class="letter-date"></p>
-      <h2>Dear <em data-name></em>,</h2>
+    <article id="dialog" class="px-box dialog">
+      <p class="dialog-tag">★ FOR <span data-name></span> ★</p>
+      <h2>Dear <span data-name></span>,</h2>
       <div id="letterBody" class="letter-body"></div>
-      <p class="sign">love, <br><em id="from"></em></p>
-      <button id="replay" class="ghost-btn">↺ smash it again</button>
+      <p id="sign" class="sign">love, <br><span id="from"></span></p>
+      <span id="more" class="more">▼</span>
+      <div id="dialogBtns" class="dialog-btns">
+        <button id="replay" class="px-btn">▶ PLAY AGAIN</button>
+        <button id="closeLetter" class="px-btn ghost">✕ CLOSE</button>
+      </div>
     </article>
   </div>
 
   <div id="intro" class="intro">
-    <div class="intro-card">
-      <div class="intro-photo"><img class="her" alt="" draggable="false"></div>
-      <p class="eyebrow">a little something for</p>
-      <h2 data-name>you</h2>
-      <p class="intro-text">I couldn't be there today, so I made you a piñata. Grab yourself and give it a few good whacks.</p>
-      <button id="start" class="btn">let's party ♡</button>
+    <div class="px-box intro-card">
+      <p class="eyebrow">★ PLAYER 1 ★</p>
+      <canvas id="preview" class="preview" width="60" height="110"></canvas>
+      <h1><span data-name></span>'s<br>birthday</h1>
+      <p id="introText" class="intro-text"></p>
+      <button id="start" class="px-btn start">▶ PRESS START</button>
     </div>
   </div>
 
-  <button id="mute" class="mute" aria-label="toggle sound">♪</button>
+  <button id="mute" class="px-box mute" aria-label="toggle sound">♪</button>
   <div id="flash" class="flash"></div>
 
   <script src="config.js"></script>
