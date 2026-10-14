@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>happy birthday ♡</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg" aria-hidden="true">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+  </div>
+
+  <main id="stage" class="stage">
+    <div id="swing" class="swing">
+      <div id="rope" class="rope"></div>
+      <div id="pinataWrap" class="pinata-wrap"></div>
+    </div>
+  </main>
+
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <footer class="caption">
+    <p id="hint" class="hint">swing her into the piñata</p>
+    <h1>happy birthday, <em data-name>you</em></h1>
+    <div id="progress" class="progress" aria-hidden="true"></div>
+  </footer>
+
+  <div id="face" class="face" aria-hidden="true"><div class="face-inner"><img class="her" alt="" draggable="false"></div></div>
+
+  <div id="envelopeWrap" class="envelope-wrap">
+    <button id="envelope" class="envelope" aria-label="open your letter">
+      <span class="env-back"></span>
+      <span class="env-letter">for <em data-name></em> ♡</span>
+      <span class="env-front"></span>
+      <span class="env-flap"></span>
+      <span class="env-seal">♡</span>
+    </button>
+    <p class="env-caption">something for you · tap to open</p>
+  </div>
+
+  <div id="letter" class="letter-overlay">
+    <article class="letter-card">
+      <button id="closeLetter" class="close" aria-label="close">×</button>
+      <p id="letterDate" class="letter-date"></p>
+      <h2>Dear <em data-name></em>,</h2>
+      <div id="letterBody" class="letter-body"></div>
+      <p class="sign">love, <br><em id="from"></em></p>
+      <button id="replay" class="ghost-btn">↺ smash it again</button>
+    </article>
+  </div>
+
+  <div id="intro" class="intro">
+    <div class="intro-card">
+      <div class="intro-photo"><img class="her" alt="" draggable="false"></div>
+      <p class="eyebrow">a little something for</p>
+      <h2 data-name>you</h2>
+      <p class="intro-text">I couldn't be there today, so I made you a piñata. Grab yourself and give it a few good whacks.</p>
+      <button id="start" class="btn">let's party ♡</button>
+    </div>
+  </div>
+
+  <button id="mute" class="mute" aria-label="toggle sound">♪</button>
+  <div id="flash" class="flash"></div>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
