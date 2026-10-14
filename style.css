@@ -102,6 +102,43 @@ body.boss .player-box { opacity: 1; transform: none; }
 }
 .mute.off { color: #9aa8c8; text-decoration: line-through; }
 
+/* ---------- mini-game HUD ---------- */
+.stage-box {
+  position: fixed; z-index: 4; left: 16px; top: calc(env(safe-area-inset-top, 0px) + 16px);
+  width: min(320px, calc(100vw - 92px)); padding: 10px 12px 12px; font-family: var(--pixel);
+  opacity: 0; transform: translateX(-30px); transition: opacity .3s steps(3), transform .3s steps(3);
+}
+body.hud-stage .stage-box { opacity: 1; transform: none; }
+.stage-label { font-size: 8px; line-height: 1.4; color: var(--blue); text-transform: uppercase; margin-bottom: 2px; }
+.stage-box .bar-row .tag { min-width: 44px; text-align: center; }
+.stage-box .num { font-size: 9px; min-width: 40px; text-align: right; }
+.bar i.her { background: #3d9bff; transition: width .12s steps(3); }
+.bar i.him { background: #8a9a5b; transition: width .12s steps(3); }
+.bar i.berry { background: #ff5577; transition: width .3s steps(6); }
+
+.callout {
+  position: fixed; z-index: 5; left: 50%; top: max(30vh, 120px); transform: translateX(-50%);
+  font-family: var(--pixel); font-size: clamp(12px, 2.4vw, 20px); color: #fff; white-space: nowrap; pointer-events: none;
+  text-shadow: 3px 0 var(--navy), -3px 0 var(--navy), 0 3px var(--navy), 0 -3px var(--navy), 3px 3px var(--navy), -3px -3px var(--navy), 3px -3px var(--navy), -3px 3px var(--navy);
+  display: none;
+}
+.callout.show { display: block; animation: pulse .5s steps(2) infinite; }
+@keyframes pulse { 50% { transform: translateX(-50%) scale(1.12); } }
+
+.stage-card {
+  position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 8;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: rgba(19, 32, 74, .45);
+  visibility: hidden; opacity: 0; pointer-events: none; transition: opacity .25s steps(3), visibility .25s;
+}
+.stage-card.show { visibility: visible; opacity: 1; }
+.stage-card-box { text-align: center; padding: 22px 26px 24px; max-width: 420px; }
+.stage-card.show .stage-card-box { animation: cardIn .5s steps(5) both; }
+@keyframes cardIn { 0% { transform: translateY(-60px); } 70% { transform: translateY(6px); } 100% { transform: none; } }
+.stage-card h2 { font-family: var(--pixel); font-weight: 400; font-size: clamp(15px, 4vw, 22px); line-height: 1.5; margin: 12px 0 10px; text-transform: uppercase; }
+.card-stars { font-family: system-ui, sans-serif; font-size: 22px; line-height: 1; color: #ffb300; letter-spacing: 8px; }
+.card-how { margin-top: 14px; font-size: 16px; }
+
 /* ---------- hit words ---------- */
 .pop {
   position: fixed; z-index: 6; left: 0; top: 0; pointer-events: none;

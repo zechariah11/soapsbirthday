@@ -11,7 +11,13 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="game" aria-label="Little Soap whacking a giant strawberry cake with a baguette"></canvas>
+  <canvas id="game" aria-label="Little Soap's birthday adventure: a whipping battle, a strawberry catch and a giant strawberry cake boss"></canvas>
+
+  <section id="stageBox" class="px-box stage-box" aria-live="polite">
+    <p id="stageLabel" class="stage-label"></p>
+    <div id="stageRows"></div>
+  </section>
+  <p id="callout" class="callout" aria-live="polite"></p>
 
   <section id="bossBox" class="px-box boss-box" aria-live="polite">
     <div class="row"><span id="bossName" class="nm"></span><span class="lv">Lv99</span></div>
@@ -53,6 +59,15 @@
       <p id="startText" class="intro-text"></p>
       <button id="start" class="px-btn start" disabled>LOADING…</button>
       <p id="notice" class="notice" hidden></p>
+    </div>
+  </div>
+
+  <div id="stageCard" class="stage-card">
+    <div class="px-box stage-card-box">
+      <p id="cardNum" class="eyebrow"></p>
+      <h2 id="cardTitle"></h2>
+      <p id="cardStars" class="card-stars"></p>
+      <p id="cardHow" class="card-how"></p>
     </div>
   </div>
 

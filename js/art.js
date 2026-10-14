@@ -154,6 +154,71 @@ window.Art = (() => {
   const GIRL_W = 22, GIRL_H = 36;
   const GRIP = { L: { x: 3, y: 25 }, R: { x: GIRL_W - 1 - 3, y: 25 } };
 
+  /* ---------------- Zech (Korean Army uniform) ---------------- */
+  // chibi like her: big round head, shiny eyes, rosy cheeks; green beret with a gold badge,
+  // black hair peeking out, digital-camo top and bottom, flag patch, name tape, belt, black boots
+  const ZECH_PAL = {
+    B: '#4e8a3a', b: '#7cb359', V: '#2f5a24', Y: '#f0c94a', H: '#1f1c26', h: '#4a4658', S: '#ffd9b8', s: '#efb28c', E: OUT, W: '#ffffff',
+    P: '#ff9db2', M: '#c0606f', u: '#3d4a2e', K: '#15151c', k: '#454556', Q: '#c9b47a', F: '#ffffff', R: '#d23b3b', L: '#2f5fbf',
+    T: '#d8cfae', D: '#7fc4ff',
+  };
+  const CAMO = ['#7b8758', '#7b8758', '#7b8758', '#7b8758', '#4d5a37', '#4d5a37', '#4d5a37', '#7a5c3e', '#7a5c3e', '#2b2a25', '#b9a77d'];
+  const ZECH = [
+    '.....bBBBBBB........',   // green beret, tilted, with a gold badge
+    '...bBBBBBBBBBB......',
+    '..BBBBYBBBBBBBBB....',
+    '..VBBBBBBBBBBBBBV...',
+    '...HHHhhHHHHHHHHH...',   // black hair peeking out
+    '..HHHSSSSSSSSSSHHH..',
+    '..HSSSSSSSSSSSSSSH..',
+    '..HSSWESSSSSSWESSH..',   // shiny eyes
+    '..HSSEESSSSSSEESSH..',
+    '..HSPPSSSMMSSSPPSH..',   // rosy cheeks, little smile
+    '...sSSSSSSSSSSSSs...',
+    '.....ssssssssss.....',
+    '....CCCCuuuuCCCC....',
+    '...CCCCCCuuCCCCCC...',
+    '..CFFCCCCCCCCCCCCC..',
+    '..CRLCCCCCCTTTTCCC..',
+    '..CCCCCCCCCCCCCCCC..',
+    '..CC.CCCCCCCCCC.CC..',
+    '..CC.CCCCCCCCCC.CC..',
+    '..SS.KKKKQQKKKK.SS..',
+    '.....CCCCCCCCCC.....',
+    '.....CCCC..CCCC.....',
+    '.....CCCC..CCCC.....',
+    '.....CCCC..CCCC.....',
+    '.....CCCC..CCCC.....',
+    '.....CCCC..CCCC.....',
+    '.....KKKK..KKKK.....',
+    '....KkKKK..KKkKK....',
+    '....KKKKK..KKKKK....',
+  ];
+  const ZECH_FACES = {
+    normal: {},
+    tired: { 7: '..HSSSSSSSSSSSSSSH.D', 8: '..HSSEESSSSSSEESSHDD', 10: '...sSSSSSMMSSSSSs...' },
+    lose: { 7: '..HSSEEESSSSEEESSH..', 8: '..HSSSESSSSSSESSSH..', 9: '..HSPPDSSMMSSDPPSH..' },
+    happy: { 7: '..HSSSESSSSSSESSSH..', 8: '..HSSESESSSSESESSH..', 9: '..HSPPSSMSSMSSPPSH..', 10: '...sSSSSSMMSSSSSs...' },
+  };
+  function camoSprite(rows) {
+    const c = mk(rows[0].length, rows.length), x = ctxOf(c);
+    rows.forEach((r, j) => {
+      for (let i = 0; i < r.length; i++) {
+        // digital camo: pick a pattern colour per 2x2 block (plus a little per-pixel noise)
+        const col = r[i] === 'C' ? CAMO[(((((i >> 1) + 1) * 2654435761) ^ (((j >> 1) + 3) * 40503) ^ (i * 977)) >>> 0) % CAMO.length] : ZECH_PAL[r[i]];
+        if (col) { x.fillStyle = col; x.fillRect(i, j, 1, 1); }
+      }
+    });
+    return outline(c);
+  }
+  const zech = {};
+  for (const f of Object.keys(ZECH_FACES)) {
+    const rows = ZECH.slice();
+    for (const [j, row] of Object.entries(ZECH_FACES[f])) rows[j] = row;
+    zech[f] = camoSprite(rows);
+  }
+  const ZECH_W = 22, ZECH_H = ZECH.length + 2;
+
   /* ---------------- the baguette (rasterised at any angle, cached) ---------------- */
   const bagCache = new Map();
   function baguette(angle) {
@@ -292,7 +357,42 @@ window.Art = (() => {
       w: img.width, h: img.height,
       faceX: 1 + faceCx - 15, faceY: 1 + MH + 15,
       ropeX: Math.floor(img.width / 2) - 1,
+      // where each layer starts (from the bottom up), for building the cake in the cutscene:
+      // board, sponge, cream+berries, sponge, cream+berries, sponge+cream, strawberry mountain
+      layerCuts: [1 + MH + BH, 1 + MH + 29, 1 + MH + 22, 1 + MH + 16, 1 + MH + 9, 1 + MH, 0],
     };
+  }
+
+  /* ---------------- kitchen props for the mini-games ---------------- */
+  const BOWL_ROWS = ['WWWWWWWWWWWWWWWW', 'bBBBBBBBBBBBBBBb', '.bBBhBBBBBBBBBb.', '..bBBBBBBBBBBb..', '...bbbbbbbbbb...', '.....ffffff.....'];
+  const BOWLS = {
+    soap: outline(spr(BOWL_ROWS, { W: '#ffffff', B: '#a9d0ff', b: '#7fb2f0', h: '#e4f2ff', f: '#7fb2f0' })),
+    zech: outline(spr(BOWL_ROWS, { W: '#f4f6fa', B: '#c9ced8', b: '#9aa1b0', h: '#eef0f5', f: '#9aa1b0' })),
+  };
+  const WHISK_ROWS = ['...h...', '...h...', '...h...', '...h...', '..www..', '.w.w.w.', 'w..w..w', 'w..w..w', 'w..w..w', '.w.w.w.', '..www..'];
+  const WHISKS = {
+    soap: outline(spr(WHISK_ROWS, { h: '#ff9ec4', w: '#dfe4ee' }), '#5b6380'),
+    zech: outline(spr(WHISK_ROWS, { h: '#5a6b45', w: '#dfe4ee' }), '#5b6380'),
+  };
+  const STRAW_O = outline(STRAW);
+  const GOLD_STRAW = outline(spr(['..gGg..', '.YgYgY.', 'YhYYYYY', 'YYwYYwY', 'YwYYYYY', '.YYYwY.', '..YYY..'],
+    { Y: '#ffcf3a', h: '#fff4b8', w: '#fffbe6', g: '#3d9a52', G: '#7ad37a' }), '#9a6a1a');
+  const TOAST = outline(spr(['.dddddd.', 'dTTTTTTd', 'dTkTTkTd', 'dTTkkTTd', 'dTkTTTTd', 'dTTTTkTd', '.dddddd.'],
+    { d: '#4a2a14', T: '#6b3a1c', k: '#231510' }), '#120a06');
+  const counterCache = new Map();
+  function counter(w, h, cloth) { // little kitchen counter: wooden top, gingham cloth front
+    const key = `${w}x${h}${cloth}`;
+    if (counterCache.has(key)) return counterCache.get(key);
+    const c = mk(w, h), x = ctxOf(c);
+    const [a, b, d] = cloth === 'soap' ? ['#ffffff', '#cfe2ff', '#a9c8f5'] : ['#f3ecd8', '#d9cda6', '#b9ab82'];
+    x.fillStyle = '#e2b27b'; x.fillRect(0, 0, w, 2); x.fillStyle = '#c08d57'; x.fillRect(0, 2, w, 1);
+    for (let j = 3; j < h; j++) for (let i = 0; i < w; i++) {
+      const p = (i >> 1) % 2, q = ((j - 3) >> 1) % 2;
+      x.fillStyle = p && q ? d : p || q ? b : a; x.fillRect(i, j, 1, 1);
+    }
+    const out = outline(c, '#7a5232');
+    counterCache.set(key, out);
+    return out;
   }
 
   /* ---------------- small props ---------------- */
@@ -519,5 +619,6 @@ window.Art = (() => {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
     STRAW, HEART, STAR,
+    zech, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter,
   };
 })();

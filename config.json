@@ -1,9 +1,12 @@
 {
   "name": "Soap",
   "age": 27,
+  "opponentName": "Zech",
+  "strawberriesToCatch": 15,
+  "whipTaps": 40,
   "hitsToBreak": 5,
   "bossName": "Giant Strawberry Cake",
-  "startScreen": "I couldn't be there today, so little you is on a mission: grab the baguette and defeat the giant Sungsimdang strawberry cake.",
+  "startScreen": "I couldn't be there today, so little you is baking a giant Sungsimdang strawberry cake: catch the strawberries, beat me at whipping the cream, then build the cake (and deal with whatever happens next).",
   "greeting": "Dear {name},",
   "letter": [
     "Happy birthday, my love. I'm so sorry I can't be there with you today, so I built you a tiny corner of the internet instead (and yes, I made you beat up a cake with bread to get here).",
