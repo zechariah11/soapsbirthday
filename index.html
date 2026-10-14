@@ -7,36 +7,40 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍓</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="game"></canvas>
+  <canvas id="game" aria-label="Little Soap whacking a giant strawberry cake with a baguette"></canvas>
 
-  <div id="hud" class="hud">
-    <div class="px-box hp">
-      <p id="cakeName" class="hp-label"></p>
-      <div id="hpBar" class="hp-bar"></div>
-    </div>
+  <section id="bossBox" class="px-box boss-box" aria-live="polite">
+    <div class="row"><span id="bossName" class="nm"></span><span class="lv">Lv99</span></div>
+    <div class="bar-row"><span class="tag hp">HP</span><div class="bar"><i id="bossHp"></i></div></div>
+  </section>
+
+  <div class="bottom">
+    <section id="playerBox" class="px-box player-box">
+      <div class="row"><span id="playerName" class="nm"></span><span id="playerLv" class="lv"></span></div>
+      <div class="bar-row"><span class="tag exp">EXP</span><div class="bar"><i id="playerExp"></i></div></div>
+    </section>
+    <section id="textBox" class="px-box text-box" aria-live="polite"><p id="textLine"></p><span class="next">▼</span></section>
   </div>
 
-  <p id="hint" class="px-box hint"></p>
-
   <div id="envelopeWrap" class="envelope-wrap">
-    <button id="envelope" class="envelope" aria-label="open your letter"><canvas id="envCanvas" width="32" height="34"></canvas></button>
-    <p class="px-box env-caption">▶ A LETTER FOR YOU</p>
+    <button id="envelope" class="envelope" aria-label="open your letter"><canvas id="envCanvas" width="34" height="36"></canvas></button>
+    <p class="px-box env-caption">▶ TAP TO OPEN</p>
   </div>
 
   <div id="letter" class="letter-overlay">
     <article id="dialog" class="px-box dialog">
-      <p class="dialog-tag">★ FOR <span data-name></span> ★</p>
-      <h2>Dear <span data-name></span>,</h2>
+      <button id="closeLetter" class="x-btn" aria-label="close letter">✕</button>
+      <p class="dialog-tag">★ A LETTER FOR <span class="name-slot"></span> ★</p>
+      <h2 id="greeting"></h2>
       <div id="letterBody" class="letter-body"></div>
-      <p id="sign" class="sign">love, <br><span id="from"></span></p>
-      <span id="more" class="more">▼</span>
-      <div id="dialogBtns" class="dialog-btns">
-        <button id="replay" class="px-btn">▶ PLAY AGAIN</button>
-        <button id="closeLetter" class="px-btn ghost">✕ CLOSE</button>
+      <p class="sign"><span id="signOff"></span><br><b id="from"></b></p>
+      <div class="dialog-btns">
+        <button id="skip" class="px-btn ghost">▶▶ SHOW ALL</button>
+        <button id="replay" class="px-btn">↺ PLAY AGAIN</button>
       </div>
     </article>
   </div>
@@ -44,17 +48,18 @@
   <div id="intro" class="intro">
     <div class="px-box intro-card">
       <p class="eyebrow">★ PLAYER 1 ★</p>
-      <canvas id="preview" class="preview" width="60" height="110"></canvas>
-      <h1><span data-name></span>'s<br>birthday</h1>
-      <p id="introText" class="intro-text"></p>
-      <button id="start" class="px-btn start">▶ PRESS START</button>
+      <canvas id="preview" class="preview" width="40" height="44"></canvas>
+      <h1><span class="name-slot"></span>'s<br>birthday</h1>
+      <p id="startText" class="intro-text"></p>
+      <button id="start" class="px-btn start" disabled>LOADING…</button>
+      <p id="notice" class="notice" hidden></p>
     </div>
   </div>
 
   <button id="mute" class="px-box mute" aria-label="toggle sound">♪</button>
   <div id="flash" class="flash"></div>
 
-  <script src="config.js"></script>
-  <script src="script.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/game.js"></script>
 </body>
 </html>
