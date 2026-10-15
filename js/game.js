@@ -807,7 +807,7 @@
      CUTSCENE: she builds the cake… and it comes alive as the piñata monster
      ===================================================================== */
   const LAYER_WORDS = ['CAKE BOARD!', 'SPONGE!', 'CREAM + BERRIES!', 'SPONGE!', 'CREAM + BERRIES!', 'SPONGE + CREAM!', 'STRAWBERRY TOP!'];
-  const K = { sub: 'idle', layers: 0, dropT: 0, autoT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 };
+  const K = { sub: 'idle', layers: 0, dropT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 };
   const bakeShakeDx = () => (K.shakeT > 0 ? (Math.floor(K.t * 30) % 2 ? 1 : -1) : 0);
   const bakeSpot = () => {
     const base = groundY(), table = A.counter(CAKE.w + 6, 8, 'soap');
@@ -817,18 +817,18 @@
     clearStageUi();
     parts.length = 0;
     phase = 'bake';
-    Object.assign(K, { sub: 'intro', layers: 0, dropT: 0, autoT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 });
+    Object.assign(K, { sub: 'intro', layers: 0, dropT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 });
     zechReset();
     Object.assign(ZE, { mode: 'walk', x: Math.round(iw * 0.7), y: groundY(), tx: bakeSpot().him, face: 'happy' });
     kid.happyT = 0;
     say([
       'Strawberries: check. Whipped cream: check!',
       coarse ? 'Time to build the cake! Tap to stack each layer.' : 'Time to build the cake! Click to stack each layer.',
-    ], () => { K.sub = 'build'; K.autoT = 2.2; lockT = 0.2; showCallout(coarse ? 'TAP TO STACK!' : 'CLICK TO STACK!'); });
+    ], () => { K.sub = 'build'; lockT = 0.2; showCallout(coarse ? 'TAP TO STACK!' : 'CLICK TO STACK!'); });
   }
   function addLayer() {
     if (K.sub !== 'build' || K.layers >= CAKE.layerCuts.length) return;
-    K.layers++; K.dropT = 1; K.autoT = 1.6; kid.hopT = 0.08; kid.happyT = 0.4;
+    K.layers++; K.dropT = 1; kid.hopT = 0.08; kid.happyT = 0.4;
     sfx.catch();
     const sp = bakeSpot(), cut = CAKE.layerCuts[K.layers - 1];
     popWord(iw / 2, sp.cy + cut - 6, LAYER_WORDS[K.layers - 1], false, '#ffffff');
@@ -845,10 +845,9 @@
       ], () => { K.sub = 'rope'; K.ropeT = 0; }));
     }
   }
-  function bakeTap() { if (K.sub === 'build') addLayer(); }
+  function bakeTap() { if (K.sub === 'build') addLayer(); } // one tap = one layer (it never stacks by itself)
   function bakeUpdate(dt) {
     K.t += dt; K.dropT = Math.max(0, K.dropT - dt * 5); K.shakeT -= dt;
-    if (K.sub === 'build' && (K.autoT -= dt) <= 0) addLayer(); // keeps going even if she doesn't tap
     if (ZE.mode === 'walk') ZE.tx = bakeSpot().him; // he waits next to the cake while she builds it
     if (K.sub === 'rope') { K.ropeT += dt; if (K.ropeT >= 0.6) { K.sub = 'lift'; K.liftT = 0; sfx.whoosh(); } }
     if (K.sub === 'lift') {
