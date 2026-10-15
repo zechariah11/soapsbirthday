@@ -15,5 +15,59 @@
     "Until then, eat some bread for me, and know that I'm thinking about you the whole time."
   ],
   "signOff": "love,",
-  "from": "me"
+  "from": "me",
+  "wrongLetters": [
+    {
+      "style": "note",
+      "title": "OFFICIAL REMATCH REQUEST",
+      "lines": [
+        "I, {opponent}, hereby demand a rematch in the Whipped Cream Showdown.",
+        "Reasons I lost:",
+        "- My whisk was defective.",
+        "- My arm was tired from army training.",
+        "- The bowl was slippery.",
+        "~~- She is simply better than me.~~"
+      ],
+      "signature": "Signed, {opponent} (definitely NOT a sore loser)",
+      "stamp": "URGENT!!",
+      "reaction": [
+        "{OPPONENT}: W-WAIT!! Wrong one!!",
+        "{OPPONENT}: …that was my rematch request. Forget you saw that.",
+        "{OPPONENT} handed {NAME} another letter…"
+      ]
+    },
+    {
+      "style": "form",
+      "title": "휴가 신청서 · LEAVE REQUEST",
+      "fields": [
+        [
+          "Name",
+          "{opponent}"
+        ],
+        [
+          "Request",
+          "Move my leave ONE WEEK EARLIER"
+        ],
+        [
+          "Reason",
+          "It's {name}'s birthday!!! I need to be there."
+        ],
+        [
+          "Urgency",
+          "★★★★★ EXTREMELY URGENT"
+        ],
+        [
+          "If denied",
+          "Make her a birthday video game instead"
+        ]
+      ],
+      "stamp": "DENIED · 반려",
+      "note": "Commander: Denied. You'll see her next week, as planned. (This is request #7. Stop asking.)",
+      "reaction": [
+        "{OPPONENT}: AAAH! Not that one either!!",
+        "{OPPONENT}: …so yeah. They said no. But I'll see you next week, I promise!",
+        "{OPPONENT}: Okay. THIS is the real one. Happy birthday, {NAME}."
+      ]
+    }
+  ]
 }

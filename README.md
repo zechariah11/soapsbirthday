@@ -12,7 +12,9 @@ Soap bakes a giant Sungsimdang strawberry cake:
    comes alive, grabs Zech and sticks him on top, and gets hoisted up as a piñata.
 4. **Piñata Cake Monster**: whack the hanging cake with a baguette (Zech yells for help from the
    top) until its HP bar is empty. Zech tumbles out, they run to each other and hug, she levels
-   up, and he hands her the letter while an 8-bit "Happy Birthday" plays.
+   up, and he hands her a letter… the wrong one (his whipping rematch request). Then the wrong one
+   again (his denied leave request to come a week early). Then, finally, the real letter, while an
+   8-bit "Happy Birthday" plays.
 
 All the art is drawn in code (`js/art.js`), so there are no image files to manage. Korean text uses
 the Galmuri11 pixel font (`fonts/`, SIL Open Font License), which only loads when Hangul appears.
@@ -34,8 +36,10 @@ click the ✏️ pencil, then **Commit changes**). The live site updates a minut
 | `greeting`     | first line of the letter |
 | `letter`       | the letter itself: a list of paragraphs |
 | `signOff`, `from` | how the letter is signed |
+| `wrongLetters` | the joke letters he hands her first, in order (set to `[]` to skip them). Each has a `title`, a `style` (`"note"` or `"form"`), `lines` (a `- ` line becomes a bullet, `~~like this~~` is crossed out) or `fields` (rows of `["label", "value"]`), an optional `note`, `signature` and red `stamp`, and the `reaction` lines he says after snatching it back |
 
-You can write `{name}`, `{age}` or `{opponent}` inside any text and it will be filled in.
+You can write `{name}`, `{age}` or `{opponent}` inside any text and it will be filled in
+(`{NAME}` / `{OPPONENT}` give the name in capitals, like the battle text).
 
 Tip: add `?stage=2`, `?stage=bake` or `?stage=3` to the address to jump straight to a stage
 (handy for checking your edits).

@@ -13,6 +13,38 @@
     letter: ['Happy birthday! (Write your letter in config.json.)'],
     signOff: 'love,',
     from: 'me',
+    // the joke: he hands her the wrong letter (twice) before the real one. Set to [] to skip.
+    wrongLetters: [
+      {
+        style: 'note',
+        title: 'OFFICIAL REMATCH REQUEST',
+        lines: [
+          'I, {opponent}, hereby demand a rematch in the Whipped Cream Showdown.',
+          'Reasons I lost:',
+          '- My whisk was defective.',
+          '- My arm was tired from army training.',
+          '- The bowl was slippery.',
+          '~~- She is simply better than me.~~',
+        ],
+        signature: 'Signed, {opponent} (definitely NOT a sore loser)',
+        stamp: 'URGENT!!',
+        reaction: ['{OPPONENT}: W-WAIT!! Wrong one!!', '{OPPONENT}: …that was my rematch request. Forget you saw that.', '{OPPONENT} handed {NAME} another letter…'],
+      },
+      {
+        style: 'form',
+        title: '휴가 신청서 · LEAVE REQUEST',
+        fields: [
+          ['Name', '{opponent}'],
+          ['Request', 'Move my leave ONE WEEK EARLIER'],
+          ['Reason', "It's {name}'s birthday!!! I need to be there."],
+          ['Urgency', '★★★★★ EXTREMELY URGENT'],
+          ['If denied', 'Make her a birthday video game instead'],
+        ],
+        stamp: 'DENIED · 반려',
+        note: "Commander: Denied. You'll see her next week, as planned. (This is request #7. Stop asking.)",
+        reaction: ['{OPPONENT}: AAAH! Not that one either!!', "{OPPONENT}: …so yeah. They said no. But I'll see you next week, I promise!", '{OPPONENT}: Okay. THIS is the real one. Happy birthday, {NAME}.'],
+      },
+    ],
   };
 
   function normalise(raw) {
@@ -25,10 +57,21 @@
     c.hitsToBreak = int(c.hitsToBreak, 1, 50, 5);
     c.whipTaps = int(c.whipTaps, 10, 200, 40);
     c.strawberriesToCatch = int(c.strawberriesToCatch, 3, 60, 15);
-    const fill = (s) => String(s ?? '').replace(/\{name\}/g, c.name).replace(/\{age\}/g, c.age ?? '').replace(/\{opponent\}/g, c.opponentName);
+    const fill = (s) => String(s ?? '')
+      .replace(/\{NAME\}/g, c.name.toUpperCase()).replace(/\{OPPONENT\}/g, c.opponentName.toUpperCase())
+      .replace(/\{name\}/g, c.name).replace(/\{age\}/g, c.age ?? '').replace(/\{opponent\}/g, c.opponentName);
     c.letter = (Array.isArray(c.letter) ? c.letter : [c.letter]).map(fill).filter((p) => p.trim());
     for (const k of ['bossName', 'startScreen', 'greeting', 'signOff', 'from']) c[k] = fill(c[k]);
     c.bossName = c.bossName.trim() || DEFAULTS.bossName;
+    const list = (v) => (Array.isArray(v) ? v : v == null || v === '' ? [] : [v]);
+    c.wrongLetters = (Array.isArray(c.wrongLetters) ? c.wrongLetters : []).filter((w) => w && typeof w === 'object').map((w) => ({
+      style: w.style === 'form' ? 'form' : 'note',
+      title: fill(w.title),
+      lines: list(w.lines).map(fill),
+      fields: list(w.fields).filter((f) => Array.isArray(f)).map(([k, v]) => [fill(k), fill(v)]),
+      signature: fill(w.signature), stamp: fill(w.stamp), note: fill(w.note),
+      reaction: list(w.reaction).map(fill).filter((t) => t.trim()),
+    }));
     return c;
   }
 
@@ -70,6 +113,7 @@
   const stageCard = $('#stageCard');
   const envWrap = $('#envelopeWrap'), envelope = $('#envelope'), envCanvas = $('#envCanvas');
   const letter = $('#letter'), dialog = $('#dialog'), startBtn = $('#start'), flashEl = $('#flash');
+  const wrongEl = $('#wrong'), wrongPaper = $('#wrongPaper'), wrongContent = $('#wrongContent'), stampEl = $('#stamp');
 
   /* ================= sound: tiny 8-bit synth (no audio files) ================= */
   const sfx = (() => {
@@ -250,12 +294,13 @@
   addEventListener('pointermove', toGame, { passive: true });
   addEventListener('pointerdown', (e) => {
     sfx.init();
-    if (e.target && e.target.closest && e.target.closest('#mute, #intro, #letter')) return;
+    if (e.target && e.target.closest && e.target.closest('#mute, #intro, #letter, #wrong')) return;
     toGame(e);
     act();
   });
   addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && phase === 'letter') { closeLetter(); return; }
+    if (phase === 'wrong' && (e.key === 'Escape' || e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); if (!e.repeat) snatch(); return; }
     if (e.key === 'ArrowLeft') keys.left = true;
     if (e.key === 'ArrowRight') keys.right = true;
     if (e.code !== 'Space' && e.code !== 'Enter') return;
@@ -281,7 +326,7 @@
   /* ================= little Soap ================= */
   const bag = { a: 0.35, w: 0, ghosts: [] };   // baguette angle (0 = straight up) and spin speed
   const restAngle = () => kid.face * 0.35;
-  const ending = () => phase === 'ready' || phase === 'opening' || phase === 'letter';
+  const ending = () => phase === 'ready' || phase === 'opening' || phase === 'letter' || phase === 'wrong' || phase === 'snatch';
   const hasBaguette = () => (inStage('boss') && B.sub !== 'rescue') || (phase === 'bake' && K.grabbed);
   function girlPose() {
     const side = kid.face > 0 ? 'R' : 'L';
@@ -637,16 +682,16 @@
      ZECH: watches her bake… gets kidnapped by the cake… gets rescued… hugs her
      ===================================================================== */
   // x = centre, y = feet, in game pixels
-  const ZE = { mode: 'off', x: 0, y: 0, vx: 0, vy: 0, tx: 0, face: 'happy', t: 0, fromX: 0, fromY: 0, quipT: 0, cheerT: 0, dizzyT: 0, hug: false, reunite: false, heartT: 0 };
+  const ZE = { mode: 'off', x: 0, y: 0, vx: 0, vy: 0, tx: 0, face: 'happy', t: 0, fromX: 0, fromY: 0, quipT: 0, cheerT: 0, dizzyT: 0, panicT: 0, hug: false, reunite: false, heartT: 0 };
   const hugX = () => Math.round(iw / 2);
-  function zechReset() { Object.assign(ZE, { mode: 'off', vx: 0, vy: 0, face: 'happy', t: 0, quipT: 2, cheerT: 0, dizzyT: 0, hug: false, reunite: false, heartT: 0 }); }
+  function zechReset() { Object.assign(ZE, { mode: 'off', vx: 0, vy: 0, face: 'happy', t: 0, quipT: 2, cheerT: 0, dizzyT: 0, panicT: 0, hug: false, reunite: false, heartT: 0 }); }
   function zechOnTop() { // stuck in the strawberry mountain on top of the cake, left of the bow
     const c = cakePosNow();
     return { x: c.x + 14, y: c.y + 18 };
   }
   function updateZech(dt) {
     if (ZE.mode === 'off') return;
-    ZE.t += dt; ZE.dizzyT -= dt; ZE.cheerT -= dt;
+    ZE.t += dt; ZE.dizzyT -= dt; ZE.cheerT -= dt; ZE.panicT -= dt;
     if (ZE.mode === 'walk') {
       ZE.y = groundY();
       const sp = (ZE.reunite ? 70 : 60) * dt;
@@ -677,11 +722,12 @@
   }
   function drawZech() {
     if (ZE.mode === 'off') return;
-    const img = A.zech[ZE.cheerT > 0 || ZE.hug ? 'happy' : ZE.face];
+    const img = A.zech[ZE.panicT > 0 ? 'tired' : ZE.cheerT > 0 || ZE.hug ? 'happy' : ZE.face];
     let x = Math.round(ZE.x - img.width / 2), y = Math.round(ZE.y) - img.height + 1;
     if (ZE.mode === 'walk' && Math.abs(ZE.tx - ZE.x) > 1) y += Math.floor(ZE.t * 10) % 2 ? -1 : 0;
     if (ZE.hug) y += Math.floor(time * 2.5) % 2 ? -1 : 0;
     if (ZE.dizzyT > 0) x += Math.floor(time * 30) % 2 ? 1 : -1;
+    if (ZE.panicT > 0) y -= Math.floor(time * 12) % 2 ? 1 : 0; // flustered little hops
     if (ZE.mode !== 'ontop') { g.fillStyle = 'rgba(43,39,69,.22)'; if (ZE.mode === 'walk') g.fillRect(Math.round(ZE.x) - 6, Math.round(ZE.y), 12, 2); }
     g.drawImage(img, x, y);
     if (ZE.dizzyT > 0) {
@@ -998,6 +1044,7 @@
     // wipe every stage's leftovers from the previous run up front
     Object.assign(W, { sub: 'idle', p: 0, z: 0, taps: 0, zFace: 'normal', said: {} });
     catchReset(); bossReset(false); zechReset(); kid.hug = false;
+    letterStep = 0; wrongEl.classList.remove('show');
     if (at === 'bake') { stageIdx = 1; startBake(); } else showCard(at);
   }
   function showEnvelope() {
@@ -1008,12 +1055,59 @@
     envWrap.classList.add('show');
     sfx.coin();
   }
+  let letterStep = 0; // how many wrong letters she has already been handed
   function openEnvelope() {
     if (phase !== 'ready') return;
     phase = 'opening';
     drawEnv(true); sfx.coin();
-    later(550, openLetter);
+    later(550, () => (letterStep < C.wrongLetters.length ? openWrong(letterStep) : openLetter()));
   }
+  function openWrong(i) {
+    const L = C.wrongLetters[i];
+    phase = 'wrong';
+    envWrap.classList.remove('show');
+    wrongPaper.className = 'paper ' + L.style;
+    wrongContent.innerHTML = '';
+    const add = (tag, text, parent = wrongContent) => { const el = document.createElement(tag); el.textContent = text; parent.appendChild(el); return el; };
+    if (L.title) add('h3', L.title);
+    let ul = null;
+    for (const line of L.lines) {
+      const struck = /^~~.*~~$/.test(line.trim()), text = struck ? line.trim().slice(2, -2) : line;
+      if (/^\s*-\s/.test(text)) {
+        if (!ul) ul = add('ul', '');
+        const li = add('li', '', ul);
+        if (struck) add('s', text.replace(/^\s*-\s/, ''), li); else li.textContent = text.replace(/^\s*-\s/, '');
+      } else {
+        ul = null;
+        const p = add('p', '');
+        if (struck) add('s', text, p); else p.textContent = text;
+      }
+    }
+    if (L.fields.length) {
+      const table = add('table', ''); table.className = 'form-table';
+      for (const [k, v] of L.fields) { const tr = add('tr', '', table); add('th', k, tr); add('td', v, tr); }
+    }
+    if (L.note) add('p', L.note).className = 'note-box';
+    if (L.signature) add('p', L.signature).className = 'sig';
+    stampEl.textContent = L.stamp; stampEl.hidden = !L.stamp;
+    wrongEl.classList.add('show');
+    sfx.coin();
+    if (L.stamp) later(1100, () => { if (phase === 'wrong') { wrongPaper.classList.add('show-stamp'); sfx.thud(); } });
+  }
+  function snatch() { // "W-WAIT!! Wrong one!!" (he grabs it back)
+    if (phase !== 'wrong') return;
+    phase = 'snatch';
+    wrongPaper.classList.add('snatched'); sfx.whoosh();
+    ZE.panicT = 2.5;
+    const reaction = C.wrongLetters[letterStep].reaction;
+    letterStep++;
+    later(500, () => {
+      wrongEl.classList.remove('show');
+      if (reaction.length) say(reaction, showEnvelope); else showEnvelope();
+    });
+  }
+  $('#wrongNext').addEventListener('click', snatch);
+  wrongEl.addEventListener('click', (e) => { if (e.target === wrongEl) snatch(); });
   envelope.addEventListener('click', openEnvelope);
 
   let typer = null;
@@ -1209,6 +1303,7 @@
       get phase() { return phase; }, get stage() { return phase === 'bake' ? 'bake' : STAGE().key; },
       get sub() { return phase === 'bake' ? K.sub : { catch: CT.sub, whip: W.sub, boss: B.sub }[STAGE().key]; },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
+      get letterStep() { return letterStep; },
       get zech() { return { mode: ZE.mode, x: ZE.x * S, y: ZE.y * S, hug: ZE.hug, face: ZE.face }; },
       get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps }; },
       get catch() { return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S })) }; },
