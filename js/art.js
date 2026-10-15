@@ -150,6 +150,10 @@ window.Art = (() => {
     const img = outline(spr(rows, GIRL_PAL));
     girl[`${legs}${happy}L`] = img;          // baguette hand on the left
     girl[`${legs}${happy}R`] = flip(img);    // mirrored
+    if (legs === 'idle') { // whisking pose: that arm is drawn separately so it can move with the whisk
+      const w = rows.map((r, j) => (j >= 19 && j <= 23 ? r.slice(0, 2) + '..' + r.slice(4) : r));
+      girl[`whisk${happy}R`] = flip(outline(spr(w, GIRL_PAL)));
+    }
   }
   const GIRL_W = 22, GIRL_H = 36;
   const GRIP = { L: { x: 3, y: 25 }, R: { x: GIRL_W - 1 - 3, y: 25 } };
@@ -211,11 +215,13 @@ window.Art = (() => {
     });
     return outline(c);
   }
-  const zech = {};
+  const zech = {}, zechWhisk = {};
   for (const f of Object.keys(ZECH_FACES)) {
     const rows = ZECH.slice();
     for (const [j, row] of Object.entries(ZECH_FACES[f])) rows[j] = row;
     zech[f] = camoSprite(rows);
+    // whisking pose: his left arm is drawn separately so it can move with the whisk
+    zechWhisk[f] = camoSprite(rows.map((r, j) => (j >= 17 && j <= 19 ? r.slice(0, 2) + '..' + r.slice(4) : r)));
   }
   const ZECH_W = 22, ZECH_H = ZECH.length + 2;
 
@@ -630,6 +636,6 @@ window.Art = (() => {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
     STRAW, HEART, STAR,
-    zech, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter,
+    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter,
   };
 })();

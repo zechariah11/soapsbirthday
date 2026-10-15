@@ -14,7 +14,8 @@ Soap bakes a giant Sungsimdang strawberry cake:
    top) until its HP bar is empty. Zech tumbles out, they run to each other and hug, she levels
    up, and he hands her the letter while an 8-bit "Happy Birthday" plays.
 
-All the art is drawn in code (`js/art.js`), so there are no image files to manage.
+All the art is drawn in code (`js/art.js`), so there are no image files to manage. Korean text uses
+the Galmuri11 pixel font (`fonts/`, SIL Open Font License), which only loads when Hangul appears.
 
 ## Editing the text: `config.json`
 Everything personal lives in **`config.json`**. You can edit it right on GitHub (open the file,

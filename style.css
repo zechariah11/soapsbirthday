@@ -1,3 +1,12 @@
+/* Galmuri11 (SIL Open Font License, see fonts/Galmuri-OFL.txt): a Korean pixel font, only downloaded when Hangul shows up */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('fonts/Galmuri11.woff2') format('woff2');
+  unicode-range: U+1100-11FF, U+3130-318F, U+AC00-D7A3;
+  size-adjust: 115%;
+  font-display: swap;
+}
+
 :root {
   --navy: #13204a;
   --blue: #2f6bff;
@@ -5,8 +14,8 @@
   --ice: #eef6ff;
   --pink: #ff6b98;
   --cream: #fffaf0;
-  --pixel: 'Press Start 2P', ui-monospace, monospace;
-  --soft: 'Pixelify Sans', 'Press Start 2P', ui-monospace, monospace;
+  --pixel: 'Press Start 2P', 'Galmuri11', ui-monospace, monospace;
+  --soft: 'Pixelify Sans', 'Galmuri11', 'Press Start 2P', ui-monospace, monospace;
   --b: 4px; /* border thickness of the pixel windows */
 }
 @media (max-width: 600px) { :root { --b: 3px; } }

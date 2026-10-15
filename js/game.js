@@ -8,7 +8,7 @@
     strawberriesToCatch: 15,
     hitsToBreak: 5,
     bossName: 'Giant Strawberry Cake',
-    startScreen: "I couldn't be there today, so little you is baking a giant Sungsimdang strawberry cake: catch the strawberries, beat me at whipping the cream, then build the cake (and deal with whatever happens next).",
+    startScreen: "I couldn't be there today, so little you is baking a giant 성심당딸기시루케이크: catch the strawberries, beat me at whipping the cream, then build the cake (and deal with whatever happens next).",
     greeting: 'Dear {name},',
     letter: ['Happy birthday! (Write your letter in config.json.)'],
     signOff: 'love,',
@@ -362,19 +362,19 @@
   /* =====================================================================
      STAGE 1: whipped cream showdown (tap as fast as you can, vs Zech)
      ===================================================================== */
-  const W = { sub: 'idle', p: 0, z: 0, cd: 0, cdShown: 0, sJig: 0, zJig: 0, stallT: 0, quipT: 0, taps: 0, said: {}, hud: null, zFace: 'normal', doneT: 0 };
+  const W = { sub: 'idle', p: 0, z: 0, cd: 0, cdShown: 0, sPh: 0, sPhT: 0, zPh: 0, zJig: 0, stallT: 0, quipT: 0, taps: 0, said: {}, hud: null, zFace: 'normal', doneT: 0 };
   // the two chefs are drawn at 2x (a close-up, like a versus screen) when the screen has room for it
   function whipGeo() {
     const k = ih >= 145 && iw >= 120 ? 2 : 1, base = groundY();
     const her = Math.round(iw * (k > 1 && iw < 200 ? 0.27 : 0.3)), him = Math.round(iw * (k > 1 && iw < 200 ? 0.73 : 0.7));
-    const off = iw < 200 ? 0 : 7; // on narrow screens each bowl sits right in front of its chef
-    return { k, base, her, him, off, rim: base + 1 - 13 * k, herBowl: her + off * k, himBowl: him - off * k };
+    const narrow = iw < 200, off = narrow ? 5 : 11, cw = narrow ? 20 : 26; // narrow screens: smaller counters, bowls closer in
+    return { k, base, her, him, off, cw, rim: base + 1 - 11 * k, herBowl: her + off * k, himBowl: him - off * k };
   }
   // Zech can lead a little early on (it's a real race!), but he is always capped just behind her near the end
   const zechCap = (p) => (p < 0.6 ? p + 0.1 * (1 - p / 0.6) : p - 0.06 * ((p - 0.6) / 0.4));
 
   function whipReset() {
-    Object.assign(W, { sub: 'idle', p: 0, z: 0, cd: 0, cdShown: 0, sJig: 0, zJig: 0, stallT: 0, quipT: 0, taps: 0, said: {}, zFace: 'normal', doneT: 0 });
+    Object.assign(W, { sub: 'idle', p: 0, z: 0, cd: 0, cdShown: 0, sPh: 0, sPhT: 0, zPh: 0, zJig: 0, stallT: 0, quipT: 0, taps: 0, said: {}, zFace: 'normal', doneT: 0 });
     kid.x = whipGeo().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
   }
   function whipBegin() {
@@ -391,7 +391,7 @@
     if (W.sub !== 'race') return;
     W.taps++;
     W.p = Math.min(1, W.p + 1 / C.whipTaps);
-    W.sJig = 1; kid.hopT = 0.06;
+    W.sPhT += 2.4; kid.hopT = 0.06; // each tap = one more turn of the whisk
     sfx.whisk();
     const G = whipGeo(), cx = G.herBowl, rim = G.rim;
     parts.push({ x: cx + rand(-5, 5) * G.k, y: rim - (2 + Math.round(W.p * 6)) * G.k, vx: rand(-25, 25) * G.k, vy: rand(-60, -30) * G.k, g: 200 * G.k, life: 0.6, col: '#ffffff', size: G.k, ground: rim + 1 });
@@ -401,7 +401,7 @@
     if (W.p >= 1) whipWin();
   }
   function whipUpdate(dt) {
-    W.sJig = Math.max(0, W.sJig - dt * 6);
+    W.sPh += (W.sPhT - W.sPh) * Math.min(1, dt * 16);
     if (W.sub === 'countdown') {
       W.cd -= dt;
       const n = Math.ceil(W.cd);
@@ -418,6 +418,7 @@
       W.z = Math.min(cap, W.z + Math.max(0, rate) * dt);
       const moving = W.z - before > dt * 0.02;
       W.zJig = moving ? (W.zJig + dt * 14) : W.zJig;
+      W.zPh += dt * (moving ? 6 + 60 * (W.z - before) / Math.max(dt, 1e-3) : 0.6); // whisks at his speed, barely moves when tired
       // when he's stuck behind her he gets tired (that's his excuse, anyway)
       W.stallT = moving ? Math.max(0, W.stallT - dt) : W.stallT + dt;
       W.zFace = W.stallT > 0.6 ? 'tired' : 'normal';
@@ -458,28 +459,61 @@
     }
     if (prog >= 0.85) { g.fillStyle = '#ffffff'; g.fillRect(cx, rim - h - 1, 1, 1); g.fillRect(cx + 1, rim - h - 2, 1, 1); }
   }
-  function drawChef(img, cx, who, prog, jig, toward, k, lift, off) {
-    // drawn in local coordinates (feet at y = 0) and scaled up by k for the close-up
+  // a chunky pixel line in the current (scaled) coordinate space
+  function thick(x0, y0, x1, y1, w, col) {
+    g.fillStyle = col;
+    const n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      g.fillRect(Math.round(x0 + (x1 - x0) * t - w / 2), Math.round(y0 + (y1 - y0) * t - w / 2), w, w);
+    }
+  }
+  // balloon whisk from the hand (hx, hy) down to its tip in the cream (tx, ty)
+  function drawWhisk(hx, hy, tx, ty, who) {
+    const dx = tx - hx, dy = ty - hy, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, px = -uy, py = ux;
+    thick(hx - ux * 2, hy - uy * 2, hx + ux * 2, hy + uy * 2, 3, A.OUT);
+    thick(hx - ux * 2, hy - uy * 2, hx + ux * 2, hy + uy * 2, 1, who === 'soap' ? '#ff9ec4' : '#8a6a3a');
+    const sx = hx + ux * 2, sy = hy + uy * 2;
+    for (const [bulge, col] of [[-3.4, '#4e5674'], [3.4, '#4e5674'], [-2.6, '#c3cad9'], [2.6, '#c3cad9'], [-1.2, '#e6ebf5'], [1.2, '#e6ebf5'], [0, '#ffffff']]) {
+      g.fillStyle = col;
+      for (let t = 0; t <= 1.001; t += 0.07) {
+        const b = bulge * Math.sin(Math.PI * Math.min(1, t * 1.15));
+        g.fillRect(Math.round(sx + (tx - sx) * t + px * b), Math.round(sy + (ty - sy) * t + py * b), 1, 1);
+      }
+    }
+  }
+  function drawChef(img, cx, who, prog, ph, toward, k, lift, off, shoulder, sleeve, hand, cw) {
+    // drawn in local coordinates (feet at y = 0) and scaled up by k for the close-up;
+    // the body bobs (lift) while the counter, bowl and whisk stay put
+    const L = (lift || 0) / k;
     g.save();
     g.translate(Math.round(cx), groundY() + 1 + (lift || 0)); g.scale(k, k);
     // shorter chefs stand a little taller behind the counter so every face clears the bowl
-    g.drawImage(img, -Math.round(img.width / 2), -img.height - Math.max(0, A.GIRL_H - img.height));
-    const ct = A.counter(26, 6, who);
-    g.drawImage(ct, -Math.round(ct.width / 2), -ct.height + 1 - (lift || 0) / k);
-    const bowl = A.BOWLS[who], bx = Math.round(toward * off - bowl.width / 2), by = -ct.height + 1 - bowl.height + 1 - (lift || 0) / k;
-    const wh = A.WHISKS[who], wx = bx + Math.round(bowl.width / 2 - wh.width / 2 + Math.sin(jig * Math.PI) * 3);
-    g.drawImage(wh, wx, by + 8 - wh.height);
+    const top = -img.height - Math.max(0, A.GIRL_H - img.height), left = -Math.round(img.width / 2);
+    g.drawImage(img, left, top);
+    const ct = A.counter(cw, 4, who), shift = toward * Math.round(off / 2);
+    g.drawImage(ct, shift - Math.round(ct.width / 2), -ct.height + 1 - L);
+    const bowl = A.BOWLS[who], bcx = toward * off, bx = Math.round(bcx - bowl.width / 2), by = -ct.height + 1 - bowl.height + 1 - L, rim = by + 1;
+    // the hand circles above the bowl and the whisk follows it into the cream
+    const hx = bcx + Math.cos(ph) * 3, hy = rim - 8 + Math.sin(ph) * 1.2;
+    const wx = bcx + Math.cos(ph + 0.9) * 2.6, wy = rim + 2;
+    drawWhisk(hx, hy, wx, wy, who);
     g.drawImage(bowl, bx, by);
-    drawCream(bx + Math.round(bowl.width / 2), by + 1, prog);
+    drawCream(Math.round(bcx), rim, prog);
+    // the arm reaches from the shoulder to the whisk handle
+    const sx = left + shoulder.x, sy = top + shoulder.y;
+    thick(sx, sy, hx, hy, 4, A.OUT);
+    thick(sx, sy, hx, hy, 2, sleeve);
+    g.fillStyle = A.OUT; g.fillRect(Math.round(hx) - 2, Math.round(hy) - 2, 4, 4);
+    g.fillStyle = hand; g.fillRect(Math.round(hx) - 1, Math.round(hy) - 1, 2, 2);
     g.restore();
   }
   function whipRender() {
     const G = whipGeo();
-    const herImg = A.girl[`idle${kid.happyT > 0 ? 1 : 0}R`];
-    const racing = W.sub === 'race' || W.sub === 'done';
-    drawChef(herImg, G.her, 'soap', W.p, racing ? W.taps * 0.5 + W.sJig * 0.5 : 0, 1, G.k, kid.hopT > 0 ? -G.k : 0, G.off);
+    const herImg = A.girl[`whisk${kid.happyT > 0 ? 1 : 0}R`];
+    drawChef(herImg, G.her, 'soap', W.p, W.sPh, 1, G.k, kid.hopT > 0 ? -G.k : 0, G.off, { x: 18, y: 20 }, '#ffffff', '#ffffff', G.cw);
     const zBob = W.sub === 'race' && W.stallT < 0.3 && Math.floor(W.zJig) % 2 ? -G.k : 0;
-    drawChef(A.zech[W.zFace], G.him, 'zech', W.z, W.zJig, -1, G.k, zBob, G.off);
+    drawChef(A.zechWhisk[W.zFace], G.him, 'zech', W.z, Math.PI - W.zPh, -1, G.k, zBob, G.off, { x: 4, y: 18 }, '#7b8758', '#f6cfa8', G.cw);
   }
 
   /* =====================================================================
@@ -836,7 +870,7 @@
     if (K.layers >= CAKE.layerCuts.length) {
       K.sub = 'done'; hideCallout(); sfx.clear();
       later(700, () => say([
-        `Ta-da! A giant Sungsimdang-style strawberry cake!`,
+        `Ta-da! A giant 성심당딸기시루케이크!`,
         { text: '…wait. Why is the cake moving?!', on: () => { K.shakeT = 1.2; sfx.thud(); } },
         { text: `The cake came alive!!`, on: () => { K.alive = true; ZE.face = 'tired'; flashEl.classList.remove('twice'); retrigger(flashEl, 'go'); sfx.battle(); } },
         { text: `It grabbed ${OPP()}!!`, on: () => { Object.assign(ZE, { mode: 'yank', t: 0, fromX: ZE.x, fromY: ZE.y }); sfx.whoosh(); } },
