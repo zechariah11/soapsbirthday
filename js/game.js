@@ -13,7 +13,7 @@
     letter: ['Happy birthday! (Write your letter in config.json.)'],
     signOff: 'love,',
     from: 'me',
-    // a song for the real letter: a Spotify link, or an audio file next to index.html. Empty = the 8-bit birthday tune.
+    // a song for the real letter: a Spotify link, or an audio file next to index.html. Empty = the built-in jazz-waltz Happy Birthday.
     song: '',
     // the joke: he hands her the wrong letter (twice) before the real one. Set to [] to skip.
     wrongLetters: [
@@ -119,6 +119,108 @@
   const wrongEl = $('#wrong'), wrongPaper = $('#wrongPaper'), wrongContent = $('#wrongContent'), stampEl = $('#stamp');
 
   /* ================= sound: tiny 8-bit synth (no audio files) ================= */
+  /* "Happy Birthday" as a little jazz waltz: vibraphone melody, electric-piano comping, walking bass and a
+     brushed ride, reharmonised. Works with any (Offline)AudioContext; everything goes through `dest`. */
+  function jazzBirthday(ctx, start, dest) {
+    const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+    const BEAT = 60 / 138;
+    const beatLen = (i) => BEAT * (i >= 36 ? 1 + 0.07 * (i - 35) : 1); // a gentle ritardando into the ending
+    const T = (b) => { let t = start; const n = Math.floor(b); for (let i = 0; i < n; i++) t += beatLen(i); return t + (b - n) * beatLen(n); };
+    function note(f, t, dur, vol, parts, decay, trem) {
+      const env = ctx.createGain(), end = t + dur;
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.linearRampToValueAtTime(vol, t + 0.012);
+      env.gain.setTargetAtTime(0, t + 0.012, decay);
+      env.gain.setTargetAtTime(0, end, 0.08);
+      let tail = env;
+      if (trem) { // vibraphone motor
+        const tg = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
+        tg.gain.value = 0.82; lfo.frequency.value = 5.2; depth.gain.value = 0.18;
+        lfo.connect(depth).connect(tg.gain); lfo.start(t); lfo.stop(end + 0.5);
+        env.connect(tg); tail = tg;
+      }
+      tail.connect(dest);
+      for (const [mult, rel, type] of parts) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type; o.frequency.value = f * mult; g.gain.value = rel;
+        o.connect(g).connect(env); o.start(t); o.stop(end + 0.5);
+      }
+    }
+    const white = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.6), ctx.sampleRate), wd = white.getChannelData(0);
+    for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1;
+    function cymbal(t, vol, decay, hp) {
+      const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      s.buffer = white; f.type = 'highpass'; f.frequency.value = hp;
+      g.gain.setValueAtTime(vol, t); g.gain.setTargetAtTime(0, t + 0.005, decay);
+      s.connect(f).connect(g).connect(dest); s.start(t); s.stop(t + Math.min(0.6, decay * 6));
+    }
+    const VIBES = [[1, 1, 'sine'], [4, 0.1, 'sine'], [10, 0.025, 'sine']];
+    const KEYS = [[1, 1, 'sine'], [2, 0.22, 'sine']];
+    const BASS = [[1, 1, 'triangle'], [2, 0.3, 'sine']];
+
+    // rootless voicings (MIDI) and bass roots
+    const V = {
+      Cmaj9: [52, 55, 59, 62], A7b9: [49, 53, 55, 58], Dm9: [53, 57, 60, 64], G13: [53, 57, 59, 64], G7alt: [53, 56, 59, 63],
+      G7b9: [53, 56, 59, 62], G9sus: [53, 57, 60, 62], Gm9: [53, 57, 58, 62], C13b9: [52, 57, 58, 61], Fmaj9: [52, 55, 57, 60],
+      Bm7b5: [57, 62, 65], E7b9: [50, 53, 56, 59], Am9: [55, 59, 60, 64], D9: [54, 57, 60, 64], Abmaj9: [55, 58, 60, 63],
+      Dbmaj7s11: [56, 60, 65, 67], Cfin: [52, 55, 59, 62, 64],
+    };
+    const ROOT = { Cmaj9: 36, A7b9: 45, Dm9: 38, G13: 43, G7alt: 43, G7b9: 43, G9sus: 43, Gm9: 43, C13b9: 36, Fmaj9: 41,
+      Bm7b5: 47, E7b9: 40, Am9: 45, D9: 38, Abmaj9: 44, Dbmaj7s11: 37, Cfin: 36 };
+    const BARS = [ // 3/4 bars: one chord, or the chord on each beat
+      ['Cmaj9'], ['A7b9'], ['Dm9'], ['G13', 'G13', 'G7alt'],                     // intro: I – VI – ii – V
+      ['Dm9'], ['G13', 'G13', 'G7b9'], ['G9sus'], ['Cmaj9', 'Gm9', 'C13b9'],      // happy birthday to you (×2)
+      ['Fmaj9'], ['Bm7b5', 'Bm7b5', 'E7b9'], ['Am9', 'D9', 'G13'],                // …dear [name], happy birthday to
+      ['Abmaj9'], ['Dbmaj7s11'], ['Cfin'],                                        // you… (bVI – bII – I)
+    ];
+    const MEL = [ // [beat, midi, beats, velocity]
+      [0, 64, 0.7, 0.45], [0.667, 67, 0.4, 0.45], [1, 71, 0.7, 0.5], [1.667, 74, 1.3, 0.55], [3, 73, 2, 0.5],
+      [6, 65, 0.7, 0.45], [6.667, 69, 0.4, 0.45], [7, 72, 0.7, 0.5], [7.667, 76, 1.3, 0.55], [9, 74, 1.6, 0.45],
+      [11, 67, 0.62, 0.8], [11.667, 67, 0.3, 0.65],                                          // hap-py
+      [12, 69, 1, 0.9], [13, 67, 1, 0.8], [14, 72, 1, 0.9], [15, 71, 2, 0.9],                // birth-day to you
+      [17, 67, 0.62, 0.8], [17.667, 67, 0.3, 0.65],
+      [18, 69, 1, 0.9], [19, 67, 1, 0.8], [20, 74, 1, 0.9], [21, 72, 2, 0.9],
+      [23, 67, 0.62, 0.8], [23.667, 67, 0.3, 0.65], [23.9, 78, 0.1, 0.35],                   // (a little scoop up to…)
+      [24, 79, 1, 1], [25, 76, 1, 0.85], [26, 72, 1, 0.85], [27, 71, 1, 0.9], [28, 69, 1, 0.85], // birth-day dear [na-me]
+      [29, 77, 0.62, 0.85], [29.667, 77, 0.3, 0.7],
+      [30, 76, 1, 0.9], [31, 72, 1, 0.85], [32, 74, 1, 0.9], [33, 72, 3, 1],                 // birth-day to you
+      [36.667, 75, 0.33, 0.5], [37, 74, 0.67, 0.55], [37.667, 72, 1.3, 0.6],                 // a blue lick over Dbmaj7#11
+      [39, 72, 4, 0.85], [39.333, 79, 3.5, 0.32], [39.667, 83, 3.2, 0.28], [40, 86, 3, 0.25], [40.333, 88, 2.8, 0.22], // shimmer
+    ];
+
+    const chordAt = (bar, beat) => { const c = BARS[bar]; return c.length === 1 ? c[0] : c[beat]; };
+    BARS.forEach((_, bar) => {
+      const b0 = bar * 3, last = bar === BARS.length - 1, next = BARS[bar + 1] ? ROOT[chordAt(bar + 1, 0)] : null;
+      // comping: a hit on each chord change, plus the swung "and of two" when the chord holds all bar
+      for (let beat = 0; beat < 3; beat++) {
+        const ch = chordAt(bar, beat);
+        if (beat > 0 && ch === chordAt(bar, beat - 1)) continue;
+        let len = 1; while (beat + len < 3 && chordAt(bar, beat + len) === ch) len++;
+        const dur = last ? 5 : len === 3 ? 1.4 : len * 0.9;
+        for (const m of V[ch]) note(mtof(m), T(b0 + beat), T(b0 + beat + dur) - T(b0 + beat), 0.04, KEYS, last ? 1.6 : 0.7);
+        if (len === 3 && !last) for (const m of V[ch]) note(mtof(m), T(b0 + 1.667), BEAT * 0.8, 0.028, KEYS, 0.35);
+      }
+      // walking bass: roots on the changes, a fifth in between, and a half-step lead-in to the next bar
+      for (let beat = 0; beat < 3; beat++) {
+        const ch = chordAt(bar, beat), r = ROOT[ch], changed = beat === 0 || ch !== chordAt(bar, beat - 1);
+        let m;
+        if (last) { if (beat) break; m = r; }
+        else if (beat === 2 && !(changed && r !== ROOT[chordAt(bar, 1)])) m = next + (next + 1 === ROOT[chordAt(bar, 1)] ? -1 : 1);
+        else if (changed) m = r;
+        else m = r + 7 <= 50 ? r + 7 : r - 5;
+        note(mtof(m), T(b0 + beat), last ? BEAT * 4 : BEAT * 0.9, 0.17, BASS, last ? 1.2 : 0.45);
+      }
+      // brushed ride (from the third bar on) and a soft hi-hat on 2 and 3
+      if (bar >= 2 && !last) {
+        for (const [bt, v] of [[0, 0.07], [1, 0.045], [1.667, 0.035], [2, 0.045]]) cymbal(T(b0 + bt), v, 0.12, 6500);
+        for (const bt of [1, 2]) cymbal(T(b0 + bt), 0.03, 0.025, 3500);
+      }
+      if (last) cymbal(T(b0), 0.06, 0.9, 5000); // soft cymbal swell to finish
+    });
+    for (const [b, m, d, v] of MEL) note(mtof(m), T(b), T(b + d) - T(b), 0.2 * v, VIBES, 1.1, true);
+    return T(BARS.length * 3 + 2) - start; // how long it lasts
+  }
+
   const sfx = (() => {
     let ac = null, out = null, nbuf = null, muted = false, songBus = null;
     function init() {
@@ -191,14 +293,7 @@
       birthday: () => play((t0) => {
         stopSong();
         songBus = ac.createGain(); songBus.connect(out);
-        const N = { G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
-        const song = 'G4 .75,G4 .25,A4 1,G4 1,C5 1,B4 2,G4 .75,G4 .25,A4 1,G4 1,D5 1,C5 2,G4 .75,G4 .25,G5 1,E5 1,C5 1,B4 1,A4 2,F5 .75,F5 .25,E5 1,C5 1,D5 1,C5 2';
-        let t = t0 + 0.1; const beat = 0.3;
-        song.split(',').forEach((n) => {
-          const [k, d] = n.split(' ');
-          tone(N[k], t, d * beat * 0.9, 0.08, 'square', null, songBus); tone(N[k] / 2, t, d * beat * 0.9, 0.05, 'triangle', null, songBus);
-          t += d * beat;
-        });
+        jazzBirthday(ac, t0 + 0.1, songBus);
       }),
     };
   })();
@@ -1519,6 +1614,7 @@
   // read-only peek at the game state for automated tests (only with ?debug in the URL)
   if (/[?&]debug\b/.test(location.search)) {
     window.__game = {
+      jazz: jazzBirthday, // (for rendering the song offline in tests)
       get phase() { return phase; }, get stage() { return phase === 'bake' ? 'bake' : STAGE().key; },
       get sub() { return phase === 'bake' ? K.sub : { catch: CT.sub, whip: W.sub, boss: B.sub }[STAGE().key]; },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },

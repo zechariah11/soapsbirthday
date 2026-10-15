@@ -15,7 +15,7 @@ Soap bakes a giant Sungsimdang strawberry cake:
    (Zech yells for help from the top) until its HP bar is empty. Zech tumbles out, they run to each other and hug, she levels
    up, and he hands her a letter… the wrong one (his whipping rematch request). Then the wrong one
    again (his denied leave request to come a week early). Then, finally, the real letter, with your
-   song (see `song` below) or an 8-bit "Happy Birthday".
+   song (see `song` below) or a little jazz-waltz "Happy Birthday".
 
 All the art is drawn in code (`js/art.js`), so there are no image files to manage. Korean text uses
 the Galmuri11 pixel font (`fonts/`, SIL Open Font License), which only loads when Hangul appears.
@@ -37,7 +37,7 @@ click the ✏️ pencil, then **Commit changes**). The live site updates a minut
 | `greeting`     | first line of the letter |
 | `letter`       | the letter itself: a list of paragraphs |
 | `signOff`, `from` | how the letter is signed |
-| `song` | music for the real letter. Paste a Spotify link (in Spotify: Share → Copy Song Link), or the name of an audio file you put next to `index.html` (e.g. `"our-song.mp3"`). Leave it `""` for the 8-bit "Happy Birthday" |
+| `song` | music for the real letter. Paste a Spotify link (in Spotify: Share → Copy Song Link), or the name of an audio file you put next to `index.html` (e.g. `"our-song.mp3"`). Leave it `""` for the built-in jazz-waltz "Happy Birthday" |
 | `wrongLetters` | the joke letters he hands her first, in order (set to `[]` to skip them). Each has a `title`, a `style` (`"note"` or `"form"`), `lines` (a `- ` line becomes a bullet, `~~like this~~` is crossed out) or `fields` (rows of `["label", "value"]`), an optional `note`, `signature` and red `stamp`, and the `reaction` lines he says after snatching it back |
 
 You can write `{name}`, `{age}` or `{opponent}` inside any text and it will be filled in
