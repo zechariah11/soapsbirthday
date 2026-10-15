@@ -430,6 +430,9 @@ window.Art = (() => {
   const STAR_BIG = outline(spr(['......y......', '.....yyy.....', '.....yhy.....', '....yyhyy....', 'yyyyyhhyyyyyy', '.yyyhhyyyyyy.',
     '..yyhyyyyyd..', '...yyyyyydd..', '...yyyyyddd..', '..yyyy.dddd..', '..yyd...ddd..', '.yd.......dd.'],
     { y: '#ffd54a', h: '#fff3b0', d: '#e0a82a' }), '#9a6a1a');
+  // the cake monster's whipped-cream hand (fingers spread, reaching right)
+  const CREAM_HAND = outline(spr(['.........cc.', '........ccc.', '..ccccc.cc..', '.cccccccc...', 'ccccccccsccc', 'cpcccccccccc', 'ccccccccsccc',
+    '.cccccccc...', '..ccccc.cc..', '........ccc.', '.........cc.'], { c: '#fffaf1', s: '#eadbc8', p: '#ffb3cf' }));
   const HEART = outline(spr(['.RR.RR.', 'RhRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..', '...R...'], { R: '#ff6b98', h: '#ffc2d6' }));
   const PRESENT_ROWS = ['..RR...RR..', '.R..R.R..R.', '..RRRRRRR..', 'LLLLLRLLLLL', 'DDDDDRDDDDD', '.BBBBRBBBB.', '.BBBBRBBBB.', '.RRRRRRRRR.', '.BBBBRBBBB.', '.BBBBRBBBB.', '.DDDDRDDDD.'];
   const PRESENTS = [
@@ -661,10 +664,10 @@ window.Art = (() => {
 
     // party table (left) and sofa (right): proper furniture standing on the floor, with floor showing around them.
     // On tall phones they're drawn bigger and run off the screen edges.
-    const floorH = ih - floorY;
+    const floorH = ih - floorY, feet = Math.min(ih - 6, floorY + Math.round(floorH * 0.42)); // where the characters stand
     const big = !!plan, gs = big ? 5 : 4;
     const tW = Math.round(iw * (big ? 0.7 : portrait ? 0.4 : 0.26)), tb0 = big ? -Math.round(iw * 0.26) : 3, tb1 = tb0 + tW;
-    const tBottom = floorY + Math.round(floorH * (big ? 0.66 : 0.55)), tTop = tBottom - (big ? 32 : 20), hem = tTop + (big ? 15 : 10);
+    const tBottom = feet - 3, tTop = tBottom - (big ? 30 : 20), hem = tTop + (big ? 14 : 10); // its feet sit behind hers, so she's in front of it
     R('rgba(110,60,20,.2)', tb0 - 1, tBottom - 1, tW + 2, 3);                       // shadow on the floor
     const legW = big ? 3 : 2;
     for (const lx of [tb0 + 3, tb1 - 3 - legW]) { R('#7a5232', lx - 1, hem, legW + 2, tBottom - hem); R('#b98a55', lx, hem, legW, tBottom - hem - 1); }
@@ -693,7 +696,7 @@ window.Art = (() => {
     if (big) {
       // a big comfy sofa coming in from the right edge
       const sW = Math.round(iw * 0.8), sx0 = iw - Math.round(iw * 0.43), sx1 = sx0 + sW;
-      const sBottom = floorY + Math.round(floorH * 0.72), sTop = sBottom - 40, seatY = sTop + 18, baseY = sTop + 27, legY = sBottom - 4;
+      const sBottom = feet - 3, sTop = sBottom - 38, seatY = sTop + 17, baseY = sTop + 26, legY = sBottom - 4;
       R('rgba(60,60,90,.2)', sx0 - 1, sBottom - 1, sW + 2, 3);
       for (const lx of [sx0 + 3, sx0 + 40]) R('#6b4a2c', lx, legY, 4, 4);
       box(sx0 + 9, sTop, sW - 18, 19, '#c5cbd8', '#7d8599'); R('#e0e4ec', sx0 + 9, sTop, sW - 18, 2);   // back cushions
@@ -711,7 +714,7 @@ window.Art = (() => {
       R('#ff9ec4', pl + 6, sTop + 10, 3, 3); R('#ffe6f1', pl + 7, sTop + 11, 1, 1);
     } else {
       const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
-      const sBottom = floorY + Math.round(floorH * 0.6), sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
+      const sBottom = feet - 3, sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
       R('rgba(60,60,90,.2)', sx0 - 1, sBottom - 1, sW + 2, 3);                        // shadow
       for (const lx of [sx0 + 2, sx1 - 5]) R('#6b4a2c', lx, legY, 3, 3);              // little wooden feet
       box(sx0 + 6, sTop, sW - 12, 13, '#c5cbd8', '#7d8599');                          // back cushions
@@ -772,7 +775,7 @@ window.Art = (() => {
   return {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
-    STRAW, HEART, STAR,
+    STRAW, HEART, STAR, CREAM_HAND,
     zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter,
   };
 })();

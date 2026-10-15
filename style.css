@@ -92,6 +92,10 @@ body.boss .boss-box { opacity: 1; transform: none; }
   opacity: 0; transform: translateX(30px); transition: opacity .3s steps(3), transform .3s steps(3);
 }
 body.boss .player-box { opacity: 1; transform: none; }
+/* small screens: while a text box is up, the Lv box would sit right on top of her, so it steps aside */
+@media (max-width: 600px), (max-height: 500px) {
+  .bottom:has(> .text-box.show) > .player-box { display: none; }
+}
 .text-box {
   align-self: center; width: min(640px, 100%);
   padding: 16px 40px 16px 18px; min-height: 64px; position: relative;
@@ -212,6 +216,11 @@ body.hud-stage .stage-box { opacity: 1; transform: none; }
 .dialog-btns { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 26px; }
 #replay { display: none; }
 .dialog.done .sign { visibility: visible; }
+/* her song (Spotify player or a play/pause button for an audio file) */
+.song { margin: 10px 0 16px; }
+.song[hidden], .song-btn[hidden] { display: none; }
+.song iframe { display: block; width: 100%; height: 80px; border: 0; border-radius: 12px; }
+.song-btn { font-size: 9px; }
 .dialog.done #replay { display: inline-block; }
 .dialog.done #skip { display: none; }
 
