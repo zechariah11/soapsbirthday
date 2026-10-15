@@ -9,9 +9,10 @@ Soap bakes a giant Sungsimdang strawberry cake:
 2. **Whipped Cream Showdown**: a tap-as-fast-as-you-can race against Zech (in Korean Army
    uniform). It looks like a close race, but he's quietly rubber-banded so she always wins.
 3. **Cutscene**: she stacks the cake layer by layer (tap, or it builds itself), then the cake
-   comes alive, Zech runs off, and it gets hoisted up as a piñata.
-4. **Piñata Cake Monster**: whack the hanging cake with a baguette until its HP bar is empty.
-   She levels up, a letter drops in, and an 8-bit "Happy Birthday" plays.
+   comes alive, grabs Zech and sticks him on top, and gets hoisted up as a piñata.
+4. **Piñata Cake Monster**: whack the hanging cake with a baguette (Zech yells for help from the
+   top) until its HP bar is empty. Zech tumbles out, they run to each other and hug, she levels
+   up, and he hands her the letter while an 8-bit "Happy Birthday" plays.
 
 All the art is drawn in code (`js/art.js`), so there are no image files to manage.
 

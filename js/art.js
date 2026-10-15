@@ -553,33 +553,44 @@ window.Art = (() => {
       R('#ffffff', X + 4, top, 1, len); put(STAR, X, top + len);
     });
 
-    // party table (left) and sofa (right) in the foreground
-    const tx1 = Math.round(iw * (portrait ? 0.44 : 0.3)), tTop = Math.min(ih - 12, floorY + (portrait ? 20 : 14));
-    const items = [[PLATE, 0, -2], [PRESENTS[0], 0, 0], [MINI_CAKE, 0, 0], [HAT, 0, 0], [PRESENTS[1], 0, 0], [PLATE, 0, -2], [HAT, 0, 0]];
-    let ix = 2;
+    // party table (left) and sofa (right): proper furniture standing on the floor, with floor showing around them
+    const floorH = ih - floorY;
+    const tW = Math.round(iw * (portrait ? 0.4 : 0.26)), tb0 = 3, tb1 = tb0 + tW;
+    const tBottom = floorY + Math.round(floorH * 0.55), tTop = tBottom - 20, hem = tTop + 10;
+    R('rgba(110,60,20,.2)', tb0 - 1, tBottom - 1, tW + 2, 3);                       // shadow on the floor
+    for (const lx of [tb0 + 3, tb1 - 5]) { R('#7a5232', lx - 1, hem, 4, tBottom - hem); R('#b98a55', lx, hem, 2, tBottom - hem - 1); }
+    R('#7a5232', tb0 + 7, hem, 1, Math.round((tBottom - hem) * 0.6)); R('#7a5232', tb1 - 8, hem, 1, Math.round((tBottom - hem) * 0.6)); // back legs
+    const items = [[PLATE], [PRESENTS[0]], [MINI_CAKE], [HAT], [PRESENTS[1]], [PLATE], [HAT]];
+    let ix = tb0 + 2;
     for (const [img] of items) {
-      if (ix + img.width > tx1 - 1) break;
+      if (ix + img.width > tb1 - 1) break;
       put(img, ix, tTop + 2 - img.height + (img === PLATE ? 1 : 0));
       ix += img.width + 1;
     }
-    R('#8aa6d4', 0, tTop - 1, tx1 + 1, 1); R('#8aa6d4', tx1, tTop - 1, 1, ih);
-    R('#ffffff', 0, tTop, tx1, 4);
-    for (let j = tTop + 4; j < ih; j++) for (let X = 0; X < tx1; X++) { // blue gingham tablecloth
-      const a = (X >> 2) % 2, b = ((j - tTop) >> 2) % 2;
+    R('#8aa6d4', tb0 - 1, tTop - 1, tW + 2, 1); R('#8aa6d4', tb0 - 1, tTop - 1, 1, hem - tTop + 2); R('#8aa6d4', tb1, tTop - 1, 1, hem - tTop + 2);
+    R('#ffffff', tb0, tTop, tW, 3);
+    for (let j = tTop + 3; j < hem; j++) for (let X = tb0; X < tb1; X++) { // blue gingham tablecloth
+      const a = ((X - tb0) >> 2) % 2, b = ((j - tTop) >> 2) % 2;
       R(a && b ? '#b9d3fb' : a || b ? '#dde9fd' : '#ffffff', X, j);
     }
-    R('#9fbbe3', 0, tTop + 4, tx1, 1);
+    for (let X = tb0; X < tb1; X++) { const sc = (X - tb0) % 4 === 1 || (X - tb0) % 4 === 2; R(sc ? '#dde9fd' : '#8aa6d4', X, hem, 1, 1); if (sc) R('#8aa6d4', X, hem + 1, 1, 1); } // scalloped hem
+    R('#9fbbe3', tb0, tTop + 3, tW, 1);
 
-    const sx0 = Math.round(iw * (portrait ? 0.58 : 0.7)), sTop = floorY + (portrait ? 10 : 4), seatY = sTop + 12;
-    box(sx0 + 5, sTop, iw, 14, '#c5cbd8', '#7d8599');
-    R('#e0e4ec', sx0 + 5, sTop, iw, 2);
-    for (let X = sx0 + 24; X < iw; X += 20) R('#a9b0c0', X, sTop + 2, 1, 11);
-    box(sx0 + 9, seatY, iw, ih, '#d0d5e0', '#7d8599'); R('#e6e9f0', sx0 + 9, seatY, iw, 2); R('#aeb5c5', sx0 + 9, seatY + 8, iw, ih);
-    box(sx0, sTop + 6, 9, ih, '#b3bacb', '#7d8599'); R('#d3d8e3', sx0 + 1, sTop + 6, 7, 2);
-    const bx0 = sx0 + 12, bw0 = Math.min(24, iw - bx0 - 2);
-    for (let j = 0; j < 16; j++) for (let i = 0; i < bw0; i++) R(((i / 3 | 0) + (j / 3 | 0)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 2 + j);
-    for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 18);
-    if (iw - bx0 > 44) { box(bx0 + 30, sTop + 4, 12, 9, '#eef0f5', '#7d8599'); R('#ffffff', bx0 + 31, sTop + 5, 3, 1); }
+    const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
+    const sBottom = floorY + Math.round(floorH * 0.6), sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
+    R('rgba(60,60,90,.2)', sx0 - 1, sBottom - 1, sW + 2, 3);                        // shadow
+    for (const lx of [sx0 + 2, sx1 - 5]) R('#6b4a2c', lx, legY, 3, 3);              // little wooden feet
+    box(sx0 + 6, sTop, sW - 12, 13, '#c5cbd8', '#7d8599');                          // back cushions
+    R('#e0e4ec', sx0 + 6, sTop, sW - 12, 2);
+    for (let X = sx0 + 6 + Math.round((sW - 12) / 2); X < sx1 - 6; X += 99) R('#a9b0c0', X, sTop + 2, 1, 10);
+    box(sx0 + 6, seatY, sW - 12, 7, '#d0d5e0', '#7d8599'); R('#e6e9f0', sx0 + 6, seatY, sW - 12, 2);   // seat
+    R('#a9b0c0', sx0 + 6 + Math.round((sW - 12) / 2), seatY + 2, 1, 5);
+    box(sx0 + 3, baseY, sW - 6, legY - baseY, '#aeb5c5', '#7d8599');               // front base
+    for (const ax of [sx0, sx1 - 7]) { box(ax, sTop + 6, 7, legY - sTop - 6, '#b3bacb', '#7d8599'); R('#d3d8e3', ax + 1, sTop + 6, 5, 2); } // arms
+    const bx0 = sx0 + 9, bw0 = Math.min(22, sW - 30);                                // checkered blanket over the back
+    for (let j = 0; j < 15; j++) for (let i = 0; i < bw0; i++) R(((i / 3 | 0) + (j / 3 | 0)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
+    for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 16);
+    if (sW - 30 - bw0 > 14) { box(sx1 - 22, sTop + 4, 11, 8, '#eef0f5', '#7d8599'); R('#ffffff', sx1 - 21, sTop + 5, 3, 1); } // pillow
 
     // balloons are drawn every frame so they can bob
     const balloons = [];

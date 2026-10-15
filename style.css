@@ -170,8 +170,9 @@ body.hud-stage .stage-box { opacity: 1; transform: none; }
 .envelope-wrap.show { visibility: visible; }
 .envelope { width: var(--env-w, 170px); filter: drop-shadow(0 10px 0 rgba(19, 32, 74, .3)); cursor: pointer; }
 .envelope canvas { width: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
-.envelope-wrap.show .envelope { pointer-events: auto; animation: drop .7s steps(7) both, bob 1.2s .7s steps(2) infinite; }
-@keyframes drop { 0% { transform: translateY(-70vh); } 70% { transform: translateY(12px); } 85% { transform: translateY(-6px); } 100% { transform: none; } }
+.envelope-wrap.show .envelope { pointer-events: auto; animation: handed .7s steps(7) both, bob 1.2s .7s steps(2) infinite; }
+/* he hands it over: the letter pops up from where the two of them are standing */
+@keyframes handed { 0% { transform: translateY(26vh) scale(.2); } 70% { transform: translateY(-10px) scale(1.08); } 85% { transform: translateY(4px) scale(.98); } 100% { transform: none; } }
 @keyframes bob { 50% { transform: translateY(-8px); } }
 .env-caption { padding: 10px 14px; font-family: var(--pixel); font-size: 10px; animation: blink 1.1s steps(1) infinite; }
 

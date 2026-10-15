@@ -157,7 +157,7 @@
   /* ================= layout: a low-res canvas scaled up with crisp pixels ================= */
   let S = 4, iw = 0, ih = 0, room = null, floorY = 0, balloons = [], tinsel = null, ropeTarget = 30;
   const ptr = { x: 0, y: 0 };
-  const kid = { x: 0, y: 0, vx: 0, vy: 0, face: 1, walkT: 0, happyT: 0, dustT: 0, hopT: 0 };
+  const kid = { x: 0, y: 0, vx: 0, vy: 0, face: 1, walkT: 0, happyT: 0, dustT: 0, hopT: 0, hug: false };
   const parts = [];
   const CT = { items: [] }; // strawberry-catch falling items (declared early so layout() can rescale them)
   function layout() {
@@ -174,7 +174,8 @@
     document.documentElement.style.setProperty('--env-w', 34 * Math.max(4, S) + 'px');
     if (oldW > 0 && oldH > 0) {
       const fx = iw / oldW, fy = ih / oldH;
-      for (const o of [kid, ptr, ...parts, ...CT.items, K.zech]) { o.x *= fx; o.y *= fy; if (o.ground) o.ground *= fy; }
+      for (const o of [kid, ptr, ...parts, ...CT.items, ZE]) { o.x *= fx; o.y *= fy; if (o.ground) o.ground *= fy; }
+      ZE.tx *= fx; ZE.fromX *= fx; ZE.fromY *= fy;
     } else {
       kid.x = ptr.x = iw * 0.25; kid.y = ptr.y = ih * 0.75;
     }
@@ -281,14 +282,14 @@
   const bag = { a: 0.35, w: 0, ghosts: [] };   // baguette angle (0 = straight up) and spin speed
   const restAngle = () => kid.face * 0.35;
   const ending = () => phase === 'ready' || phase === 'opening' || phase === 'letter';
-  const hasBaguette = () => inStage('boss') || ending() || (phase === 'bake' && K.grabbed);
+  const hasBaguette = () => (inStage('boss') && B.sub !== 'rescue') || (phase === 'bake' && K.grabbed);
   function girlPose() {
     const side = kid.face > 0 ? 'R' : 'L';
     const speed = Math.hypot(kid.vx, kid.vy), moving = speed > 12;
     const legs = moving ? ['walkA', 'idle', 'walkB', 'idle'][Math.floor(kid.walkT) % 4] : 'idle';
-    const happy = kid.happyT > 0 || ending() || (phase === 'bake' && !K.alive) ? 1 : 0;
+    const happy = kid.happyT > 0 || ending() || kid.hug || (phase === 'bake' && !K.alive) ? 1 : 0;
     let bob = moving ? (Math.floor(kid.walkT) % 2 ? -1 : 0) : (Math.floor(time * 2) % 2 ? -1 : 0);
-    if (ending() && !moving) bob = Math.floor(time * 3) % 3 === 0 ? -3 : 0;
+    if (kid.hug && !moving) bob = Math.floor(time * 2.5) % 2 ? -1 : 0; // swaying together in the hug
     if (kid.hopT > 0) bob -= 1;
     let sx = Math.round(kid.x - A.GIRL_W / 2);
     if (CT.dizzyT > 0 && inStage('catch')) sx += Math.floor(time * 30) % 2 ? 1 : -1;
@@ -297,7 +298,7 @@
     return { img: A.girl[legs + happy + side], sx, sy, gx: sx + gp.x, gy: sy + gp.y };
   }
   function kidTarget() {
-    if (ending()) return { x: iw / 2 - (34 * Math.max(4, S)) / S / 2 - 14, y: ih / 2 + 4 };
+    if (ending() || (inStage('boss') && B.sub === 'rescue')) return { x: hugX() - 7, y: groundY() - A.GIRL_H / 2 + 1 };
     if (inStage('whip')) return { x: whipGeo().her, y: groundY() - A.GIRL_H / 2 + 1 };
     if (phase === 'bake') return { x: bakeSpot().her, y: groundY() - A.GIRL_H / 2 + 1 };
     if (inStage('catch')) {
@@ -318,7 +319,7 @@
 
     let want = kid.face;
     if (inStage('boss') && cake.alive) { const cx = cakeX() + CAKE.w / 2; if (Math.abs(cx - kid.x) > 6) want = Math.sign(cx - kid.x); }
-    else if (ending() || ((inStage('whip') || phase === 'bake') && speed < 20)) want = 1;
+    else if (ending() || (inStage('boss') && B.sub === 'rescue') || ((inStage('whip') || phase === 'bake') && speed < 20)) want = 1;
     else if (Math.abs(kid.vx) > 25) want = Math.sign(kid.vx);
     if (want !== kid.face) { kid.face = want; bag.a = -bag.a; bag.w = -bag.w; }
 
@@ -599,6 +600,63 @@
   }
 
   /* =====================================================================
+     ZECH: watches her bake… gets kidnapped by the cake… gets rescued… hugs her
+     ===================================================================== */
+  // x = centre, y = feet, in game pixels
+  const ZE = { mode: 'off', x: 0, y: 0, vx: 0, vy: 0, tx: 0, face: 'happy', t: 0, fromX: 0, fromY: 0, quipT: 0, cheerT: 0, dizzyT: 0, hug: false, reunite: false, heartT: 0 };
+  const hugX = () => Math.round(iw / 2);
+  function zechReset() { Object.assign(ZE, { mode: 'off', vx: 0, vy: 0, face: 'happy', t: 0, quipT: 2, cheerT: 0, dizzyT: 0, hug: false, reunite: false, heartT: 0 }); }
+  function zechOnTop() { // stuck in the strawberry mountain on top of the cake, left of the bow
+    const c = cakePosNow();
+    return { x: c.x + 14, y: c.y + 18 };
+  }
+  function updateZech(dt) {
+    if (ZE.mode === 'off') return;
+    ZE.t += dt; ZE.dizzyT -= dt; ZE.cheerT -= dt;
+    if (ZE.mode === 'walk') {
+      ZE.y = groundY();
+      const sp = (ZE.reunite ? 70 : 60) * dt;
+      ZE.x += clamp(ZE.tx - ZE.x, -sp, sp);
+    } else if (ZE.mode === 'yank') { // snatched up by the cake in an arc
+      const t = clamp(ZE.t / 0.7, 0, 1), to = zechOnTop();
+      ZE.x = ZE.fromX + (to.x - ZE.fromX) * t;
+      ZE.y = ZE.fromY + (to.y - ZE.fromY) * t - Math.sin(t * Math.PI) * 28;
+      if (t >= 1) ZE.mode = 'ontop';
+    } else if (ZE.mode === 'ontop') {
+      const p = zechOnTop(); ZE.x = p.x; ZE.y = p.y;
+      if (inStage('boss') && B.sub === 'battle' && (ZE.quipT -= dt) <= 0) {
+        ZE.quipT = rand(3, 4.5);
+        popWord(ZE.x, ZE.y - 24, pick(['HELP!', `GO ${NAME()}!`, 'SAVE ME!', 'you got this!']), false, '#d6f5c4');
+      }
+    } else if (ZE.mode === 'fall') { // dropped when the cake bursts
+      ZE.vy += 380 * dt; ZE.x += ZE.vx * dt; ZE.y += ZE.vy * dt;
+      if (ZE.y >= groundY() && ZE.vy > 0) {
+        ZE.y = groundY(); ZE.mode = 'walk'; ZE.dizzyT = 0.9; ZE.face = 'happy'; sfx.thud();
+        if (!ZE.reunite) ZE.tx = ZE.x;
+        for (let i = 0; i < 6; i++) parts.push({ x: ZE.x + rand(-6, 6), y: ZE.y, vx: rand(-20, 20), vy: rand(-20, -6), g: 0, life: 0.4, col: '#ffffff', size: 1, ground: 1e9 });
+      }
+    }
+    if (ZE.hug && (ZE.heartT -= dt) <= 0) { // hearts float up from the hug
+      ZE.heartT = 0.45;
+      parts.push({ img: A.HEART, x: hugX() + rand(-5, 5), y: groundY() - 36, vx: rand(-6, 6), vy: -16, g: 0, life: 1.8, ground: 1e9 });
+    }
+  }
+  function drawZech() {
+    if (ZE.mode === 'off') return;
+    const img = A.zech[ZE.cheerT > 0 || ZE.hug ? 'happy' : ZE.face];
+    let x = Math.round(ZE.x - img.width / 2), y = Math.round(ZE.y) - img.height + 1;
+    if (ZE.mode === 'walk' && Math.abs(ZE.tx - ZE.x) > 1) y += Math.floor(ZE.t * 10) % 2 ? -1 : 0;
+    if (ZE.hug) y += Math.floor(time * 2.5) % 2 ? -1 : 0;
+    if (ZE.dizzyT > 0) x += Math.floor(time * 30) % 2 ? 1 : -1;
+    if (ZE.mode !== 'ontop') { g.fillStyle = 'rgba(43,39,69,.22)'; if (ZE.mode === 'walk') g.fillRect(Math.round(ZE.x) - 6, Math.round(ZE.y), 12, 2); }
+    g.drawImage(img, x, y);
+    if (ZE.dizzyT > 0) {
+      g.fillStyle = '#ffd84a';
+      for (let k = 0; k < 3; k++) { const a = time * 7 + k * 2.1; g.fillRect(Math.round(ZE.x + Math.cos(a) * 8), Math.round(y - 2 + Math.sin(a) * 2), 2, 2); }
+    }
+  }
+
+  /* =====================================================================
      STAGE 3: the giant strawberry cake boss
      ===================================================================== */
   const cake = { show: false, alive: false, hp: 5, rope: -80, ropeV: 0, theta: 0, omega: 0, landed: false, flashT: 0, blinkT: 0, shakeT: 0, hurtT: 0, faintT: 0 };
@@ -612,6 +670,8 @@
     Object.assign(cake, { hp: C.hitsToBreak, flashT: 0, blinkT: 0, shakeT: 0, hurtT: 0, faintT: 0 });
     if (keepCake) Object.assign(cake, { show: true, alive: true, rope: ropeTarget, ropeV: 0, theta: 0, omega: 0, landed: true });
     else Object.assign(cake, { show: false, alive: false, rope: -CAKE.h - 12, ropeV: 0, theta: rand(-0.2, 0.2), omega: 0, landed: false });
+    if (ZE.mode !== 'ontop') { zechReset(); ZE.mode = 'ontop'; } // the cake has him (also when starting right at this stage)
+    ZE.face = 'tired'; ZE.quipT = 2.5; ZE.hug = false; ZE.reunite = false; kid.hug = false;
   }
   function bossBegin() {
     Object.assign(cake, { show: true, alive: true });
@@ -621,8 +681,8 @@
     document.body.classList.add('follow', 'boss');
     flashEl.classList.remove('go'); retrigger(flashEl, 'twice');
     sfx.battle();
-    const intro = cake.landed ? `The ${BOSS()} wants to battle!` : `A wild ${BOSS()} appeared!`;
-    later(800, () => say([intro, `Go, ${NAME()}! Whack it with your baguette!`], () => {
+    const intro = cake.landed ? `The ${BOSS()} is holding ${OPP()} hostage!` : `A wild ${BOSS()} appeared… and it kidnapped ${OPP()}!`;
+    later(800, () => say([intro, `Go, ${NAME()}! Whack it with your baguette and rescue ${OPP()}!`], () => {
       B.sub = 'battle';
       hint(coarse ? 'DRAG TO MOVE · TAP TO SWING' : 'MOVE TO WALK · CLICK TO SWING');
     }));
@@ -683,7 +743,7 @@
     B.hitCD = 0.25; stopT = 0.07; shakeT = 0.2; shakeA = 1;
     cake.flashT = 0.07; cake.blinkT = 0.45; cake.hurtT = 0.55; cake.shakeT = 0.3;
     cake.omega += kid.face * 1.6;
-    bag.w *= -0.3; kid.happyT = 0.45;
+    bag.w *= -0.3; kid.happyT = 0.45; ZE.cheerT = 0.6;
     sfx.hit();
     const last = cake.hp === 0;
     popWord(x, y, last ? 'CRITICAL HIT!' : B.hits === 1 ? "IT'S SUPER EFFECTIVE!" : pick(WORDS));
@@ -714,12 +774,29 @@
         col: pick(['#3d7bff', '#8ec5ff', '#ffffff', '#ff6b98', '#ffe27a', '#7ad37a']), ground: rand(floorY + 2, ih - 2) });
     }
     popWord(mx, my, 'HAPPY BIRTHDAY!', true);
+    // he tumbles out of the strawberries and lands on the floor
+    if (ZE.mode === 'ontop' || ZE.mode === 'yank') { ZE.mode = 'fall'; ZE.vx = (hugX() + 8 - ZE.x) * 0.9; ZE.vy = -110; ZE.face = 'tired'; }
     later(900, () => {
-      const lines = [`${BOSS()} fainted!`];
+      const lines = [`${BOSS()} fainted!`, { text: `${NAME()} rescued ${OPP()}!`, on: reunite }];
       if (C.age) lines.push({ text: `${NAME()} grew to Lv. ${C.age}!`, on: levelUp });
-      lines.push(`${NAME()} found a letter!`);
+      lines.push({ text: `${OPP()}: My hero! Happy birthday, ${NAME()}!`, on: hug });
+      lines.push(`${OPP()} handed ${NAME()} a letter…`);
       say(lines, showEnvelope);
     });
+  }
+  function reunite() { // they run to each other in the middle of the room
+    B.sub = 'rescue';
+    if (innerWidth < 700) document.body.classList.remove('boss'); // on phones the HUD boxes would cover the hug (the Lv box comes back with the letter)
+    ZE.reunite = true; ZE.tx = hugX() + 8;
+    if (ZE.mode !== 'fall') ZE.mode = 'walk';
+    const pose = girlPose(); // she lets go of the baguette
+    const b = A.baguette(bag.a);
+    parts.push({ img: b.c, x: pose.gx, y: pose.gy, vx: kid.face * -20, vy: -60, g: 300, ground: groundY() - 2, life: 6 });
+  }
+  function hug() {
+    ZE.hug = true; kid.hug = true; ZE.heartT = 0;
+    sfx.levelUp();
+    popWord(hugX(), groundY() - 44, '♥', true, '#ff6b98');
   }
   function levelUp() {
     playerLv.textContent = `Lv${C.age}`; retrigger(playerLv, 'up');
@@ -730,7 +807,8 @@
      CUTSCENE: she builds the cake… and it comes alive as the piñata monster
      ===================================================================== */
   const LAYER_WORDS = ['CAKE BOARD!', 'SPONGE!', 'CREAM + BERRIES!', 'SPONGE!', 'CREAM + BERRIES!', 'SPONGE + CREAM!', 'STRAWBERRY TOP!'];
-  const K = { sub: 'idle', layers: 0, dropT: 0, autoT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, zech: { x: 0, y: 0 }, zFace: 'happy', zGone: false, shakeT: 0 };
+  const K = { sub: 'idle', layers: 0, dropT: 0, autoT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 };
+  const bakeShakeDx = () => (K.shakeT > 0 ? (Math.floor(K.t * 30) % 2 ? 1 : -1) : 0);
   const bakeSpot = () => {
     const base = groundY(), table = A.counter(CAKE.w + 6, 8, 'soap');
     return { base, table, cx: Math.round(iw / 2 - CAKE.w / 2), cy: base - table.height + 2 - CAKE.h, her: Math.round(iw / 2 - CAKE.w / 2 - 14), him: Math.round(iw / 2 + CAKE.w / 2 + 14) };
@@ -739,8 +817,9 @@
     clearStageUi();
     parts.length = 0;
     phase = 'bake';
-    Object.assign(K, { sub: 'intro', layers: 0, dropT: 0, autoT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, zFace: 'happy', zGone: false, shakeT: 0 });
-    K.zech.x = Math.round(iw * 0.7); K.zech.y = groundY();
+    Object.assign(K, { sub: 'intro', layers: 0, dropT: 0, autoT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 });
+    zechReset();
+    Object.assign(ZE, { mode: 'walk', x: Math.round(iw * 0.7), y: groundY(), tx: bakeSpot().him, face: 'happy' });
     kid.happyT = 0;
     say([
       'Strawberries: check. Whipped cream: check!',
@@ -759,8 +838,9 @@
       later(700, () => say([
         `Ta-da! A giant Sungsimdang-style strawberry cake!`,
         { text: '…wait. Why is the cake moving?!', on: () => { K.shakeT = 1.2; sfx.thud(); } },
-        { text: `The cake came alive!!`, on: () => { K.alive = true; K.zFace = 'tired'; flashEl.classList.remove('twice'); retrigger(flashEl, 'go'); sfx.battle(); } },
-        { text: `${OPP()}: It's all you, ${NAME()}! (${OPP()} ran away.)`, on: () => { K.zGone = true; } },
+        { text: `The cake came alive!!`, on: () => { K.alive = true; ZE.face = 'tired'; flashEl.classList.remove('twice'); retrigger(flashEl, 'go'); sfx.battle(); } },
+        { text: `It grabbed ${OPP()}!!`, on: () => { Object.assign(ZE, { mode: 'yank', t: 0, fromX: ZE.x, fromY: ZE.y }); sfx.whoosh(); } },
+        `${OPP()}: HELP!! ${NAME()}!!`,
         { text: `${NAME()} grabbed her trusty baguette!`, on: () => { K.grabbed = true; bag.a = restAngle(); sfx.coin(); } },
       ], () => { K.sub = 'rope'; K.ropeT = 0; }));
     }
@@ -769,9 +849,7 @@
   function bakeUpdate(dt) {
     K.t += dt; K.dropT = Math.max(0, K.dropT - dt * 5); K.shakeT -= dt;
     if (K.sub === 'build' && (K.autoT -= dt) <= 0) addLayer(); // keeps going even if she doesn't tap
-    // Zech walks to his spot next to the cake… and later runs off
-    const tx = K.zGone ? iw + 30 : bakeSpot().him;
-    K.zech.x += clamp(tx - K.zech.x, -(K.zGone ? 120 : 60) * dt, (K.zGone ? 120 : 60) * dt);
+    if (ZE.mode === 'walk') ZE.tx = bakeSpot().him; // he waits next to the cake while she builds it
     if (K.sub === 'rope') { K.ropeT += dt; if (K.ropeT >= 0.6) { K.sub = 'lift'; K.liftT = 0; sfx.whoosh(); } }
     if (K.sub === 'lift') {
       K.liftT += dt;
@@ -789,13 +867,14 @@
     // the table stays on the floor; the cake sits on it until it gets hoisted up
     g.drawImage(sp.table, Math.round(iw / 2 - sp.table.width / 2), sp.base - sp.table.height + 2);
     const pos = bakeCakePos();
-    let dx = K.shakeT > 0 ? (Math.floor(K.t * 30) % 2 ? 1 : -1) : 0;
+    const dx = bakeShakeDx();
     if (K.sub === 'rope' || K.sub === 'lift' || K.sub === 'handoff') { // the rope comes down from the ceiling and hooks the bow
       const reach = K.sub === 'rope' ? clamp(K.ropeT / 0.6, 0, 1) : 1;
       const endX = pos.x + CAKE.ropeX, endY = Math.round((pos.y + 1) * reach);
       g.fillStyle = '#3d7bff'; pixLine(iw / 2, 0, iw / 2 + (endX - iw / 2) * reach, endY);
       g.fillStyle = '#a9d0ff'; pixLine(iw / 2 + 1, 0, iw / 2 + 1 + (endX - iw / 2) * reach, endY);
     }
+    if (ZE.mode === 'ontop') drawZech(); // the cake covers his legs
     const n = K.layers;
     if (n > 0) {
       const cut = CAKE.layerCuts[n - 1], prevCut = n > 1 ? CAKE.layerCuts[n - 2] : CAKE.h;
@@ -806,10 +885,7 @@
       g.drawImage(CAKE.img, 0, cut, CAKE.w, prevCut - cut, pos.x + dx, pos.y + cut + drop, CAKE.w, prevCut - cut);
       if (K.alive) g.drawImage(CAKE.faces[K.sub === 'lift' || K.sub === 'handoff' ? 'angry' : (Math.floor(K.t * 4) % 2 ? 'angry' : 'hurt')], pos.x + dx + CAKE.faceX, pos.y + CAKE.faceY);
     }
-    if (K.zech.x < iw + 20) {
-      const z = A.zech[K.zFace], bob = K.zGone ? (Math.floor(K.t * 10) % 2 ? -1 : 0) : 0;
-      g.drawImage(z, Math.round(K.zech.x - z.width / 2), sp.base - z.height + 1 + bob);
-    }
+    if (ZE.mode !== 'ontop') drawZech();
   }
 
   /* ================= stages + flow ================= */
@@ -817,7 +893,7 @@
   const STAGES = [
     { key: 'catch', title: 'Strawberry Catch', how: () => (coarse ? 'Drag left & right to catch!' : 'Move left & right to catch!'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
     { key: 'whip', title: 'Whipped Cream Showdown', how: () => (coarse ? 'Tap as fast as you can!' : 'Click as fast as you can!'), reset: whipReset, begin: whipBegin, update: whipUpdate, tap: whipTap },
-    { key: 'boss', title: 'Piñata Cake Monster', how: () => (coarse ? 'Tap to swing your baguette!' : 'Click to swing your baguette!'), reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
+    { key: 'boss', title: 'Piñata Cake Monster', how: () => `${coarse ? 'Tap' : 'Click'} to swing your baguette and rescue ${C.opponentName}!`, reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
   ];
   function clearStageUi() {
     resetText(); hideCallout();
@@ -888,7 +964,7 @@
     envWrap.classList.remove('show'); drawEnv(false);
     // wipe every stage's leftovers from the previous run up front
     Object.assign(W, { sub: 'idle', p: 0, z: 0, taps: 0, zFace: 'normal', said: {} });
-    catchReset(); bossReset(false);
+    catchReset(); bossReset(false); zechReset(); kid.hug = false;
     if (at === 'bake') { stageIdx = 1; startBake(); } else showCard(at);
   }
   function showEnvelope() {
@@ -954,7 +1030,7 @@
   function update(dt) {
     shakeT -= dt; lockT -= dt;
     if (phase === 'card') { cardMin -= dt; if ((cardT -= dt) <= 0) endCard(); }
-    if (phase !== 'loading' && phase !== 'title') updateKid(dt);
+    if (phase !== 'loading' && phase !== 'title') { updateKid(dt); updateZech(dt); }
     if (phase === 'stage' || phase === 'card') STAGE().update(dt);
     else if (phase === 'bake') bakeUpdate(dt);
     else if (ending()) updateCake(dt);
@@ -993,17 +1069,26 @@
     if (p.img) g.drawImage(p.img, Math.round(p.x - p.img.width / 2), Math.round(p.y - p.img.height / 2));
     else { g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size); }
   }
-  function drawCake() {
-    if (!cake.show || cake.rope <= -CAKE.h - 8) return;
+  function bossCakePos() {
     const x0 = cakeX(), y0 = cakeY();
     const bob = cake.alive && Math.floor(time * 2) % 2 ? 1 : 0;
     let dx = 0;
     if (cake.faintT > 0) dx = Math.floor(time * 40) % 2 ? 2 : -2;
     else if (cake.shakeT > 0) dx = Math.floor(time * 30) % 2 ? 1 : -1;
+    return { x: x0 + dx, y: y0 + bob, x0, y0, dx, bob };
+  }
+  function cakePosNow() {
+    if (phase === 'bake') { const p = bakeCakePos(); return { x: p.x + bakeShakeDx(), y: p.y }; }
+    return bossCakePos();
+  }
+  function drawCake() {
+    if (!cake.show || cake.rope <= -CAKE.h - 8) return;
+    const { x0, y0, dx, bob } = bossCakePos();
     if (cake.rope > 0) {
       g.fillStyle = '#3d7bff'; pixLine(iw / 2, 0, x0 + CAKE.ropeX + dx, y0 + bob + 1);
       g.fillStyle = '#a9d0ff'; pixLine(iw / 2 + 1, 0, x0 + CAKE.ropeX + 1 + dx, y0 + bob + 1);
     }
+    if (ZE.mode === 'ontop') drawZech(); // he's stuck in the strawberries, so the cake covers his legs
     const hidden = cake.blinkT > 0 && Math.floor(cake.blinkT * 16) % 2 === 0;
     if ((cake.alive || cake.faintT > 0) && !hidden) {
       const X = x0 + dx, Y = y0 + bob;
@@ -1061,6 +1146,7 @@
     if (phase !== 'loading' && phase !== 'title') {
       if (inStage('whip')) whipRender();
       else {
+        if (phase !== 'bake' && ZE.mode !== 'ontop') drawZech();
         const pose = drawGirl();
         if (inStage('catch')) { catchRenderBowl(pose); catchRenderItems(); }
       }
@@ -1089,7 +1175,8 @@
     window.__game = {
       get phase() { return phase; }, get stage() { return phase === 'bake' ? 'bake' : STAGE().key; },
       get sub() { return phase === 'bake' ? K.sub : { catch: CT.sub, whip: W.sub, boss: B.sub }[STAGE().key]; },
-      get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed, zechX: K.zech.x * S }; },
+      get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
+      get zech() { return { mode: ZE.mode, x: ZE.x * S, y: ZE.y * S, hug: ZE.hug, face: ZE.face }; },
       get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps }; },
       get catch() { return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S })) }; },
       get kid() { return { x: kid.x * S, y: kid.y * S }; }, get cakeHp() { return cake.hp; },
