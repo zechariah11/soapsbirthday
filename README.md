@@ -1,7 +1,7 @@
-# soap's birthday ♡
+# sophia's birthday ♡
 
 A tiny pixel-art birthday game in three stages, all in the same pixel party room. Princess
-Soap bakes a giant Sungsimdang strawberry cake:
+Sophia bakes a giant Sungsimdang strawberry cake:
 
 1. **Strawberry Catch**: strawberries rain from the ceiling; she runs left/right with a bowl to
    catch them (dodging burnt toast). There's no timer and no way to lose: if she keeps missing,

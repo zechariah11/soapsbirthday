@@ -1,7 +1,7 @@
 (() => {
   /* ================= config.json ================= */
   const DEFAULTS = {
-    name: 'Soap',
+    name: 'Sophia',
     age: 27,
     opponentName: 'Zech',
     whipTaps: 40,
@@ -423,7 +423,7 @@
     else if (phase === 'ready') openEnvelope();
   }
 
-  /* ================= little Soap ================= */
+  /* ================= little Sophia ================= */
   const bag = { a: 0.35, w: 0, ghosts: [] };   // baguette angle (0 = straight up) and spin speed
   const restAngle = () => kid.face * 0.35;
   const ending = () => phase === 'ready' || phase === 'opening' || phase === 'letter' || phase === 'wrong' || phase === 'snatch';
@@ -622,7 +622,7 @@
   function drawWhisk(hx, hy, tx, ty, who) {
     const dx = tx - hx, dy = ty - hy, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, px = -uy, py = ux;
     thick(hx - ux * 2, hy - uy * 2, hx + ux * 2, hy + uy * 2, 3, A.OUT);
-    thick(hx - ux * 2, hy - uy * 2, hx + ux * 2, hy + uy * 2, 1, who === 'soap' ? '#ff9ec4' : '#8a6a3a');
+    thick(hx - ux * 2, hy - uy * 2, hx + ux * 2, hy + uy * 2, 1, who === 'sophia' ? '#ff9ec4' : '#8a6a3a');
     const sx = hx + ux * 2, sy = hy + uy * 2;
     for (const [bulge, col] of [[-3.4, '#4e5674'], [3.4, '#4e5674'], [-2.6, '#c3cad9'], [2.6, '#c3cad9'], [-1.2, '#e6ebf5'], [1.2, '#e6ebf5'], [0, '#ffffff']]) {
       g.fillStyle = col;
@@ -666,7 +666,7 @@
   function whipRender() {
     const G = whipGeo();
     const herImg = A.girl[`whisk${kid.happyT > 0 ? 1 : 0}R`];
-    drawChef(herImg, G.her, 'soap', W.p, W.sPh, 1, G.k, kid.hopT > 0 ? -G.k : 0, G.off, { x: 18, y: 20 }, '#ffffff', '#ffffff', G.cw);
+    drawChef(herImg, G.her, 'sophia', W.p, W.sPh, 1, G.k, kid.hopT > 0 ? -G.k : 0, G.off, { x: 18, y: 20 }, '#ffffff', '#ffffff', G.cw);
     const zBob = W.sub === 'race' && W.stallT < 0.3 && Math.floor(W.zJig) % 2 ? -G.k : 0;
     drawChef(A.zechWhisk[W.zFace], G.him, 'zech', W.z, Math.PI - W.zPh, -1, G.k, zBob, G.off, { x: 4, y: 18 }, '#7b8758', '#f6cfa8', G.cw);
   }
@@ -763,7 +763,7 @@
     ], () => stageClear()));
   }
   function catchRenderBowl(pose) {
-    const bowl = A.BOWLS.soap, bx = Math.round(kid.x - bowl.width / 2) + (pose.sx - Math.round(kid.x - A.GIRL_W / 2)), by = pose.sy + 19;
+    const bowl = A.BOWLS.sophia, bx = Math.round(kid.x - bowl.width / 2) + (pose.sx - Math.round(kid.x - A.GIRL_W / 2)), by = pose.sy + 19;
     // strawberries piling up in the bowl
     const n = Math.min(CT.caught, 12);
     for (let i = 0; i < n; i++) {
@@ -1131,7 +1131,7 @@
   const K = { sub: 'idle', layers: 0, dropT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 };
   const bakeShakeDx = () => (K.shakeT > 0 ? (Math.floor(K.t * 30) % 2 ? 1 : -1) : 0);
   const bakeSpot = () => {
-    const base = groundY(), table = A.counter(CAKE.w + 6, 8, 'soap');
+    const base = groundY(), table = A.counter(CAKE.w + 6, 8, 'sophia');
     return { base, table, cx: Math.round(iw / 2 - CAKE.w / 2), cy: base - table.height + 2 - CAKE.h, her: Math.round(iw / 2 - CAKE.w / 2 - 14), him: Math.round(iw / 2 + CAKE.w / 2 + 14) };
   };
   function startBake() {

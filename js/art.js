@@ -110,7 +110,7 @@ window.Art = (() => {
     return outline(c, '#59607c');
   }
 
-  /* ---------------- little Princess Soap ---------------- */
+  /* ---------------- little Princess Sophia ---------------- */
   // same pose as the reference photo (one hand on her hip, the other at her side holding the
   // baguette), now in a light-blue Cinderella ball gown with puff sleeves, gloves and a crown
   const GIRL_PAL = {
@@ -384,12 +384,12 @@ window.Art = (() => {
   /* ---------------- kitchen props for the mini-games ---------------- */
   const BOWL_ROWS = ['WWWWWWWWWWWWWWWW', 'bBBBBBBBBBBBBBBb', '.bBBhBBBBBBBBBb.', '..bBBBBBBBBBBb..', '...bbbbbbbbbb...', '.....ffffff.....'];
   const BOWLS = {
-    soap: outline(spr(BOWL_ROWS, { W: '#ffffff', B: '#a9d0ff', b: '#7fb2f0', h: '#e4f2ff', f: '#7fb2f0' })),
+    sophia: outline(spr(BOWL_ROWS, { W: '#ffffff', B: '#a9d0ff', b: '#7fb2f0', h: '#e4f2ff', f: '#7fb2f0' })),
     zech: outline(spr(BOWL_ROWS, { W: '#f4f6fa', B: '#c9ced8', b: '#9aa1b0', h: '#eef0f5', f: '#9aa1b0' })),
   };
   const WHISK_ROWS = ['...h...', '...h...', '...h...', '...h...', '..www..', '.w.w.w.', 'w..w..w', 'w..w..w', 'w..w..w', '.w.w.w.', '..www..'];
   const WHISKS = {
-    soap: outline(spr(WHISK_ROWS, { h: '#ff9ec4', w: '#dfe4ee' }), '#5b6380'),
+    sophia: outline(spr(WHISK_ROWS, { h: '#ff9ec4', w: '#dfe4ee' }), '#5b6380'),
     zech: outline(spr(WHISK_ROWS, { h: '#5a6b45', w: '#dfe4ee' }), '#5b6380'),
   };
   const STRAW_O = outline(STRAW);
@@ -402,7 +402,7 @@ window.Art = (() => {
     const key = `${w}x${h}${cloth}`;
     if (counterCache.has(key)) return counterCache.get(key);
     const c = mk(w, h), x = ctxOf(c);
-    const [a, b, d] = cloth === 'soap' ? ['#ffffff', '#cfe2ff', '#a9c8f5'] : ['#f3ecd8', '#d9cda6', '#b9ab82'];
+    const [a, b, d] = cloth === 'sophia' ? ['#ffffff', '#cfe2ff', '#a9c8f5'] : ['#f3ecd8', '#d9cda6', '#b9ab82'];
     x.fillStyle = '#e2b27b'; x.fillRect(0, 0, w, 2); x.fillStyle = '#c08d57'; x.fillRect(0, 2, w, 1);
     for (let j = 3; j < h; j++) for (let i = 0; i < w; i++) {
       const p = (i >> 1) % 2, q = ((j - 3) >> 1) % 2;
