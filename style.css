@@ -150,6 +150,7 @@ body.hud-stage .stage-box { opacity: 1; transform: none; }
 @keyframes cardIn { 0% { transform: translateY(-60px); } 70% { transform: translateY(6px); } 100% { transform: none; } }
 .stage-card h2 { font-family: var(--pixel); font-weight: 400; font-size: clamp(15px, 4vw, 22px); line-height: 1.5; margin: 12px 0 10px; text-transform: uppercase; }
 .card-stars { font-family: system-ui, sans-serif; font-size: 22px; line-height: 1; color: #ffb300; letter-spacing: 8px; }
+.card-stars .off { color: #c9d1e3; }
 .card-how { margin-top: 14px; font-size: 16px; }
 
 /* ---------- hit words ---------- */

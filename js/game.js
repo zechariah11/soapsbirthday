@@ -1133,9 +1133,12 @@
     kid.happyT = 0; kid.hopT = 0; kid.jy = kid.jv = 0;
     STAGES[i].reset(keepCake);
     const last = i === STAGES.length - 1;
-    $('#cardNum').textContent = last ? '★ FINAL STAGE ★' : `★ STAGE ${i + 1} / ${STAGES.length} ★`;
+    $('#cardNum').textContent = last ? 'FINAL STAGE' : `STAGE ${i + 1} / ${STAGES.length}`;
     $('#cardTitle').textContent = STAGES[i].title;
-    $('#cardStars').textContent = STAGES.map((_, k) => (k < i ? '★' : k === i ? '✦' : '☆')).join(' ');
+    const stars = $('#cardStars'); // one star per stage: gold up to this one, grey for the ones still ahead
+    stars.textContent = '';
+    STAGES.forEach((_, k) => { const st = document.createElement('span'); st.textContent = '★'; if (k > i) st.className = 'off'; stars.appendChild(st); });
+    stars.setAttribute('aria-label', `stage ${i + 1} of ${STAGES.length}`);
     $('#cardHow').textContent = STAGES[i].how();
     stageCard.classList.add('show');
     phase = 'card'; cardT = 2.6; cardMin = 0.45;
