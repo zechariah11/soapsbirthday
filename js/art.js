@@ -84,8 +84,20 @@ window.Art = (() => {
     R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'], T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
     Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'], ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
   };
-  function banner(str) {
+  function banner(str, big = false) {
     str = String(str).toUpperCase();
+    if (big) { // twice the size for tall phone walls, still shaded one pixel at a time
+      const w = str.length * 12 - 2, c = mk(w, 14), x = ctxOf(c);
+      str.split('').forEach((ch, n) => {
+        const gl = FONT57[ch] || FONT57[' '];
+        const on = (i, j) => i >= 0 && i < 10 && j >= 0 && j < 14 && gl[j >> 1][i >> 1] === '#';
+        for (let j = 0; j < 14; j++) for (let i = 0; i < 10; i++) if (on(i, j)) {
+          x.fillStyle = !on(i, j - 1) ? '#ffffff' : !on(i, j + 1) ? '#a3acc4' : !on(i + 1, j) ? '#c6cddd' : '#dfe4f0';
+          x.fillRect(n * 12 + i, j, 1, 1);
+        }
+      });
+      return outline(c, '#59607c');
+    }
     const w = str.length * 7 - 1, c = mk(w, 7), x = ctxOf(c);
     str.split('').forEach((ch, n) => {
       const gl = FONT57[ch] || FONT57[' '];
@@ -412,6 +424,12 @@ window.Art = (() => {
   const BALLOONS = BALLOON_PALS.map((p) => outline(spr(BALLOON_ROWS, p)));
   const STAR = outline(spr(['....y....', '...yyy...', 'yyyyhyyyy', '.yyhhyyy.', '..yyyyd..', '..yyydd..', '.yyd.ddd.', '.yd...dd.'],
     { y: '#ffd54a', h: '#fff3b0', d: '#e0a82a' }), '#9a6a1a');
+  const BIG_BALLOON_ROWS = ['...bbbbb...', '.bbhhbbbbb.', 'bhhbbbbbbbb', 'bhbbbbbbbbb', 'bbbbbbbbbbd', 'bbbbbbbbbbd', 'bbbbbbbbbdd',
+    '.bbbbbbbbd.', '..bbbbbbd..', '...bbbdd...', '....bdd....', '.....k.....', '....kkk....'];
+  const BALLOONS_BIG = BALLOON_PALS.map((p) => outline(spr(BIG_BALLOON_ROWS, p)));
+  const STAR_BIG = outline(spr(['......y......', '.....yyy.....', '.....yhy.....', '....yyhyy....', 'yyyyyhhyyyyyy', '.yyyhhyyyyyy.',
+    '..yyhyyyyyd..', '...yyyyyydd..', '...yyyyyddd..', '..yyyy.dddd..', '..yyd...ddd..', '.yd.......dd.'],
+    { y: '#ffd54a', h: '#fff3b0', d: '#e0a82a' }), '#9a6a1a');
   const HEART = outline(spr(['.RR.RR.', 'RhRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..', '...R...'], { R: '#ff6b98', h: '#ffc2d6' }));
   const PRESENT_ROWS = ['..RR...RR..', '.R..R.R..R.', '..RRRRRRR..', 'LLLLLRLLLLL', 'DDDDDRDDDDD', '.BBBBRBBBB.', '.BBBBRBBBB.', '.RRRRRRRRR.', '.BBBBRBBBB.', '.BBBBRBBBB.', '.DDDDRDDDD.'];
   const PRESENTS = [
@@ -433,12 +451,37 @@ window.Art = (() => {
   /* ---------------- the party room ---------------- */
   function buildRoom(iw, ih, opt = {}) {
     const c = mk(iw, ih), x = ctxOf(c), rnd = seeded(11);
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
     const R = (col, X, Y, w = 1, h = 1) => { if (w > 0 && h > 0) { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); } };
     const put = (img, X, Y) => x.drawImage(img, Math.round(X), Math.round(Y));
     const box = (X, Y, w, h, fillCol, line) => { R(line, X - 1, Y - 1, w + 2, h + 2); R(fillCol, X, Y, w, h); };
     const portrait = ih > iw * 1.1;
+    const T = Math.max(0, opt.top | 0);   // rows hidden behind the HUD boxes at the top
     const floorY = Math.round(ih * (portrait ? 0.7 : 0.67));
     const wy = floorY - 16;
+
+    // upright screens (phones, tablets): bigger decorations and furniture running off the edges.
+    // Work out the wall top-down: banner, bunting, then a window band that has to clear the TV.
+    let plan = null;
+    const TVW = portrait ? 46 : 38, TVH = portrait ? 30 : 24, tvTop = floorY - 15 - TVH;
+    if (portrait) {
+      const y0 = Math.max(4, T - 6);
+      const make = (big, swag) => {
+        const a = banner('HAPPY', big), b = banner('BIRTHDAY', big);
+        const ly = Math.max(T + 3, y0 + 5), y1 = ly + a.height + 3 + b.height + 6;
+        const winY = (swag ? y1 + 14 : y1) + 8;
+        return { a, b, ly, y0, y1, swag, winY, winH: tvTop - 8 - winY };
+      };
+      const bigFits = banner('BIRTHDAY', true).width <= iw - 18;
+      // big letters matter most, then the bunting, then a tall window
+      for (const [big, swag, minH] of [[true, true, 30], [true, false, 24], [false, true, 30], [false, false, 0]]) {
+        if (big && !bigFits) continue;
+        const P = make(big, swag);
+        if (!plan || P.winH > plan.winH) plan = P;
+        if (P.winH >= minH) { plan = P; break; }
+      }
+      if (plan.winH < 22) plan = null; // too squat: fall back to the compact arrangement
+    }
 
     // wall with a little diamond wallpaper, then wainscoting
     R('#cfe3ff', 0, 0, iw, floorY);
@@ -458,11 +501,17 @@ window.Art = (() => {
     }
 
     // window with curtains
-    const win = portrait ? { x: 7, y: Math.round(ih * 0.27), w: 22, h: 28 } : { x: 18, y: 14, w: 30, h: 32 };
-    R('#b98a55', win.x - 9, win.y - 5, win.w + 18, 2);
+    let win, cur = 6;
+    if (plan) {
+      cur = 8;
+      const w = clamp(Math.round(iw * 0.29), 24, 40);
+      win = { x: cur + 3, y: plan.winY, w, h: clamp(plan.winH, 18, Math.round(w * 1.2)) };
+    } else win = portrait ? { x: 7, y: Math.round(ih * 0.27), w: 22, h: 28 } : { x: 18, y: 14, w: 30, h: 32 };
+    R('#b98a55', win.x - cur - 3, win.y - 5, win.w + 2 * cur + 6, 2);
     box(win.x - 2, win.y - 2, win.w + 4, win.h + 4, '#ffffff', '#8aa6d4');
     R('#a8dcff', win.x, win.y, win.w, win.h); R('#c6e9ff', win.x, win.y + Math.round(win.h * 0.6), win.w, Math.round(win.h * 0.4));
-    for (const [cx, cy] of [[0.25, 0.25], [0.7, 0.55]]) {
+    const clouds = plan ? [[0.12, 0.2], [0.58, 0.14], [0.3, 0.62]] : [[0.25, 0.25], [0.7, 0.55]];
+    for (const [cx, cy] of clouds) {
       const X = win.x + Math.round(win.w * cx), Y = win.y + Math.round(win.h * cy);
       R('#ffffff', X, Y, 7, 2); R('#ffffff', X + 2, Y - 1, 3, 1); R('#ffffff', X - 1, Y + 1, 9, 1);
     }
@@ -471,18 +520,39 @@ window.Art = (() => {
     R('#ffffff', win.x - 5, win.y + win.h + 2, win.w + 10, 2); R('#c9d6ea', win.x - 5, win.y + win.h + 4, win.w + 10, 1);
     for (const side of [0, 1]) {
       for (let j = 0; j < win.h + 8; j++) {
-        const w0 = 6 + Math.round(Math.sin(j / 5) * 1) + (j > win.h ? 1 : 0);
-        const X = side ? win.x + win.w + 3 - (w0 - 6) : win.x - 3 - 6;
+        const w0 = cur + Math.round(Math.sin(j / 5) * 1) + (j > win.h ? 1 : 0);
+        const X = side ? win.x + win.w + 3 - (w0 - cur) : win.x - 3 - cur;
         R('#ffb7cf', X, win.y - 3 + j, w0, 1);
-        R('#ef8db3', X + (side ? 1 : 4), win.y - 3 + j, 1, 1);
+        R('#ef8db3', X + (side ? 1 : cur - 2), win.y - 3 + j, 1, 1);
+        if (plan) R('#ef8db3', X + (side ? 4 : cur - 5), win.y - 3 + j, 1, 1);
+      }
+      if (plan) { // tie-backs
+        const ty = win.y + Math.round(win.h * 0.55);
+        R('#7fb2ff', side ? win.x + win.w + 3 : win.x - 3 - cur, ty, cur, 2);
       }
     }
 
     // framed bread picture (she loves bread)
-    const pic = portrait ? { x: iw - 22, y: Math.round(ih * 0.3) } : { x: win.x + win.w + 13, y: 22 };
-    box(pic.x, pic.y, 16, 13, '#c9935a', '#7a5232');
-    R('#fff6e3', pic.x + 2, pic.y + 2, 12, 9); R('#d9eeff', pic.x + 2, pic.y + 2, 12, 4);
-    put(BREAD, pic.x + 3, pic.y + 5);
+    if (plan) {
+      const pw = 28, ph = 22, px = iw - pw - 7, py = win.y + Math.max(0, Math.round((win.h - ph) / 2) - 3);
+      R('#ffffff', px + pw / 2, py - 7, 1, 6); R('#ffffff', px + pw / 2 - 3, py - 2, 1, 1); R('#ffffff', px + pw / 2 + 3, py - 2, 1, 1);
+      R('#ffffff', px + pw / 2 - 2, py - 3, 1, 1); R('#ffffff', px + pw / 2 + 2, py - 3, 1, 1); R('#ffffff', px + pw / 2 - 1, py - 4, 3, 1);
+      box(px, py, pw, ph, '#c9935a', '#7a5232');
+      R('#e2b27b', px, py, pw, 1); R('#a8743e', px, py + ph - 1, pw, 1);
+      R('#7a5232', px + 2, py + 2, pw - 4, ph - 4);
+      R('#d9eeff', px + 3, py + 3, pw - 6, ph - 6); R('#fff6e3', px + 3, py + 3 + Math.round((ph - 6) * 0.55), pw - 6, ph - 6 - Math.round((ph - 6) * 0.55));
+      R('#ffffff', px + 5, py + 5, 4, 1); R('#ffffff', px + 4, py + 6, 6, 1);
+      // a baguette leaning behind a round loaf
+      const bx = px + 6, by = py + 7;
+      for (let i = 0; i < 16; i++) { const yy = by + 6 - Math.round(i * 0.4); R('#9a5a24', bx + i, yy - 1, 1, 4); R('#e7a95a', bx + i, yy, 1, 2); }
+      for (let i = 2; i < 15; i += 4) R('#fbe0a6', bx + i, by + 6 - Math.round(i * 0.4), 2, 1);
+      put(BREAD, px + 9, py + ph - 10);
+    } else {
+      const pic = portrait ? { x: iw - 22, y: Math.round(ih * 0.3) } : { x: win.x + win.w + 13, y: 22 };
+      box(pic.x, pic.y, 16, 13, '#c9935a', '#7a5232');
+      R('#fff6e3', pic.x + 2, pic.y + 2, 12, 9); R('#d9eeff', pic.x + 2, pic.y + 2, 12, 4);
+      put(BREAD, pic.x + 3, pic.y + 5);
+    }
 
     // TV with the birthday number, on a wooden cabinet
     const tvCx = Math.round(portrait ? iw / 2 : iw * 0.3);
@@ -490,19 +560,19 @@ window.Art = (() => {
     R('#ffffff', rx, ry - 1, rw, 1); R('#ffffff', rx, ry + 9, rw, 1);
     R('#6f9ff0', rx, ry, rw, 9); R('#9cc2ff', rx + 2, ry + 1, rw - 4, 7); R('#6f9ff0', rx + 4, ry + 3, rw - 8, 3);
     for (let X = rx + 6; X < rx + rw - 5; X += 4) R('#ffffff', X, ry + 4);
-    const cw = 48, cx0 = tvCx - 24, cy = floorY - 10;
+    const cw = plan ? 56 : 48, cx0 = tvCx - cw / 2, cy = floorY - 10;
     box(cx0, cy, cw, 12, '#c08d57', '#7a5232');
     R('#e2b27b', cx0, cy, cw, 2); R('#e8bd8a', cx0 + 1, cy + 3, cw / 2 - 2, 7); R('#e8bd8a', cx0 + cw / 2 + 1, cy + 3, cw / 2 - 2, 7);
     R('#8a5a2b', cx0 + cw / 2 - 3, cy + 6, 1, 2); R('#8a5a2b', cx0 + cw / 2 + 2, cy + 6, 1, 2);
     R('#7a5232', cx0 + 2, cy + 13, 2, 3); R('#7a5232', cx0 + cw - 4, cy + 13, 2, 3);
-    const tw = 38, th = 24, tx0 = tvCx - 19, ty0 = cy - th - 5;
+    const tw = plan ? TVW : 38, th = plan ? TVH : 24, tx0 = tvCx - tw / 2, ty0 = cy - th - 5;
     box(tx0, ty0, tw, th, '#2e3352', OUT);
     R('#bfe8a0', tx0 + 2, ty0 + 2, tw - 4, th - 4);
     for (let j = ty0 + 3; j < ty0 + th - 2; j += 2) R('#b3e192', tx0 + 2, j, tw - 4, 1);
     if (opt.age != null && opt.age !== '') {
-      const num = foil(String(opt.age).slice(0, 4), 2);
+      const num = foil(String(opt.age).slice(0, 4), plan && String(opt.age).length <= 2 ? 3 : 2);
       put(num, tvCx - Math.floor(num.width / 2), ty0 + Math.floor((th - num.height) / 2));
-    } else put(HEART, tvCx - 4, ty0 + 8);
+    } else put(HEART, tvCx - 4, ty0 + Math.round(th / 2) - 4);
     R('#e8ffd6', tx0 + 3, ty0 + 3, 4, 1); R('#e8ffd6', tx0 + 3, ty0 + 4, 1, 2);
     R('#fff4c8', cx0 + cw - 9, cy - 6, 5, 6); R('#ffffff', cx0 + cw - 8, cy - 5, 1, 2); R('#fffbe8', cx0 + cw - 10, cy - 5, 1, 4); R('#fffbe8', cx0 + cw - 4, cy - 5, 1, 4);
     put(PLANT, cx0 - 15, floorY - PLANT.height + 4);
@@ -516,8 +586,8 @@ window.Art = (() => {
     }
 
     // HAPPY BIRTHDAY balloons on a tinsel curtain, with paper chains
-    const ban = portrait
-      ? { x0: 8, x1: iw - 8, y0: 14, y1: Math.round(ih * 0.21) }
+    const ban = plan ? { x0: 4, x1: iw - 5, y0: plan.y0, y1: plan.y1 }
+      : portrait ? { x0: 8, x1: iw - 8, y0: 14, y1: Math.round(ih * 0.21) }
       : { x0: Math.round(iw * 0.6), x1: iw - 8, y0: 16, y1: floorY - 3 };
     const TIN = ['#ffd1e8', '#d9ccff', '#c3e6ff', '#c8f5e1', '#ffffff', '#ffe9c2'];
     for (let X = ban.x0; X <= ban.x1; X++) {
@@ -534,10 +604,15 @@ window.Art = (() => {
     for (const sx of [ban.x0 + 1, ban.x1 - 2]) for (let Y = ban.y0, i = 0; Y < ban.y1 - 4; Y += 3, i++) {
       const col = RAINBOW[i % 6]; R(col, sx, Y, 1, 3); R(col, sx + 2, Y, 1, 3); R(col, sx + 1, Y); R(col, sx + 1, Y + 2);
     }
-    const l1 = banner('HAPPY'), l2 = banner('BIRTHDAY');
-    const ly0 = ban.y0 + Math.max(4, Math.round((Math.min(ban.y1, ban.y0 + 44) - ban.y0 - l1.height - l2.height - 4) / 2));
-    put(l1, (ban.x0 + ban.x1) / 2 - l1.width / 2, ly0);
-    put(l2, (ban.x0 + ban.x1) / 2 - l2.width / 2, ly0 + l1.height + 3);
+    if (plan) {
+      put(plan.a, (ban.x0 + ban.x1) / 2 - plan.a.width / 2, plan.ly);
+      put(plan.b, (ban.x0 + ban.x1) / 2 - plan.b.width / 2, plan.ly + plan.a.height + 3);
+    } else {
+      const l1 = banner('HAPPY'), l2 = banner('BIRTHDAY');
+      const ly0 = ban.y0 + Math.max(4, Math.round((Math.min(ban.y1, ban.y0 + 44) - ban.y0 - l1.height - l2.height - 4) / 2));
+      put(l1, (ban.x0 + ban.x1) / 2 - l1.width / 2, ly0);
+      put(l2, (ban.x0 + ban.x1) / 2 - l2.width / 2, ly0 + l1.height + 3);
+    }
 
     // bunting + a paper chain swag across the ceiling
     const FLAG = ['#ff9ec4', '#7fb2ff', '#ffe27a', '#8fe3c4', '#c8aaff', '#ffffff'];
@@ -552,61 +627,123 @@ window.Art = (() => {
       [7, 7, 5, 5, 3, 3, 1].forEach((w0, r) => R(col, X + (7 - w0) / 2, Y + r, w0, 1));
       R('rgba(43,39,69,.18)', X + 4, Y + 1, 2, 3);
     }
-    // hanging stars
-    const stars = portrait ? [[0.05, ban.y1, Math.round(ih * 0.2)], [0.86, ban.y1, Math.round(ih * 0.19)]] : [[0.335, 0, 18]];
-    stars.forEach(([f, top, len]) => {
-      const X = Math.round(iw * f);
-      R('#ffffff', X + 4, top, 1, len); put(STAR, X, top + len);
-    });
+    if (plan && plan.swag) { // big pennants strung under the banner
+      const base = ban.y1 - 2, sy = (X) => curve(X, base, 6);
+      for (let X = 0; X < iw; X++) R('#ffffff', X, sy(X));
+      for (let X = 1, i = 0; X < iw - 3; X += 11, i++) {
+        const Y = sy(X + 4) + 1, col = FLAG[(i + 1) % FLAG.length];
+        [9, 9, 7, 7, 5, 5, 3, 3, 1, 1].forEach((w0, r) => {
+          const X0 = X + (9 - w0) / 2;
+          R('#8aa6d4', X0 - 1, Y + r, w0 + 2, 1); R(col, X0, Y + r, w0, 1);
+          if (r < 7) R('rgba(255,255,255,.55)', X0, Y + r, 1, 1);
+        });
+        R('#8aa6d4', X + 4, Y + 10);
+        R('rgba(43,39,69,.15)', X + 5, Y + 1, 2, 5);
+      }
+    }
 
-    // party table (left) and sofa (right): proper furniture standing on the floor, with floor showing around them
+    // hanging stars
+    if (plan) {
+      const gapL = win.x + win.w + 3 + cur, gapR = iw - 35, mid = Math.round((gapL + gapR) / 2);
+      const top = ban.y1 - 2;
+      const hang = [[mid - 7, Math.round(win.y + win.h * 0.3 - top), STAR_BIG], [mid + 6, Math.round(win.y + win.h * 0.62 - top), STAR]];
+      (gapR - gapL >= 30 ? hang : hang.slice(0, 1)).forEach(([X, len, img]) => {
+        const sx = X + (img === STAR_BIG ? 6 : 5);
+        R('#ffffff', sx, top, 1, len); put(img, X, top + len);
+      });
+    } else {
+      const stars = portrait ? [[0.05, ban.y1, Math.round(ih * 0.2)], [0.86, ban.y1, Math.round(ih * 0.19)]] : [[0.335, 0, 18]];
+      stars.forEach(([f, top, len]) => {
+        const X = Math.round(iw * f);
+        R('#ffffff', X + 4, top, 1, len); put(STAR, X, top + len);
+      });
+    }
+
+    // party table (left) and sofa (right): proper furniture standing on the floor, with floor showing around them.
+    // On tall phones they're drawn bigger and run off the screen edges.
     const floorH = ih - floorY;
-    const tW = Math.round(iw * (portrait ? 0.4 : 0.26)), tb0 = 3, tb1 = tb0 + tW;
-    const tBottom = floorY + Math.round(floorH * 0.55), tTop = tBottom - 20, hem = tTop + 10;
+    const big = !!plan, gs = big ? 5 : 4;
+    const tW = Math.round(iw * (big ? 0.7 : portrait ? 0.4 : 0.26)), tb0 = big ? -Math.round(iw * 0.26) : 3, tb1 = tb0 + tW;
+    const tBottom = floorY + Math.round(floorH * (big ? 0.66 : 0.55)), tTop = tBottom - (big ? 32 : 20), hem = tTop + (big ? 15 : 10);
     R('rgba(110,60,20,.2)', tb0 - 1, tBottom - 1, tW + 2, 3);                       // shadow on the floor
-    for (const lx of [tb0 + 3, tb1 - 5]) { R('#7a5232', lx - 1, hem, 4, tBottom - hem); R('#b98a55', lx, hem, 2, tBottom - hem - 1); }
-    R('#7a5232', tb0 + 7, hem, 1, Math.round((tBottom - hem) * 0.6)); R('#7a5232', tb1 - 8, hem, 1, Math.round((tBottom - hem) * 0.6)); // back legs
-    const items = [[PLATE], [PRESENTS[0]], [MINI_CAKE], [HAT], [PRESENTS[1]], [PLATE], [HAT]];
-    let ix = tb0 + 2;
+    const legW = big ? 3 : 2;
+    for (const lx of [tb0 + 3, tb1 - 3 - legW]) { R('#7a5232', lx - 1, hem, legW + 2, tBottom - hem); R('#b98a55', lx, hem, legW, tBottom - hem - 1); }
+    R('#7a5232', tb0 + 7, hem, 1, Math.round((tBottom - hem) * 0.6)); R('#7a5232', tb1 - 8 - (big ? 3 : 0), hem, big ? 2 : 1, Math.round((tBottom - hem) * 0.6)); // back legs
+    const items = big ? [[PRESENTS[2]], [PLATE], [MINI_CAKE], [HAT], [PRESENTS[0]], [PLATE]] : [[PLATE], [PRESENTS[0]], [MINI_CAKE], [HAT], [PRESENTS[1]], [PLATE], [HAT]];
+    let ix = Math.max(tb0 + 2, 2);
     for (const [img] of items) {
       if (ix + img.width > tb1 - 1) break;
       put(img, ix, tTop + 2 - img.height + (img === PLATE ? 1 : 0));
-      ix += img.width + 1;
+      if (big && img === PRESENTS[2]) put(PRESENTS[1], ix + 1, tTop + 2 - img.height - PRESENTS[1].height + 3); // a stack of presents
+      ix += img.width + (big ? 2 : 1);
     }
     R('#8aa6d4', tb0 - 1, tTop - 1, tW + 2, 1); R('#8aa6d4', tb0 - 1, tTop - 1, 1, hem - tTop + 2); R('#8aa6d4', tb1, tTop - 1, 1, hem - tTop + 2);
     R('#ffffff', tb0, tTop, tW, 3);
-    for (let j = tTop + 3; j < hem; j++) for (let X = tb0; X < tb1; X++) { // blue gingham tablecloth
-      const a = ((X - tb0) >> 2) % 2, b = ((j - tTop) >> 2) % 2;
+    for (let j = tTop + 3; j < hem; j++) for (let X = Math.max(tb0, 0); X < tb1; X++) { // blue gingham tablecloth
+      const a = Math.floor((X - tb0) / gs) % 2, b = Math.floor((j - tTop) / gs) % 2;
       R(a && b ? '#b9d3fb' : a || b ? '#dde9fd' : '#ffffff', X, j);
     }
-    for (let X = tb0; X < tb1; X++) { const sc = (X - tb0) % 4 === 1 || (X - tb0) % 4 === 2; R(sc ? '#dde9fd' : '#8aa6d4', X, hem, 1, 1); if (sc) R('#8aa6d4', X, hem + 1, 1, 1); } // scalloped hem
+    for (let X = Math.max(tb0, 0); X < tb1; X++) { // scalloped hem
+      const k = (X - tb0) % (big ? 6 : 4), sc = big ? k >= 1 && k <= 4 : k === 1 || k === 2;
+      R(sc ? '#dde9fd' : '#8aa6d4', X, hem, 1, 1); if (sc) R('#8aa6d4', X, hem + 1, 1, 1);
+      if (big && (k === 2 || k === 3)) { R('#dde9fd', X, hem + 1, 1, 1); R('#8aa6d4', X, hem + 2, 1, 1); }
+    }
     R('#9fbbe3', tb0, tTop + 3, tW, 1);
 
-    const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
-    const sBottom = floorY + Math.round(floorH * 0.6), sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
-    R('rgba(60,60,90,.2)', sx0 - 1, sBottom - 1, sW + 2, 3);                        // shadow
-    for (const lx of [sx0 + 2, sx1 - 5]) R('#6b4a2c', lx, legY, 3, 3);              // little wooden feet
-    box(sx0 + 6, sTop, sW - 12, 13, '#c5cbd8', '#7d8599');                          // back cushions
-    R('#e0e4ec', sx0 + 6, sTop, sW - 12, 2);
-    for (let X = sx0 + 6 + Math.round((sW - 12) / 2); X < sx1 - 6; X += 99) R('#a9b0c0', X, sTop + 2, 1, 10);
-    box(sx0 + 6, seatY, sW - 12, 7, '#d0d5e0', '#7d8599'); R('#e6e9f0', sx0 + 6, seatY, sW - 12, 2);   // seat
-    R('#a9b0c0', sx0 + 6 + Math.round((sW - 12) / 2), seatY + 2, 1, 5);
-    box(sx0 + 3, baseY, sW - 6, legY - baseY, '#aeb5c5', '#7d8599');               // front base
-    for (const ax of [sx0, sx1 - 7]) { box(ax, sTop + 6, 7, legY - sTop - 6, '#b3bacb', '#7d8599'); R('#d3d8e3', ax + 1, sTop + 6, 5, 2); } // arms
-    const bx0 = sx0 + 9, bw0 = Math.min(22, sW - 30);                                // checkered blanket over the back
-    for (let j = 0; j < 15; j++) for (let i = 0; i < bw0; i++) R(((i / 3 | 0) + (j / 3 | 0)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
-    for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 16);
-    if (sW - 30 - bw0 > 14) { box(sx1 - 22, sTop + 4, 11, 8, '#eef0f5', '#7d8599'); R('#ffffff', sx1 - 21, sTop + 5, 3, 1); } // pillow
+    if (big) {
+      // a big comfy sofa coming in from the right edge
+      const sW = Math.round(iw * 0.8), sx0 = iw - Math.round(iw * 0.43), sx1 = sx0 + sW;
+      const sBottom = floorY + Math.round(floorH * 0.72), sTop = sBottom - 40, seatY = sTop + 18, baseY = sTop + 27, legY = sBottom - 4;
+      R('rgba(60,60,90,.2)', sx0 - 1, sBottom - 1, sW + 2, 3);
+      for (const lx of [sx0 + 3, sx0 + 40]) R('#6b4a2c', lx, legY, 4, 4);
+      box(sx0 + 9, sTop, sW - 18, 19, '#c5cbd8', '#7d8599'); R('#e0e4ec', sx0 + 9, sTop, sW - 18, 2);   // back cushions
+      for (let X = sx0 + 9 + 26; X < sx1 - 9; X += 26) R('#a9b0c0', X, sTop + 2, 1, 16);
+      box(sx0 + 9, seatY, sW - 18, 10, '#d0d5e0', '#7d8599'); R('#e6e9f0', sx0 + 9, seatY, sW - 18, 2);   // seat
+      for (let X = sx0 + 9 + 26; X < sx1 - 9; X += 26) R('#a9b0c0', X, seatY + 2, 1, 8);
+      box(sx0 + 4, baseY, sW - 8, legY - baseY, '#aeb5c5', '#7d8599');                                  // front base
+      box(sx0, sTop + 9, 10, legY - sTop - 9, '#b3bacb', '#7d8599'); R('#d3d8e3', sx0 + 1, sTop + 9, 8, 3); R('#9aa2b5', sx0 + 9, sTop + 12, 1, legY - sTop - 13); // arm
+      const bx0 = sx0 + 13, bw0 = 26;                                                                  // checkered blanket over the back
+      for (let j = 0; j < 22; j++) for (let i = 0; i < bw0; i++) R(((i >> 2) + (j >> 2)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
+      for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 23);
+      R('#7e9f6a', bx0 - 1, sTop + 1, 1, 22); R('#7e9f6a', bx0 + bw0, sTop + 1, 1, 22);
+      const pl = sx0 + 13 + bw0 + 4;                                                                  // a fluffy pillow
+      box(pl, sTop + 6, 15, 11, '#ffd1e8', '#d77fa6'); R('#ffe6f1', pl + 1, sTop + 7, 5, 1); R('#ffffff', pl + 2, sTop + 8, 2, 1);
+      R('#ff9ec4', pl + 6, sTop + 10, 3, 3); R('#ffe6f1', pl + 7, sTop + 11, 1, 1);
+    } else {
+      const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
+      const sBottom = floorY + Math.round(floorH * 0.6), sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
+      R('rgba(60,60,90,.2)', sx0 - 1, sBottom - 1, sW + 2, 3);                        // shadow
+      for (const lx of [sx0 + 2, sx1 - 5]) R('#6b4a2c', lx, legY, 3, 3);              // little wooden feet
+      box(sx0 + 6, sTop, sW - 12, 13, '#c5cbd8', '#7d8599');                          // back cushions
+      R('#e0e4ec', sx0 + 6, sTop, sW - 12, 2);
+      for (let X = sx0 + 6 + Math.round((sW - 12) / 2); X < sx1 - 6; X += 99) R('#a9b0c0', X, sTop + 2, 1, 10);
+      box(sx0 + 6, seatY, sW - 12, 7, '#d0d5e0', '#7d8599'); R('#e6e9f0', sx0 + 6, seatY, sW - 12, 2);   // seat
+      R('#a9b0c0', sx0 + 6 + Math.round((sW - 12) / 2), seatY + 2, 1, 5);
+      box(sx0 + 3, baseY, sW - 6, legY - baseY, '#aeb5c5', '#7d8599');               // front base
+      for (const ax of [sx0, sx1 - 7]) { box(ax, sTop + 6, 7, legY - sTop - 6, '#b3bacb', '#7d8599'); R('#d3d8e3', ax + 1, sTop + 6, 5, 2); } // arms
+      const bx0 = sx0 + 9, bw0 = Math.min(22, sW - 30);                                // checkered blanket over the back
+      for (let j = 0; j < 15; j++) for (let i = 0; i < bw0; i++) R(((i / 3 | 0) + (j / 3 | 0)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
+      for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 16);
+      if (sW - 30 - bw0 > 14) { box(sx1 - 22, sTop + 4, 11, 8, '#eef0f5', '#7d8599'); R('#ffffff', sx1 - 21, sTop + 5, 3, 1); } // pillow
+    }
 
-    // balloons are drawn every frame so they can bob
+    // balloons are drawn every frame so they can bob (sx/sy: where the string starts on the sprite)
     const balloons = [];
-    const clusters = portrait ? [[0.06, 0.3], [0.7, 0.96]] : [[0.02, 0.2], [0.42, 0.56], [0.8, 0.98]];
-    clusters.forEach(([a, b]) => {
-      const n = Math.max(3, Math.round((b - a) * iw / 9));
-      for (let i = 0; i < n; i++) {
-        balloons.push({ x: Math.round(iw * a + rnd() * (b - a) * iw - 4), y: Math.round(rnd() * 10) - 2, img: BALLOONS[(rnd() * BALLOONS.length) | 0], phase: rnd() * 6.28, str: 4 + ((rnd() * 8) | 0) });
-      }
-    });
+    if (plan) { // two big bunches in the top corners, just below the HUD
+      const bunch = [[-3, -7, 0], [8, -3, 2], [0, 4, 4], [12, 7, 1]];
+      for (const side of [0, 1]) bunch.forEach(([dx, dy, pal], i) => {
+        const img = BALLOONS_BIG[(pal + side * 3) % BALLOONS_BIG.length];
+        balloons.push({ x: side ? iw - img.width - dx : dx, y: T + dy, img, phase: side * 2 + i * 1.3, str: 5 + ((i * 3) % 6), sx: 6, sy: 14 });
+      });
+    } else {
+      const clusters = portrait ? [[0.06, 0.3], [0.7, 0.96]] : [[0.02, 0.2], [0.42, 0.56], [0.8, 0.98]];
+      clusters.forEach(([a, b]) => {
+        const n = Math.max(3, Math.round((b - a) * iw / 9));
+        for (let i = 0; i < n; i++) {
+          balloons.push({ x: Math.round(iw * a + rnd() * (b - a) * iw - 4), y: Math.round(rnd() * 10) - 2, img: BALLOONS[(rnd() * BALLOONS.length) | 0], phase: rnd() * 6.28, str: 4 + ((rnd() * 8) | 0), sx: 4, sy: 9 });
+        }
+      });
+    }
     balloons.sort((p, q) => p.y - q.y);
     return { canvas: c, floorY, balloons, tinsel: ban, tv: { x: tx0 + 2, y: ty0 + 2, w: tw - 4, h: th - 4 } };
   }

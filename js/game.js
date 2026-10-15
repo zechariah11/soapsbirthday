@@ -212,7 +212,7 @@
     iw = Math.ceil(W / S); ih = Math.ceil(H / S);
     cv.width = iw; cv.height = ih;
     cv.style.width = iw * S + 'px'; cv.style.height = ih * S + 'px';
-    const r = A.buildRoom(iw, ih, { age: C.age });
+    const r = A.buildRoom(iw, ih, { age: C.age, top: Math.ceil(80 / S) }); // the HUD boxes cover roughly the top 80px
     room = r.canvas; floorY = r.floorY; balloons = r.balloons; tinsel = r.tinsel;
     ropeTarget = Math.max(4, Math.round(ih * 0.36 - CAKE.h / 2));
     document.documentElement.style.setProperty('--env-w', 34 * Math.max(4, S) + 'px');
@@ -1262,7 +1262,7 @@
     for (const b of balloons) {
       const bob = Math.sin(time * 1.7 + b.phase) > 0 ? 0 : 1;
       g.fillStyle = '#f4f6fb';
-      for (let j = 0; j < b.str; j++) g.fillRect(b.x + 4 + ((j >> 1) % 2), b.y + 9 + bob + j, 1, 1);
+      for (let j = 0; j < b.str; j++) g.fillRect(b.x + b.sx + ((j >> 1) % 2), b.y + b.sy + bob + j, 1, 1);
       g.drawImage(b.img, b.x, b.y + bob);
     }
 

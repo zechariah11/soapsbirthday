@@ -114,11 +114,11 @@ body.boss .player-box { opacity: 1; transform: none; }
 /* ---------- mini-game HUD ---------- */
 .stage-box {
   position: fixed; z-index: 4; left: 16px; top: calc(env(safe-area-inset-top, 0px) + 16px);
-  width: min(320px, calc(100vw - 92px)); padding: 10px 12px 12px; font-family: var(--pixel);
+  width: min(320px, calc(100vw - 80px)); padding: 10px 12px 12px; font-family: var(--pixel);
   opacity: 0; transform: translateX(-30px); transition: opacity .3s steps(3), transform .3s steps(3);
 }
 body.hud-stage .stage-box { opacity: 1; transform: none; }
-.stage-label { font-size: 8px; line-height: 1.4; color: var(--blue); text-transform: uppercase; margin-bottom: 2px; }
+.stage-label { font-size: 8px; line-height: 1.4; color: var(--blue); text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stage-box .bar-row .tag { min-width: 44px; text-align: center; }
 .stage-box .num { font-size: 9px; min-width: 40px; text-align: right; }
 .bar i.her { background: #3d9bff; transition: width .12s steps(3); }
