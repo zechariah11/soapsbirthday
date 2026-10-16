@@ -123,7 +123,7 @@ body.boss .player-box { opacity: 1; transform: none; }
 }
 body.hud-stage .stage-box { opacity: 1; transform: none; }
 .stage-label { font-size: 8px; line-height: 1.4; color: var(--blue); text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stage-box .bar-row .tag { min-width: 44px; text-align: center; }
+.stage-box .bar-row .tag { flex: none; width: calc(6ch + 8px); box-sizing: border-box; text-align: center; overflow: hidden; white-space: nowrap; } /* same width for every name (up to 6 letters), so both bars match */
 .stage-box .num { font-size: 9px; min-width: 40px; text-align: right; }
 .bar i.her { background: #3d9bff; transition: width .12s steps(3); }
 .bar i.him { background: #8a9a5b; transition: width .12s steps(3); }
