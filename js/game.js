@@ -119,110 +119,8 @@
   const wrongEl = $('#wrong'), wrongPaper = $('#wrongPaper'), wrongContent = $('#wrongContent'), stampEl = $('#stamp');
 
   /* ================= sound: tiny 8-bit synth (no audio files) ================= */
-  /* "Happy Birthday" as a little jazz waltz: vibraphone melody, electric-piano comping, walking bass and a
-     brushed ride, reharmonised. Works with any (Offline)AudioContext; everything goes through `dest`. */
-  function jazzBirthday(ctx, start, dest) {
-    const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-    const BEAT = 60 / 138;
-    const beatLen = (i) => BEAT * (i >= 36 ? 1 + 0.07 * (i - 35) : 1); // a gentle ritardando into the ending
-    const T = (b) => { let t = start; const n = Math.floor(b); for (let i = 0; i < n; i++) t += beatLen(i); return t + (b - n) * beatLen(n); };
-    function note(f, t, dur, vol, parts, decay, trem) {
-      const env = ctx.createGain(), end = t + dur;
-      env.gain.setValueAtTime(0.0001, t);
-      env.gain.linearRampToValueAtTime(vol, t + 0.012);
-      env.gain.setTargetAtTime(0, t + 0.012, decay);
-      env.gain.setTargetAtTime(0, end, 0.08);
-      let tail = env;
-      if (trem) { // vibraphone motor
-        const tg = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
-        tg.gain.value = 0.82; lfo.frequency.value = 5.2; depth.gain.value = 0.18;
-        lfo.connect(depth).connect(tg.gain); lfo.start(t); lfo.stop(end + 0.5);
-        env.connect(tg); tail = tg;
-      }
-      tail.connect(dest);
-      for (const [mult, rel, type] of parts) {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = type; o.frequency.value = f * mult; g.gain.value = rel;
-        o.connect(g).connect(env); o.start(t); o.stop(end + 0.5);
-      }
-    }
-    const white = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.6), ctx.sampleRate), wd = white.getChannelData(0);
-    for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1;
-    function cymbal(t, vol, decay, hp) {
-      const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-      s.buffer = white; f.type = 'highpass'; f.frequency.value = hp;
-      g.gain.setValueAtTime(vol, t); g.gain.setTargetAtTime(0, t + 0.005, decay);
-      s.connect(f).connect(g).connect(dest); s.start(t); s.stop(t + Math.min(0.6, decay * 6));
-    }
-    const VIBES = [[1, 1, 'sine'], [4, 0.1, 'sine'], [10, 0.025, 'sine']];
-    const KEYS = [[1, 1, 'sine'], [2, 0.22, 'sine']];
-    const BASS = [[1, 1, 'triangle'], [2, 0.3, 'sine']];
-
-    // rootless voicings (MIDI) and bass roots
-    const V = {
-      Cmaj9: [52, 55, 59, 62], A7b9: [49, 53, 55, 58], Dm9: [53, 57, 60, 64], G13: [53, 57, 59, 64], G7alt: [53, 56, 59, 63],
-      G7b9: [53, 56, 59, 62], G9sus: [53, 57, 60, 62], Gm9: [53, 57, 58, 62], C13b9: [52, 57, 58, 61], Fmaj9: [52, 55, 57, 60],
-      Bm7b5: [57, 62, 65], E7b9: [50, 53, 56, 59], Am9: [55, 59, 60, 64], D9: [54, 57, 60, 64], Abmaj9: [55, 58, 60, 63],
-      Dbmaj7s11: [56, 60, 65, 67], Cfin: [52, 55, 59, 62, 64],
-    };
-    const ROOT = { Cmaj9: 36, A7b9: 45, Dm9: 38, G13: 43, G7alt: 43, G7b9: 43, G9sus: 43, Gm9: 43, C13b9: 36, Fmaj9: 41,
-      Bm7b5: 47, E7b9: 40, Am9: 45, D9: 38, Abmaj9: 44, Dbmaj7s11: 37, Cfin: 36 };
-    const BARS = [ // 3/4 bars: one chord, or the chord on each beat
-      ['Cmaj9'], ['A7b9'], ['Dm9'], ['G13', 'G13', 'G7alt'],                     // intro: I – VI – ii – V
-      ['Dm9'], ['G13', 'G13', 'G7b9'], ['G9sus'], ['Cmaj9', 'Gm9', 'C13b9'],      // happy birthday to you (×2)
-      ['Fmaj9'], ['Bm7b5', 'Bm7b5', 'E7b9'], ['Am9', 'D9', 'G13'],                // …dear [name], happy birthday to
-      ['Abmaj9'], ['Dbmaj7s11'], ['Cfin'],                                        // you… (bVI – bII – I)
-    ];
-    const MEL = [ // [beat, midi, beats, velocity]
-      [0, 64, 0.7, 0.45], [0.667, 67, 0.4, 0.45], [1, 71, 0.7, 0.5], [1.667, 74, 1.3, 0.55], [3, 73, 2, 0.5],
-      [6, 65, 0.7, 0.45], [6.667, 69, 0.4, 0.45], [7, 72, 0.7, 0.5], [7.667, 76, 1.3, 0.55], [9, 74, 1.6, 0.45],
-      [11, 67, 0.62, 0.8], [11.667, 67, 0.3, 0.65],                                          // hap-py
-      [12, 69, 1, 0.9], [13, 67, 1, 0.8], [14, 72, 1, 0.9], [15, 71, 2, 0.9],                // birth-day to you
-      [17, 67, 0.62, 0.8], [17.667, 67, 0.3, 0.65],
-      [18, 69, 1, 0.9], [19, 67, 1, 0.8], [20, 74, 1, 0.9], [21, 72, 2, 0.9],
-      [23, 67, 0.62, 0.8], [23.667, 67, 0.3, 0.65], [23.9, 78, 0.1, 0.35],                   // (a little scoop up to…)
-      [24, 79, 1, 1], [25, 76, 1, 0.85], [26, 72, 1, 0.85], [27, 71, 1, 0.9], [28, 69, 1, 0.85], // birth-day dear [na-me]
-      [29, 77, 0.62, 0.85], [29.667, 77, 0.3, 0.7],
-      [30, 76, 1, 0.9], [31, 72, 1, 0.85], [32, 74, 1, 0.9], [33, 72, 3, 1],                 // birth-day to you
-      [36.667, 75, 0.33, 0.5], [37, 74, 0.67, 0.55], [37.667, 72, 1.3, 0.6],                 // a blue lick over Dbmaj7#11
-      [39, 72, 4, 0.85], [39.333, 79, 3.5, 0.32], [39.667, 83, 3.2, 0.28], [40, 86, 3, 0.25], [40.333, 88, 2.8, 0.22], // shimmer
-    ];
-
-    const chordAt = (bar, beat) => { const c = BARS[bar]; return c.length === 1 ? c[0] : c[beat]; };
-    BARS.forEach((_, bar) => {
-      const b0 = bar * 3, last = bar === BARS.length - 1, next = BARS[bar + 1] ? ROOT[chordAt(bar + 1, 0)] : null;
-      // comping: a hit on each chord change, plus the swung "and of two" when the chord holds all bar
-      for (let beat = 0; beat < 3; beat++) {
-        const ch = chordAt(bar, beat);
-        if (beat > 0 && ch === chordAt(bar, beat - 1)) continue;
-        let len = 1; while (beat + len < 3 && chordAt(bar, beat + len) === ch) len++;
-        const dur = last ? 5 : len === 3 ? 1.4 : len * 0.9;
-        for (const m of V[ch]) note(mtof(m), T(b0 + beat), T(b0 + beat + dur) - T(b0 + beat), 0.04, KEYS, last ? 1.6 : 0.7);
-        if (len === 3 && !last) for (const m of V[ch]) note(mtof(m), T(b0 + 1.667), BEAT * 0.8, 0.028, KEYS, 0.35);
-      }
-      // walking bass: roots on the changes, a fifth in between, and a half-step lead-in to the next bar
-      for (let beat = 0; beat < 3; beat++) {
-        const ch = chordAt(bar, beat), r = ROOT[ch], changed = beat === 0 || ch !== chordAt(bar, beat - 1);
-        let m;
-        if (last) { if (beat) break; m = r; }
-        else if (beat === 2 && !(changed && r !== ROOT[chordAt(bar, 1)])) m = next + (next + 1 === ROOT[chordAt(bar, 1)] ? -1 : 1);
-        else if (changed) m = r;
-        else m = r + 7 <= 50 ? r + 7 : r - 5;
-        note(mtof(m), T(b0 + beat), last ? BEAT * 4 : BEAT * 0.9, 0.17, BASS, last ? 1.2 : 0.45);
-      }
-      // brushed ride (from the third bar on) and a soft hi-hat on 2 and 3
-      if (bar >= 2 && !last) {
-        for (const [bt, v] of [[0, 0.07], [1, 0.045], [1.667, 0.035], [2, 0.045]]) cymbal(T(b0 + bt), v, 0.12, 6500);
-        for (const bt of [1, 2]) cymbal(T(b0 + bt), 0.03, 0.025, 3500);
-      }
-      if (last) cymbal(T(b0), 0.06, 0.9, 5000); // soft cymbal swell to finish
-    });
-    for (const [b, m, d, v] of MEL) note(mtof(m), T(b), T(b + d) - T(b), 0.2 * v, VIBES, 1.1, true);
-    return T(BARS.length * 3 + 2) - start; // how long it lasts
-  }
-
   const sfx = (() => {
-    let ac = null, out = null, nbuf = null, muted = false, songBus = null;
+    let ac = null, out = null, nbuf = null, muted = false, musicOut = null, bgm = null, bgmWant = null;
     function init() {
       try {
         if (!ac) {
@@ -230,6 +128,7 @@
           if (!AC) return;
           ac = new AC();
           out = ac.createGain(); out.gain.value = 0.3; out.connect(ac.destination);
+          musicOut = ac.createGain(); musicOut.gain.value = muted ? 0 : 1; musicOut.connect(out);
           nbuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
           const d = nbuf.getChannelData(0); let v = 0;
           for (let i = 0; i < d.length; i++) { if (i % 6 === 0) v = Math.random() * 2 - 1; d[i] = v; }
@@ -245,15 +144,39 @@
       gn.gain.setValueAtTime(vol, t); gn.gain.setValueAtTime(vol, t + dur * 0.7); gn.gain.linearRampToValueAtTime(0, t + dur);
       o.connect(gn).connect(dest); o.start(t); o.stop(t + dur + 0.02);
     }
-    // the birthday song plays through its own channel so it can be cut off mid-song
-    function stopSong() {
-      if (!songBus) return;
-      const bus = songBus; songBus = null;
-      try {
-        bus.gain.setTargetAtTime(0, ac.currentTime, 0.02);
-        setTimeout(() => bus.disconnect(), 200);
-      } catch (e) { /* ignore */ }
+    // background music: one looping track at a time (js/music.js), crossfaded, scheduled ~1 s ahead
+    function bgmTick() {
+      if (!ac || ac.state !== 'running' || !musicOut || !window.Music) return;
+      if ((bgm ? bgm.name : null) !== bgmWant) {
+        const now = ac.currentTime, fade = bgmWant === 'boss' ? 0.3 : 0.9;
+        if (bgm) {
+          const g = bgm.bus.gain, old = bgm.bus;
+          g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(0.0001, now + fade);
+          setTimeout(() => { try { old.disconnect(); } catch (e) { /* ignore */ } }, fade * 1000 + 1600);
+        }
+        bgm = null;
+        const tr = bgmWant && Music.tracks[bgmWant];
+        if (tr) {
+          const bus = ac.createGain();
+          bus.gain.setValueAtTime(0.0001, now); bus.gain.linearRampToValueAtTime(tr.vol, now + (bgmWant === 'boss' ? 0.15 : 0.7));
+          bus.connect(musicOut);
+          bgm = { name: bgmWant, tr, bus, g: tr.startBar || 0, t: now + 0.1, st: {} };
+        }
+      }
+      if (!bgm) return;
+      const B = 60 / bgm.tr.bpm, bar = B * bgm.tr.meter;
+      if (bgm.t < ac.currentTime - 0.05) { const skip = Math.ceil((ac.currentTime - bgm.t) / bar); bgm.t += skip * bar; bgm.g += skip; } // (the tab was asleep)
+      while (bgm.t < ac.currentTime + 1.2) {
+        if (!muted) { try { bgm.tr.render(ac, bgm.bus, bgm.g, bgm.t, B, bgm.st); } catch (e) { console.warn('music', e); } }
+        bgm.t += bar; bgm.g++;
+      }
     }
+    setInterval(bgmTick, 100);
+    // no music in a hidden tab (and no catching up when she comes back)
+    document.addEventListener('visibilitychange', () => {
+      if (!ac) return;
+      try { if (document.hidden) ac.suspend(); else ac.resume(); } catch (e) { /* ignore */ }
+    });
     function noise(t, dur, vol, freq, type = 'bandpass') {
       const s = ac.createBufferSource(), f = ac.createBiquadFilter(), gn = ac.createGain();
       s.buffer = nbuf; f.type = type; f.frequency.value = freq;
@@ -264,9 +187,15 @@
     const seq = (notes, t0, len, vol, type) => notes.forEach((f, i) => tone(f, t0 + i * len, len * 0.9, vol, type));
     return {
       init,
-      toggle: () => (muted = !muted),
+      toggle: () => {
+        muted = !muted;
+        if (musicOut) { const g = musicOut.gain, now = ac.currentTime; g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(muted ? 0 : 1, now + 0.15); }
+        return muted;
+      },
       isMuted: () => muted,
-      songOn: () => !!songBus,
+      songOn: () => !!bgm && bgm.name === 'birthday',
+      bgm: (name) => { bgmWant = name || null; },
+      bgmName: () => (bgm ? bgm.name : null),
       hit: () => play((t) => { noise(t, 0.12, 0.7, 1300); tone(260, t, 0.12, 0.3, 'square', 70); }),
       whoosh: () => play((t) => {
         const s = ac.createBufferSource(), f = ac.createBiquadFilter(), gn = ac.createGain();
@@ -289,12 +218,7 @@
       levelUp: () => play((t) => { seq([523.25, 659.25, 783.99, 1046.5], t, 0.08, 0.13); tone(987.77, t + 0.36, 0.1, 0.13); tone(1046.5, t + 0.48, 0.4, 0.13); }),
       coin: () => play((t) => { tone(987.77, t, 0.07, 0.14); tone(1318.5, t + 0.07, 0.3, 0.14); }),
       blip: () => play((t) => tone(rand(860, 980), t, 0.025, 0.045)),
-      stopSong,
-      birthday: () => play((t0) => {
-        stopSong();
-        songBus = ac.createGain(); songBus.connect(out);
-        jazzBirthday(ac, t0 + 0.1, songBus);
-      }),
+      tick: () => play((t) => tone(1500, t, 0.012, 0.012, 'sine')), // the letter's typewriter: barely there, so the music carries
     };
   })();
 
@@ -1289,7 +1213,7 @@
     // wipe every stage's leftovers from the previous run up front
     Object.assign(W, { sub: 'idle', p: 0, z: 0, taps: 0, zFace: 'normal', said: {} });
     catchReset(); bossReset(false); zechReset(); kid.hug = false;
-    letterStep = 0; wrongEl.classList.remove('show');
+    letterStep = 0; letterSeen = false; wrongEl.classList.remove('show');
     if (at === 'bake') { stageIdx = 1; startBake(); } else showCard(at);
   }
   function showEnvelope() {
@@ -1302,6 +1226,16 @@
     sfx.coin();
   }
   let letterStep = 0; // how many wrong letters she has already been handed
+  let letterSeen = false; // the real letter has been opened this run (its song keeps playing after she closes it)
+  function wantedTrack() { // which background music fits the moment
+    if (phase === 'loading' || phase === 'title') return null;
+    if (phase === 'letter' || (ending() && letterSeen)) return music.kind ? null : 'birthday';
+    if (ending()) return 'room';
+    if (phase === 'bake') return K.alive ? 'boss' : 'room';
+    const k = STAGE().key;
+    if (k === 'boss') return B.sub === 'rescue' ? 'room' : 'boss';
+    return k; // 'catch' / 'whip'
+  }
   function openEnvelope() {
     if (phase !== 'ready') return;
     phase = 'opening';
@@ -1373,7 +1307,7 @@
     if (music.kind === 'file') {
       const a = (music.audio = new Audio(music.uri));
       a.preload = 'auto';
-      a.addEventListener('play', () => { music.playing = true; sfx.stopSong(); songBtn.textContent = '❚❚ PAUSE OUR SONG'; });
+      a.addEventListener('play', () => { music.playing = true; songBtn.textContent = '❚❚ PAUSE OUR SONG'; });
       a.addEventListener('pause', () => { music.playing = false; songBtn.textContent = '▶ PLAY OUR SONG'; });
       a.addEventListener('error', songFailed);
       return;
@@ -1386,7 +1320,6 @@
           ctl.addListener('playback_update', (e) => {
             const d = (e && e.data) || {};
             music.playing = !d.isPaused;
-            if (music.playing) sfx.stopSong(); // the real song takes over from the 8-bit one
           });
         });
       } catch (err) { console.warn('Spotify player failed', err); songFailed(); }
@@ -1422,7 +1355,8 @@
   function openLetter() {
     phase = 'letter';
     letter.classList.add('show');
-    if (!playSong()) sfx.birthday();
+    letterSeen = true;
+    playSong(); // (a Spotify link / audio file, if one is set; otherwise the jazz Happy Birthday plays)
     typeLetter();
   }
   function typeLetter() {
@@ -1444,7 +1378,7 @@
       p.classList.add('typing');
       ci = Math.min(full.length, ci + 2);
       p.textContent = full.slice(0, ci);
-      if (tick++ % 2 === 0) sfx.blip();
+      if (tick++ % 3 === 0) sfx.tick();
       if (ci >= full.length) { p.classList.remove('typing'); pi++; ci = 0; if (pi >= ps.length) finish(); }
     }, 35);
   }
@@ -1457,7 +1391,7 @@
   letter.addEventListener('click', (e) => { if (e.target === letter) closeLetter(); });
   $('#closeLetter').addEventListener('click', closeLetter);
   $('#skip').addEventListener('click', () => dialog.finishTyping && dialog.finishTyping());
-  $('#replay').addEventListener('click', () => { closeLetter(); sfx.stopSong(); pauseSong(); songBox.hidden = true; newRun(0); });
+  $('#replay').addEventListener('click', () => { closeLetter(); pauseSong(); songBox.hidden = true; newRun(0); });
   startBtn.addEventListener('click', startGame);
   $('#mute').addEventListener('click', (e) => {
     const off = sfx.toggle();
@@ -1601,6 +1535,7 @@
       const dt = Math.min(Math.max((now - last) / 1000, 0), 1 / 30);
       last = now; time += dt;
       tickText(dt);
+      sfx.bgm(wantedTrack());
       if (stopT > 0) stopT -= dt; // hit-stop: freeze a beat so hits feel crunchy
       else { update(dt / 2); update(dt / 2); }
       render();
@@ -1613,7 +1548,6 @@
   // read-only peek at the game state for automated tests (only with ?debug in the URL)
   if (/[?&]debug\b/.test(location.search)) {
     window.__game = {
-      jazz: jazzBirthday, // (for rendering the song offline in tests)
       get phase() { return phase; }, get stage() { return phase === 'bake' ? 'bake' : STAGE().key; },
       get sub() { return phase === 'bake' ? K.sub : { catch: CT.sub, whip: W.sub, boss: B.sub }[STAGE().key]; },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
@@ -1622,7 +1556,7 @@
       get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps }; },
       get catch() { return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S })) }; },
       get kid() { return { x: kid.x * S, y: kid.y * S }; }, get cakeHp() { return cake.hp; },
-      get music() { return { kind: music.kind, uri: music.uri, playing: music.playing, want: music.want, shown: !songBox.hidden }; }, get tune() { return sfx.songOn(); },
+      get music() { return { kind: music.kind, uri: music.uri, playing: music.playing, want: music.want, shown: !songBox.hidden }; }, get tune() { return sfx.songOn(); }, get track() { return sfx.bgmName(); },
     };
   }
 

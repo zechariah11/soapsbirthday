@@ -17,6 +17,12 @@ Sophia bakes a giant Sungsimdang strawberry cake:
    again (his denied leave request to come a week early). Then, finally, the real letter, with your
    song (see `song` below) or a little jazz-waltz "Happy Birthday".
 
+Music is synthesised too (`js/music.js`) and loops seamlessly: a calm, Animal Crossing-ish room
+theme (cake building, rescue, envelopes), a bouncy marimba tune for the strawberry catch, a sporty
+race theme for the whipping battle, a driving chiptune battle theme from the moment the cake comes
+alive, and for the real letter a jazz-waltz "Happy Birthday" (about 100 s per cycle, with new
+vibraphone and flute solos each time round) that keeps playing while she reads. The ♪ button mutes it all.
+
 All the art is drawn in code (`js/art.js`), so there are no image files to manage. Korean text uses
 the Galmuri11 pixel font (`fonts/`, SIL Open Font License), which only loads when Hangul appears.
 
