@@ -1269,9 +1269,8 @@
   function drawPreview() {
     const c = $('#preview'), x = c.getContext('2d');
     x.imageSmoothingEnabled = false; x.clearRect(0, 0, c.width, c.height);
-    const sx = 6, sy = 8, gp = A.GRIP.R, b = A.baguette(0.35);
-    x.drawImage(A.girl.idle1R, sx, sy);
-    x.drawImage(b.c, sx + gp.x - b.ox, sy + gp.y - b.oy);
+    // no baguette yet: she only grabs it when the cake comes alive
+    x.drawImage(A.girl.idle1R, Math.round((c.width - A.GIRL_W) / 2), Math.round((c.height - A.GIRL_H) / 2));
   }
 
   // ?stage=2, ?stage=3 or ?stage=bake jumps straight there (handy for testing)
