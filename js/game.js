@@ -445,7 +445,7 @@
   }
 
   /* =====================================================================
-     STAGE 1: whipped cream showdown (tap as fast as you can, vs Zech)
+     STAGE 3: whipped cream showdown (add the ingredients, then tap as fast as you can, vs Zech)
      ===================================================================== */
   const W = { sub: 'idle', p: 0, z: 0, cd: 0, cdShown: 0, sPh: 0, sPhT: 0, zPh: 0, zJig: 0, stallT: 0, quipT: 0, taps: 0, said: {}, hud: null, zFace: 'normal', doneT: 0 };
   // the two chefs are drawn at 2x (a close-up, like a versus screen) when the screen has room for it
@@ -512,7 +512,7 @@
       W.zPh += dt * (moving ? 6 + 60 * (W.z - before) / Math.max(dt, 1e-3) : 0.6); // whisks at his speed, barely moves when tired
       // when he's stuck behind her he gets tired (that's his excuse, anyway)
       W.stallT = moving ? Math.max(0, W.stallT - dt) : W.stallT + dt;
-      W.zFace = W.stallT > 0.6 ? 'tired' : ['strain', 'puff', 'tongue', 'strain', 'normal'][Math.floor(time / 0.7) % 5]; // pulling faces as he goes
+      W.zFace = W.stallT > 0.6 ? 'tired' : 'normal';
       if (W.stallT > 1.2 && (W.quipT -= dt) <= 0) {
         W.quipT = 2.6;
         const G = whipGeo();
@@ -841,9 +841,7 @@
         if (WV.ingT >= 1) {
           WV.ingT = -1; WV.ing++; sfx.pip(WV.ing / INGS.length);
           const G = ovToRoom(V, V.zx, V.zTop - 4);
-          if (WV.ing === 2) { W.zFace = 'puff'; popWord(G.x, G.y, pick(['achoo!', 'oops!']), false, '#ffffff'); for (let i = 0; i < 10; i++) WV.fx.push({ x: V.zx + rand(-8, 8) * V.kz / 2, y: V.zTop + 10 * V.kz + rand(-4, 4), vx: rand(-20, 20), vy: rand(-20, 5), g: 30, life: 0.8, col: '#ffffff', size: 2 }); }
-          else if (WV.ing === 1) W.zFace = 'tongue';
-          else W.zFace = 'normal';
+          if (WV.ing === 2) { popWord(G.x, G.y, 'oops!', false, '#ffffff'); for (let i = 0; i < 10; i++) WV.fx.push({ x: V.zx + rand(-8, 8) * V.kz / 2, y: V.zTop + 10 * V.kz + rand(-4, 4), vx: rand(-20, 20), vy: rand(-20, 5), g: 30, life: 0.8, col: '#ffffff', size: 2 }); } // (he spills a bit of sugar)
           if (WV.ing >= INGS.length) { // all in: on your marks…
             later(500, () => { if (W.sub === 'prep') { W.sub = 'countdown'; W.cd = 3; W.cdShown = 4; W.zFace = 'normal'; } });
           } else showCallout(coarse ? `TAP TO ADD ${INGS[WV.ing].label}!` : `CLICK TO ADD ${INGS[WV.ing].label}!`);
@@ -869,7 +867,7 @@
   }
 
   /* =====================================================================
-     STAGE 2: strawberry catch (no timer, no way to lose)
+     STAGE 1: strawberry catch (no timer, no way to lose)
      ===================================================================== */
   Object.assign(CT, { sub: 'idle', caught: 0, spawnT: 0, missStreak: 0, dizzyT: 0, spawned: 0, hud: null, moved: false, pile: [], landT: 0 });
   function catchReset() {
@@ -877,7 +875,7 @@
     CT.items.length = 0;
   }
   function catchBegin() {
-    CT.hud = stageHud('STAGE 1 · STRAWBERRY CATCH', [{ key: 'b', tag: '🍓', cls: 'berry', num: true }]);
+    CT.hud = stageHud(`STAGE ${stageIdx + 1} · STRAWBERRY CATCH`, [{ key: 'b', tag: '🍓', cls: 'berry', num: true }]);
     setBar(CT.hud.b, 0, `0/${C.strawberriesToCatch}`);
     document.body.classList.add('hud-stage');
     CT.sub = 'intro';
@@ -958,7 +956,7 @@
     popWord(kid.x, bowlRim() - 24, 'BOWL FULL!', true, '#ffc2d6');
     later(1300, () => say([
       `${NAME()} caught ${C.strawberriesToCatch} strawberries!`,
-      'Next up: the whipped cream!',
+      `Next up: ${STAGES[stageIdx + 1].next}!`,
     ], () => stageClear()));
   }
   // where each strawberry sits in the pile in her bowl: a heap, bottom row first (x from the bowl's middle, y up from its rim)
@@ -1228,7 +1226,7 @@
   }
 
   /* =====================================================================
-     STAGE 3: the giant strawberry cake boss
+     STAGE 5: the giant strawberry cake boss (the piñata cake monster)
      ===================================================================== */
   const cake = { show: false, alive: false, hp: 5, rope: -80, ropeV: 0, theta: 0, omega: 0, landed: false, flashT: 0, blinkT: 0, shakeT: 0, hurtT: 0, faintT: 0 };
   const B = { sub: 'idle', hits: 0, hitCD: 0, swingCD: 0, swingT: 0, swingIn: 0 };
@@ -1869,7 +1867,7 @@
   function icingReset() {
     IC.hudB = 110; IC.hudR = 340;
     const V = cuLayout(), a = V.ring.rx, b = V.ring.ry, per = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b))), n = clamp(Math.round(per / (V.r * 2 + 4)), 12, 24);
-    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0, done: false, ready: false })), cur: null, kl: false, kr: false, piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, seq: 0 });
+    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0, done: false, ready: false })), cur: null, tgt: null, bx: 0, by: 0, kl: false, kr: false, piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, seq: 0 });
     showCloseup(false);
     if (ZE.mode !== 'walk') { zechReset(); Object.assign(ZE, { mode: 'walk', x: bakeSpot().him, y: groundY(), tx: bakeSpot().him, face: 'happy' }); }
     kid.x = bakeSpot().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
@@ -1881,20 +1879,26 @@
     setBar(IC.hud.c, 0, `0/${IC.spots.length}`); setBar(IC.hud.b, 0, `0/${BERRIES}`); setBar(IC.hud.s, 0);
     document.body.classList.add('hud-stage', 'closeup');
     measureHud();
-    const V = cuLayout(), p0 = ringPos(V, 0); setCuPtr(V, p0.x - V.r * 3, p0.y + V.lift);
+    const V = cuLayout(), p0 = ringPos(V, 0);
+    IC.tgt = IC.spots[0]; IC.bx = p0.x; IC.by = p0.y - V.r * 1.2;
     showCloseup(true);
     sfx.whoosh();
     IC.sub = 'intro';
     say([
       'Time to decorate the top!',
-      coarse ? 'Put the nozzle on a dot, then press and hold to squeeze out a cream swirl. Let go when it sparkles!'
-        : 'Put the nozzle on a dot, then hold the mouse button (or space) to squeeze out a cream swirl. Let go when it sparkles!',
-      'One swirl at a time, all the way around the edge.',
-    ], () => { IC.sub = 'pipe'; lockT = 0.2; document.body.classList.add('follow'); showCallout(coarse ? 'HOLD ON A DOT TO SQUEEZE!' : 'HOLD ON EACH DOT TO SQUEEZE A SWIRL!'); });
+      coarse ? 'Press and hold anywhere to squeeze the piping bag. The swirl grows while you hold: let go when the ring turns gold!'
+        : 'Hold the mouse button (or space) anywhere to squeeze the piping bag. The swirl grows while you hold: let go when the ring turns gold!',
+      'The bag moves on to the next dot by itself. (Tap a dot if you want to pipe that one instead.)',
+    ], () => { IC.sub = 'pipe'; lockT = 0.2; showCallout(coarse ? 'HOLD TO SQUEEZE!' : 'HOLD TO SQUEEZE A SWIRL!'); });
   }
   function icingTap() {
     const V = cuLayout(), p = cuPtr(V);
-    if (IC.sub === 'pipe') { IC.squeeze = true; IC.cur = pipeSpot(V, { x: p.x, y: p.y - V.lift }); }
+    if (IC.sub === 'pipe') {
+      if (IC.cur) return;
+      IC.squeeze = true;
+      const near = pipeSpot(V, p, V.r * 2.6); // (a dot right under her finger wins; otherwise the bag's own dot)
+      IC.cur = near || nextSpot(); if (IC.cur) { IC.tgt = IC.cur; IC.u = IC.cur.u; hideCallout(); }
+    }
     else if (IC.sub === 'berries') {
       if (IC.used >= BERRIES || IC.held) return;
       if (inBowl(V, p)) { IC.held = nextBerry(); IC.used++; sfx.blip(); }            // pick one up…
@@ -1913,16 +1917,21 @@
       IC.held = null;
     }
   }
-  function pipeSpot(V, tip) { // the empty (or half-piped) dot under the nozzle, if any
-    let best = null, bd = V.r + 6;
-    for (const s of IC.spots) { if (s.done) continue; const q = ringPos(V, s.u), d = Math.hypot(q.x - tip.x, q.y - tip.y); if (d < bd) { bd = d; best = s; } }
-    if (best) IC.u = best.u;
+  function pipeSpot(V, at, reach) { // the empty (or half-piped) dot nearest a point, if one's close enough
+    let best = null, bd = reach;
+    for (const s of IC.spots) { if (s.done) continue; const q = ringPos(V, s.u), d = Math.hypot(q.x - at.x, q.y - at.y); if (d < bd) { bd = d; best = s; } }
     return best;
+  }
+  function nextSpot(dir = 1, skip) { // the bag's dot: the one it's over if that still needs doing, or the next empty one round the ring
+    const n = IC.spots.length, i0 = IC.tgt ? IC.spots.indexOf(IC.tgt) : 0;
+    for (let j = skip ? 1 : 0; j <= n; j++) { const s = IC.spots[(((i0 + dir * j) % n) + n) % n]; if (!s.done) return s; }
+    return null;
   }
   function finishSwirl(V, s) { // she lets go: the nozzle lifts off with a little peak (too small and it waits for a top-up)
     IC.cur = null;
-    if (s.g < 0.6) return;
+    if (s.g < 0.6) return; // (the bag stays put for the top-up)
     s.done = true; IC.piped++;
+    IC.tgt = nextSpot(1, true) || s; // …and glides on to the next dot
     setBar(IC.hud.c, IC.piped / IC.spots.length, `${IC.piped}/${IC.spots.length}`);
     const q = ringPos(V, s.u), perfect = s.g >= 0.85 && s.g <= 1.15;
     s.perfect = perfect;
@@ -1955,29 +1964,27 @@
     if (!IC.shown) return;
     const V = cuLayout(), p = cuPtr(V);
     if (IC.sub === 'pipe') {
-      // (keyboard: the arrows hop the nozzle to the next empty dot, space squeezes)
+      // (keyboard: the arrows move the bag to the next / previous empty dot, space squeezes)
       for (const [k, dir] of [['kl', -1], ['kr', 1]]) {
         const down = dir < 0 ? keys.left : keys.right;
-        if (down && !IC[k] && !IC.cur) {
-          const n = IC.spots.length, here = Math.round((((IC.u % 1) + 1) % 1) * n) % n, h0 = ringPos(V, IC.spots[here].u);
-          const onIt = Math.hypot(h0.x - p.x, h0.y + V.lift - p.y) < 2;
-          for (let j = onIt || IC.spots[here].done ? 1 : 0; j <= n; j++) { const s = IC.spots[(((here + dir * j) % n) + n) % n]; if (!s.done) { IC.u = s.u; const q = ringPos(V, s.u); setCuPtr(V, q.x, q.y + V.lift); sfx.blip(); break; } }
-        }
+        if (down && !IC[k] && !IC.cur) { const t = nextSpot(dir, true); if (t) { IC.tgt = t; sfx.blip(); } }
         IC[k] = down;
       }
-      const tip = { x: p.x, y: p.y - V.lift }, c = IC.cur;
+      const c = IC.cur, tg = c || IC.tgt;
+      if (tg) { // the bag glides over to its dot and hovers there (lower while it squeezes, rising as the swirl builds)
+        const q = ringPos(V, tg.u), ty = c ? q.y - V.r * (0.35 + 0.45 * Math.min(1, c.g)) : q.y - V.r * 1.2 - Math.sin(IC.t * 4) * 1.5;
+        const k = Math.min(1, dt * (c ? 30 : 12)); IC.bx += (q.x - IC.bx) * k; IC.by += (ty - IC.by) * k;
+      }
       if (c) {
         const q = ringPos(V, c.u);
-        if (Math.hypot(q.x - tip.x, q.y - tip.y) > V.r * 2.4) finishSwirl(V, c); // slid off the dot: the nozzle lifts
-        else {
-          c.g = Math.min(1.4, c.g + dt / 0.55); // the swirl builds up while she squeezes
-          if (!c.ready && c.g >= 0.85) { // just right: it sparkles
-            c.ready = true; sfx.blip();
-            for (let i = 0; i < 4; i++) IC.fx.push({ x: q.x + rand(-V.r, V.r), y: q.y - V.r * 0.4 + rand(-3, 1), vx: rand(-12, 12), vy: rand(-22, -8), g: 20, life: 0.4, col: pick(['#ffe9a0', '#ffd84a', '#ffffff']) });
-          }
-          if ((IC.sq -= dt) <= 0) { IC.sq = 0.08; sfx.squish(); }
-          if (Math.random() < dt * 24) IC.fx.push({ x: q.x + rand(-2, 2), y: q.y - 1, vx: rand(-10, 10), vy: rand(-8, 4), g: 40, life: 0.2, col: '#ffffff' });
+        c.g = Math.min(1.4, c.g + dt / 0.6); // the swirl builds up while she squeezes
+        if (!c.ready && c.g >= 0.85) { // just right: it sparkles
+          c.ready = true; sfx.blip();
+          for (let i = 0; i < 4; i++) IC.fx.push({ x: q.x + rand(-V.r, V.r), y: q.y - V.r * 0.4 + rand(-3, 1), vx: rand(-12, 12), vy: rand(-22, -8), g: 20, life: 0.4, col: pick(['#ffe9a0', '#ffd84a', '#ffffff']) });
         }
+        if ((IC.sq -= dt) <= 0) { IC.sq = 0.08; sfx.squish(); }
+        if (Math.random() < dt * 24) IC.fx.push({ x: q.x + rand(-2, 2), y: q.y - 1, vx: rand(-10, 10), vy: rand(-8, 4), g: 40, life: 0.2, col: '#ffffff' });
+        if (c.g >= 1.4) finishSwirl(V, c); // (held way too long: it lifts off by itself, a bit too big)
       }
       if (IC.piped >= IC.spots.length) {
         IC.sub = 'piped'; IC.squeeze = false; hideCallout(); document.body.classList.remove('follow');
@@ -2127,8 +2134,8 @@
     for (const { s, q } of spots) {
       const X = Math.round(q.x), Y = Math.round(q.y);
       if (s.g <= 0) {
-        const near = IC.sub === 'pipe' && !IC.cur && Math.hypot(q.x - tip.x, q.y - tip.y) < V.r + 6, rx = V.r * 0.8, ry = V.r * 0.66;
-        x.fillStyle = near ? '#ffcf4a' : Math.floor(IC.t * 2 + s.u * 8) % 2 ? '#e3cfb3' : '#eddcc5';
+        const near = IC.sub === 'pipe' && IC.tgt === s && !IC.cur, rx = V.r * 0.8, ry = V.r * 0.66;
+        x.fillStyle = near ? (Math.floor(IC.t * 4) % 2 ? '#ffcf4a' : '#ffe9a0') : Math.floor(IC.t * 2 + s.u * 8) % 2 ? '#e3cfb3' : '#eddcc5';
         for (let a = 0; a < 6.28; a += 0.62) x.fillRect(Math.round(X + Math.cos(a) * rx), Math.round(Y + Math.sin(a) * ry), 1, 1);
         continue;
       }
@@ -2137,6 +2144,14 @@
       shade(X + 1, Y + img.height * 0.32, img.width * 0.42, 2, '150,110,60');
       x.drawImage(img, X - Math.floor(img.width / 2), Y - Math.floor(img.height / 2));
       if (!s.done && s.g < 0.6 && IC.cur !== s) { x.fillStyle = Math.floor(IC.t * 3) % 2 ? '#ffcf4a' : '#eddcc5'; x.fillRect(X, Y - Math.floor(img.height / 2) - 2, 1, 1); } // (needs a top-up)
+      if (IC.cur === s) { // the squeeze gauge: a ring filling round the swirl, gold in the just-right zone, red when it's too much
+        const gr = V.r + 3, f = Math.min(1, s.g / 1.4);
+        for (let a = 0; a < Math.PI * 2; a += 0.12) {
+          const u = a / (Math.PI * 2), zone = u >= 0.85 / 1.4 && u <= 1.15 / 1.4, X2 = X + Math.sin(a) * gr, Y2 = Y - Math.cos(a) * gr * 0.75;
+          x.fillStyle = u <= f ? (u > 1.15 / 1.4 ? '#ff6b6b' : zone ? '#ffd84a' : '#ffffff') : zone ? 'rgba(255,216,74,.45)' : 'rgba(120,90,60,.3)';
+          x.fillRect(Math.round(X2), Math.round(Y2), 2, 2);
+        }
+      }
       if ((s.ready && !s.done && s.g <= 1.15) || (s.perfect && Math.floor(IC.t * 2 + s.u * 13) % 7 === 0)) { // a twinkle on the just-right ones
         const gx = X + Math.round(V.r * 0.45), gy = Y - Math.round(V.r * 0.5);
         x.fillStyle = '#ffffff'; x.fillRect(gx, gy - 1, 1, 3); x.fillRect(gx - 1, gy, 3, 1); x.fillStyle = '#ffe9a0'; x.fillRect(gx, gy, 1, 1);
@@ -2194,13 +2209,12 @@
     for (const f of IC.flakes) { R('rgba(120,100,80,.3)', f.x + 1, f.y + 1); R('#ffffff', f.x, f.y); }
     for (const f of IC.fx) { if (f.life < 0.12 && Math.floor(f.life * 50) % 2) continue; x.fillStyle = f.col; x.fillRect(Math.round(f.x), Math.round(f.y), 1, 1); }
     // whatever's in her hand (the HUD fades while it's behind it)
-    const ghost = IC.shown && (tip.y - (IC.sub === 'pipe' ? V.bagH : V.fR * 2)) * V.P < IC.hudB && (tip.x - V.bagH * 0.4) * V.P < IC.hudR;
+    const hx = IC.sub === 'pipe' || IC.sub === 'intro' ? IC.bx : tip.x, hy = IC.sub === 'pipe' || IC.sub === 'intro' ? IC.by : tip.y;
+    const ghost = IC.shown && (hy - (IC.sub === 'pipe' || IC.sub === 'intro' ? V.bagH : V.fR * 2)) * V.P < IC.hudB && (hx - V.bagH * 0.4) * V.P < IC.hudR;
     if (ghost !== IC.ghost) { IC.ghost = ghost; $('#stageBox').classList.toggle('ghost', ghost); }
     if (IC.sub === 'pipe' || IC.sub === 'intro') {
       const squeezing = IC.sub === 'pipe' && IC.squeeze, bag = CU.pipingBag(V.bagH, squeezing);
-      let bx = tip.x, by = tip.y;
-      if (IC.cur) { const q = ringPos(V, IC.cur.u); bx = q.x; by = q.y - V.r * (0.35 + 0.45 * Math.min(1, IC.cur.g)); } // on the dot, rising as the swirl builds
-      x.drawImage(bag, Math.round(bx - bag.width / 2 + 2), Math.round(by - bag.height + 1));
+      x.drawImage(bag, Math.round(IC.bx - bag.width / 2 + 2), Math.round(IC.by - bag.height + 1));
     } else if (IC.held) {
       const img = CU.berry(V.sr, IC.held.kind, IC.held.ang), Y = p.y - V.lift * 0.5;
       shade(p.x + 4, Y + V.sr * 0.9, V.sr * 0.8, Math.max(2, V.sr * 0.28));
@@ -2313,14 +2327,14 @@
   }
 
   /* ================= stages + flow ================= */
-  // the story: catch strawberries → bake the sponges → whip the cream → (cutscene: stack the layers) → ice the top
+  // the story, in order: catch strawberries → bake the sponges → whip the cream → (cutscene: stack the layers) → ice the top
   // → (cutscene: the cake comes alive and kidnaps Zech) → whack the piñata cake
   const STAGES = [
-    { key: 'catch', title: 'Strawberry Catch', how: () => (coarse ? 'Drag left & right to catch!' : 'Move left & right to catch!'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
-    { key: 'sponge', title: 'Fluffy Sponge', how: () => (coarse ? 'Press and hold to bake, let go at the line!' : 'Hold to bake, let go at the line!'), reset: spongeReset, begin: spongeBegin, update: spongeUpdate, tap: spongeTap, release: spongeRelease },
-    { key: 'whip', title: 'Whipped Cream Showdown', how: () => (coarse ? 'Tap as fast as you can!' : 'Click as fast as you can!'), reset: whipReset, begin: whipBegin, update: whipUpdate, tap: whipTap },
-    { key: 'icing', title: 'Icing on Top', how: () => 'Squeeze cream swirls one by one, add strawberries, then dust with sugar!', reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap, release: icingRelease },
-    { key: 'boss', title: 'Piñata Cake Monster', how: () => `${coarse ? 'Tap' : 'Click'} to jump & swing your baguette and rescue ${C.opponentName}!`, reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
+    { key: 'catch', title: 'Strawberry Catch', next: 'catching strawberries', how: () => (coarse ? 'Drag left & right to catch!' : 'Move left & right to catch!'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
+    { key: 'sponge', title: 'Fluffy Sponge', next: 'baking the fluffy sponges', how: () => (coarse ? 'Press and hold to bake, let go at the line!' : 'Hold to bake, let go at the line!'), reset: spongeReset, begin: spongeBegin, update: spongeUpdate, tap: spongeTap, release: spongeRelease },
+    { key: 'whip', title: 'Whipped Cream Showdown', next: 'the whipped cream showdown', how: () => (coarse ? 'Add the ingredients, then tap as fast as you can!' : 'Add the ingredients, then click as fast as you can!'), reset: whipReset, begin: whipBegin, update: whipUpdate, tap: whipTap },
+    { key: 'icing', title: 'Icing on Top', next: 'icing the cake', how: () => 'Squeeze cream swirls one by one, add strawberries, then dust with sugar!', reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap, release: icingRelease },
+    { key: 'boss', title: 'Piñata Cake Monster', next: 'the piñata cake monster', how: () => `${coarse ? 'Tap' : 'Click'} to jump & swing your baguette and rescue ${C.opponentName}!`, reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
   ];
   const stageIndex = (key) => STAGES.findIndex((st) => st.key === key);
   function clearStageUi() {
@@ -2746,7 +2760,7 @@
         let on = 0; for (const s of IC.specks) if (s.on) on++;
         return {
           sub: IC.sub, piped: IC.piped, n: IC.spots.length, placed: IC.placed.length, used: IC.used, held: !!IC.held, sugar: on / SUGAR_GOAL, shown: IC.shown, lift: V.lift * k,
-          ring: IC.spots.map((s) => { const q = ringPos(V, s.u); return { ...sp(q.x, q.y + V.lift), done: s.done, g: s.g, perfect: !!s.perfect }; }),
+          ring: IC.spots.map((s) => { const q = ringPos(V, s.u); return { ...sp(q.x, q.y), done: s.done, g: s.g, perfect: !!s.perfect, tgt: IC.tgt === s }; }),
           bowl: sp(V.bx, V.by), cake: { x0: V.x0 * k, y0: V.y0 * k, x1: V.x1 * k, y1: V.y1 * k },
           inner: { x0: V.inner.x0 * k, y0: V.inner.y0 * k, x1: V.inner.x1 * k, y1: V.inner.y1 * k },
         };

@@ -6,17 +6,21 @@ Sophia bakes a giant Sungsimdang strawberry cake:
 1. **Strawberry Catch**: strawberries rain from the ceiling; she runs left/right with a bowl to
    catch them (dodging burnt toast). There's no timer and no way to lose: if she keeps missing,
    strawberries start falling closer to her.
-2. **Fluffy Sponge**: press and hold to bake; the batter rises in the oven window, and she lets go
-   when it reaches the dotted line (too early = flat, too long = POOF). Three sponges pile up on
-   top of the oven. The target zone gets wider after every miss.
-3. **Whipped Cream Showdown**: a tap-as-fast-as-you-can race against Zech (in Korean Army
-   uniform). It looks like a close race, but he's quietly rubber-banded so she always wins.
-   Then a short **cutscene**: she stacks the cake layer by layer, one tap per layer.
-4. **Icing on Top**: a top-down close-up of the cake. Trace the piping bag around the edge to pipe
-   a ring of little cream swirls, then tap inside the ring to place twelve strawberries wherever
-   she likes. Then the cake
-   comes alive: Zech tries to run, a whipped-cream arm shoots out of the cake, grabs him, dangles
-   him over the top and plops him into the strawberries, and the cake gets hoisted up as a piñata.
+2. **Fluffy Sponge**: the camera zooms into the oven. Press and hold to switch it on: the dials
+   turn, the coils glow and a chiffon cake rises in its tube pan behind the glass. She lets go when
+   its top reaches the gold line (too early = flat, too long = POOF, spilling over the pan). Each
+   good one hops out of the door onto the cooling rack; three are needed. The target gets wider
+   after every miss.
+3. **Whipped Cream Showdown**: first person at the table, with Zech (in Korean Army uniform) across
+   it pulling funny faces. Tap to add the cold cream, sugar and vanilla, then tap as fast as you
+   can: the whisk turns as fast as she taps and the cream goes from liquid to foam to soft and
+   stiff peaks. It looks like a close race, but he's quietly rubber-banded so she always wins.
+   Then a short **cutscene**: she stacks the round cake layer by layer, one tap per layer.
+4. **Icing on Top**: a close-up of the cake on the counter. Squeeze the piping bag on each dot round
+   the edge, one swirl at a time; drag twelve strawberries out of the bowl onto the top; then shake
+   the sifter to dust it with sugar. Then the cake comes alive: Zech tries to run, a whipped-cream
+   arm uncoils out of the cake, wraps round him, swings him up and drops him into the strawberries,
+   and the cake gets hoisted up as a piñata.
 5. **Piñata Cake Monster**: run under the hanging cake and tap to jump and whack it with a baguette
    (Zech yells for help from the top) until its HP bar is empty. Zech tumbles out, they run to each other and hug, she levels
    up, and he hands her a letter… the wrong one (his whipping rematch request). Then the wrong one

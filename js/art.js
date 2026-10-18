@@ -215,10 +215,6 @@ window.Art = (() => {
     tired: { 7: '..HSSSSSSSSSSSSSSH.D', 8: '..HSSEESSSSSSEESSHDD', 10: '...sSSSSSMMSSSSSs...' },
     lose: { 7: '..HSSEEESSSSEEESSH..', 8: '..HSSSESSSSSSESSSH..', 9: '..HSPPDSSMMSSDPPSH..' },
     happy: { 7: '..HSSSESSSSSSESSSH..', 8: '..HSSESESSSSESESSH..', 9: '..HSPPSSMSSMSSPPSH..', 10: '...sSSSSSMMSSSSSs...' },
-    // funny faces while he's whisking for his life
-    strain: { 7: '..HSSESSSSSSSSESSH.D', 8: '..HSSSESSSSSSESSSHDD', 9: '..HSPPSEWWWWESPPSH..', 10: '...sSSSSEEEESSSSs...' },  // eyes squeezed shut, teeth gritted
-    puff: { 7: '..HSSWESSSSSSWESSH..', 8: '..HSSEESSSSSSEESSH..', 9: '.HSPPPSSSEESSSPPPSH.', 10: '..ssSSSSSSSSSSSSss..' },  // cheeks puffed right out
-    tongue: { 7: '..HSSWESSSSSSSSSSH..', 8: '..HSSEESSSSSSEEESH..', 9: '..HSPPSSSEESSSPPSH..', 10: '...sSSSSSSSPPSSSs...' }, // one eye squinting, tongue out
   };
   function camoSprite(rows) {
     const c = mk(rows[0].length, rows.length), x = ctxOf(c);
