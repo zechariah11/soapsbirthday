@@ -220,6 +220,7 @@
       blip: () => play((t) => tone(rand(860, 980), t, 0.025, 0.045)),
       rise: (r) => play((t) => tone(320 + r * 520, t, 0.05, 0.03, 'triangle')),
       squish: () => play((t) => noise(t, 0.05, 0.05, 900, 'lowpass')),
+      ding: () => play((t) => { tone(1568, t, 0.5, 0.07, 'sine'); tone(2093, t + 0.01, 0.6, 0.04, 'sine'); tone(3136, t, 0.15, 0.02, 'sine'); }),
       sift: () => play((t) => noise(t, 0.04, 0.03, 5000, 'highpass')),
       pip: (k) => play((t) => { tone(660 + k * 520, t, 0.05, 0.05, 'triangle'); tone(990 + k * 780, t + 0.04, 0.06, 0.04, 'sine'); }),
       tick: () => play((t) => tone(1500, t, 0.012, 0.012, 'sine')), // the letter's typewriter: barely there, so the music carries
@@ -459,33 +460,39 @@
 
   function whipReset() {
     Object.assign(W, { sub: 'idle', p: 0, z: 0, cd: 0, cdShown: 0, sPh: 0, sPhT: 0, zPh: 0, zJig: 0, stallT: 0, quipT: 0, taps: 0, said: {}, zFace: 'normal', doneT: 0 });
+    Object.assign(WV, { shown: false, ang: 0, om: 0, iv: 0.5, lastTap: -9, ing: 0, ingT: -1, idleT: 0, pv: 0, lift: 0, vol: 0, fx: [], specks: [] });
     kid.x = whipGeo().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
   }
   function whipBegin() {
     W.hud = stageHud(`STAGE ${stageIdx + 1} · WHIPPED CREAM`, [{ key: 'her', tag: NAME().slice(0, 6), cls: 'her' }, { key: 'him', tag: OPP().slice(0, 6), cls: 'him' }]);
-    document.body.classList.add('hud-stage');
+    document.body.classList.add('hud-stage', 'closeup');
+    measureHud(); showWhip(true); sfx.whoosh();
     W.sub = 'intro';
     say([
       `A challenger appeared! It's ${OPP()}!`,
       `${OPP()}: The cake needs whipped cream. First one to stiff peaks wins!`,
-      coarse ? 'Tap the screen as fast as you can to whisk!' : 'Click (or press space) as fast as you can to whisk!',
-    ], () => { W.sub = 'countdown'; W.cd = 3; W.cdShown = 4; lockT = 0.2; });
+      'First, the ingredients: cold cream, sugar and a drop of vanilla.',
+      coarse ? 'Then tap as fast as you can: the faster you tap, the faster you whisk!' : 'Then click (or press space) as fast as you can: the faster you click, the faster you whisk!',
+    ], () => { W.sub = 'prep'; lockT = 0.2; showCallout(coarse ? `TAP TO ADD ${INGS[0].label}!` : `CLICK TO ADD ${INGS[0].label}!`); });
   }
   function whipTap() {
+    if (W.sub === 'prep') { addIngredient(); return; }
     if (W.sub !== 'race') return;
     W.taps++;
+    const iv = clamp(time - WV.lastTap, 0.05, 1.2); WV.lastTap = time; WV.iv = WV.iv * 0.55 + iv * 0.45; // (how fast she's tapping)
+    whipSplash();
     W.p = Math.min(1, W.p + 1 / C.whipTaps);
     W.sPhT += 2.4; kid.hopT = 0.06; // each tap = one more turn of the whisk
     sfx.whisk();
     const G = whipGeo(), cx = G.herBowl, rim = G.rim;
     parts.push({ x: cx + rand(-5, 5) * G.k, y: rim - (2 + Math.round(W.p * 6)) * G.k, vx: rand(-25, 25) * G.k, vy: rand(-60, -30) * G.k, g: 200 * G.k, life: 0.6, col: '#ffffff', size: G.k, ground: rim + 1 });
     for (const [at, word] of [[0.33, 'SOFT PEAKS!'], [0.66, 'STIFF PEAKS!']]) {
-      if (W.p >= at && !W.said[word]) { W.said[word] = true; popWord(cx, rim - 12 * G.k, word); }
+      if (W.p >= at && !W.said[word]) { W.said[word] = true; const V = wvLayout(), q = ovToRoom(V, V.cx, V.rimY - V.ry - 8); popWord(q.x, q.y, word); }
     }
     if (W.p >= 1) whipWin();
   }
   function whipUpdate(dt) {
-    W.sPh += (W.sPhT - W.sPh) * Math.min(1, dt * 16);
+    if (WV.shown || cuCv.classList.contains('on')) wvUpdate(dt);
     if (W.sub === 'countdown') {
       W.cd -= dt;
       const n = Math.ceil(W.cd);
@@ -505,11 +512,12 @@
       W.zPh += dt * (moving ? 6 + 60 * (W.z - before) / Math.max(dt, 1e-3) : 0.6); // whisks at his speed, barely moves when tired
       // when he's stuck behind her he gets tired (that's his excuse, anyway)
       W.stallT = moving ? Math.max(0, W.stallT - dt) : W.stallT + dt;
-      W.zFace = W.stallT > 0.6 ? 'tired' : 'normal';
+      W.zFace = W.stallT > 0.6 ? 'tired' : ['strain', 'puff', 'tongue', 'strain', 'normal'][Math.floor(time / 0.7) % 5]; // pulling faces as he goes
       if (W.stallT > 1.2 && (W.quipT -= dt) <= 0) {
         W.quipT = 2.6;
         const G = whipGeo();
-        popWord(G.him, G.base - 42 * G.k, pick(['huff… huff…', 'my arm…', 'phew!', 'so tired…']), false, '#e8f0d0');
+        const V = wvLayout(), q = ovToRoom(V, V.zx, V.zTop - 4);
+        popWord(q.x, q.y, pick(['huff… huff…', 'my arm…', 'phew!', 'so tired…']), false, '#e8f0d0');
       }
       if (W.p >= 0.3) hideCallout();
     }
@@ -523,13 +531,13 @@
     W.sub = 'done'; W.p = 1; hideCallout();
     kid.happyT = 99;
     sfx.clear(); shakeT = 0.2; shakeA = 1;
-    const G = whipGeo(), rim = G.rim;
-    popWord(G.herBowl, rim - 18 * G.k, 'PERFECT!', true, '#ffd84a');
-    for (let i = 0; i < 24; i++) parts.push({ x: G.herBowl + rand(-6, 6) * G.k, y: rim - 8 * G.k, vx: rand(-50, 50) * G.k, vy: rand(-110, -40) * G.k, g: 220 * G.k, life: rand(0.8, 1.4), col: pick(['#ffffff', '#fff3c4', '#ffd84a']), size: G.k, ground: rim + 2 });
+    const V = wvLayout(), q = ovToRoom(V, V.cx, V.rimY - V.ry - 14);
+    popWord(q.x, q.y, 'PERFECT!', true, '#ffd84a');
+    for (let i = 0; i < 30; i++) WV.fx.push({ x: V.cx + rand(-V.rx, V.rx) * 0.6, y: V.rimY - V.ry * 0.5, vx: rand(-60, 60), vy: rand(-120, -40), g: 220, life: rand(0.8, 1.4), col: pick(['#ffffff', '#fff3c4', '#ffd84a']), size: pick([1, 2]) });
     later(1300, () => say([
       `${NAME()} whipped the perfect cream!`,
       { text: `${OPP()}: How are you so fast?! …Okay, you win.`, on: () => { W.zFace = 'happy'; } },
-    ], () => stageClear()));
+    ], () => { showWhip(false); stageClear(); }));
   }
   function drawCream(cx, rim, prog) {
     const h = Math.round(prog * 6);
@@ -605,12 +613,267 @@
     drawChef(A.zechWhisk[W.zFace], G.him, 'zech', W.z, Math.PI - W.zPh, -1, G.k, zBob, G.off, { x: 4, y: 18 }, '#7b8758', '#f6cfa8', G.cw);
   }
 
+  /* the whipping close-up: first person at the table, her bowl right in front of you and her hand on the whisk,
+     Zech across the table whisking his own (badly, with faces). First the ingredients go in, then the race:
+     the whisk turns exactly as fast as she taps, and the cream goes from a glossy liquid to foam, to soft
+     folds, to stiff peaks, smoothly as it thickens */
+  const WV = { shown: false, back: null, front: null, baseKey: '', ang: 0, om: 0, iv: 0.5, lastTap: -9, ing: 0, ingT: -1, idleT: 0, pv: 0, lift: 0, fx: [], specks: [], img: null, zFaceT: 0, zFaceI: 0 };
+  const INGS = [{ key: 'cream', label: 'THE CREAM' }, { key: 'sugar', label: 'THE SUGAR' }, { key: 'vanilla', label: 'THE VANILLA' }];
+  function wvLayout() {
+    const { P, w, h } = cuSize();
+    const port = h > w * 1.2, hb = Math.ceil(IC.hudB / P) + 2;
+    const rx = Math.round(Math.min(w * 0.43, h * 0.36)), ry = Math.round(rx * 0.42), cx = Math.round(w / 2), rimY = Math.round(h - rx * 0.5);
+    const yFar = Math.round(Math.max(hb + 8, rimY - ry - rx * (port ? 1.0 : 0.62)));          // the far edge of the table
+    const kz = clamp(Math.round(Math.min(w, h * 1.3) / (port ? 52 : 100)), 1, 4);              // Zech's size across the table
+    const zx = cx + (port ? 0 : Math.round(rx * 0.1)), zTop = yFar - 24 * kz;
+    const iH = clamp(Math.round(rx * 0.42), 16, 44), side = cx - rx > iH * 1.5;
+    const items = side
+      ? [{ x: cx - rx - Math.round(iH * 0.75), y: rimY - 2 }, { x: cx + rx + Math.round(iH * 0.75), y: rimY - 2 }, { x: cx + rx + Math.round(iH * 0.4), y: rimY - ry - Math.round(iH * 0.35) }]
+      : [{ x: Math.round(w * 0.15), y: rimY - ry + 3 }, { x: Math.round(w * 0.85), y: rimY - ry + 3 }, { x: Math.round(w * 0.68), y: rimY - ry - Math.round(iH * 0.25) }];
+    return { P, w, h, port, rx, ry, cx, rimY, yFar, kz, zx, zTop, iH, items, botY: rimY + Math.round(ry * 1.3) };
+  }
+  function showWhip(on) { const G = whipGeo(); zoomCloseup('whip', on, G.herBowl, G.rim - 6); WV.shown = on; }
+  // where the cream's surface is in her bowl: it rises as cream goes in, and again as air is whipped into it
+  function creamSurf(V) {
+    const vol = W.sub === 'done' || W.sub === 'race' || W.sub === 'countdown' ? 0.35 + 0.5 * smooth01((WV.pv - 0.1) / 0.8) : WV.vol || 0;
+    const k = clamp(vol, 0, 1), rs = V.rx * (0.62 + 0.3 * k);
+    return { vol: k, cx: V.cx, cy: V.botY + (V.rimY + V.ry * 0.18 - V.botY) * k, rx: rs, ry: rs * 0.42 };
+  }
+  const smooth01 = (u) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+
+  function wvLayers(V) { // the wall behind Zech, and the table (cached per layout)
+    const key = `${V.w}x${V.h}:${V.yFar},${V.rx}`;
+    if (WV.baseKey === key) return;
+    const back = A.mk(V.w, V.h), x = back.getContext('2d');
+    const R = (col, X, Y, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); };
+    R('#dfe9ff', 0, 0, V.w, V.h);
+    for (let y = 4; y < V.yFar; y += 10) for (let X = ((y / 10) % 2) * 6 + 3; X < V.w; X += 12) { R('#c9d8f5', X, y - 1, 1, 3); R('#c9d8f5', X - 1, y, 3, 1); }
+    const by = Math.max(4, Math.round(IC.hudB / V.P) - 6), cols = ['#ff9db2', '#ffd84a', '#8fd18a', '#7fb2ff', '#c7a6ff'];  // bunting
+    for (let X = 0; X < V.w; X++) R('#8a7a9a', X, by + Math.round(Math.sin((X / V.w) * Math.PI * 3) * 3 + 3));
+    for (let k = 0, X = 4; X < V.w - 6; X += 13, k++) { const y0 = by + Math.round(Math.sin((X / V.w) * Math.PI * 3) * 3 + 3); for (let j = 0; j < 7; j++) R(cols[k % 5], X + Math.floor(j / 2), y0 + j, 7 - Math.floor(j / 2) * 2, 1); }
+    const ban = A.foil('HAPPY BIRTHDAY', 2), bx = Math.round(V.w / 2 - ban.width / 2), byy = by + 16;
+    if (ban.width < V.w - 8 && byy + ban.height + 4 < V.zTop) x.drawImage(ban, bx, byy);
+    for (const [X, col] of [[V.w * 0.07, '#ff9db2'], [V.w * 0.93, '#7fb2ff']]) if (V.yFar - by > 40) { // a balloon in each corner
+      const Y = by + 26; R('#8a7a9a', X, Y + 8, 1, 14); for (let j = -7; j <= 7; j++) { const hw = Math.round(5.5 * Math.sqrt(1 - (j / 7.5) ** 2)); R(col, X - hw, Y + j, hw * 2 + 1, 1); } R('#ffffff', X - 3, Y - 4, 2, 2);
+    }
+    const front = A.mk(V.w, V.h), y = front.getContext('2d'), rows = V.h - V.yFar, c0 = Math.max(2, Math.round(V.w / 55)), K = rows / (3 * c0); // gingham table, in perspective
+    for (let j = 0; j < rows; j++) {
+      const v = j / rows, sc = 1 + 3 * v, q = Math.floor(Math.log(1 + 3 * v) * K) % 2;
+      for (let X = 0; X < V.w; X++) {
+        const p = ((Math.floor((X - V.w / 2) / sc / c0) % 2) + 2) % 2;
+        y.fillStyle = p && q ? '#a9c8f5' : p || q ? '#cfe2ff' : '#ffffff'; y.fillRect(X, V.yFar + j, 1, 1);
+      }
+    }
+    y.fillStyle = '#ffffff'; y.fillRect(0, V.yFar, V.w, 1); y.fillStyle = '#7fb2f0'; y.fillRect(0, V.yFar + 1, V.w, 1);
+    WV.back = back; WV.front = front; WV.baseKey = key; WV.img = null;
+  }
+  // the cream's surface, shaded pixel by pixel: ripples on liquid cream, bubbles as it foams, folds and ridges as it stiffens
+  const CREAM_PALS = [
+    ['#e2cda4', '#efdcb8', '#f9ecd2', '#fff6e4', '#ffffff'], ['#e4d6bc', '#f1e5ce', '#faf1e1', '#fff9ef', '#ffffff'],
+    ['#dcd8d0', '#ece8e0', '#f7f4ee', '#fefcf8', '#ffffff'], ['#d9dce5', '#eaecf1', '#f6f7f9', '#fdfdfe', '#ffffff'],
+  ].map((p) => p.map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]));
+  function drawCreamTop(x, Sf, p, t) {
+    const w2 = Math.ceil(Sf.rx) * 2 + 2, h2 = Math.ceil(Sf.ry) * 2 + 2;
+    if (!WV.img || WV.img.width !== w2 || WV.img.height !== h2) { WV.img = A.mk(w2, h2); WV.imgD = WV.img.getContext('2d').createImageData(w2, h2); }
+    const d = WV.imgD.data, ox = w2 / 2, oy = h2 / 2, ang = WV.ang;
+    const wL = 1 - smooth01((p - 0.08) / 0.25), wF = Math.max(0, 1 - Math.abs(p - 0.3) / 0.2), wS = smooth01((p - 0.3) / 0.5);
+    const palF = clamp(p * 3.4, 0, 2.999), pi = Math.floor(palF), pf = palF - pi, BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    const H = (nx, ny) => {
+      const r2 = nx * nx + ny * ny, r = Math.sqrt(r2), th = Math.atan2(ny, nx);
+      let v = (1 - r2) * (0.15 + 0.7 * wS);
+      if (wL > 0) v += wL * (0.16 * Math.sin(r * 15 - t * 6) * (1 - r) + 0.22 * Math.sin(2 * (th - ang) + r * 6));
+      if (wS > 0) { const s = 0.5 + 0.5 * Math.sin(3 * (th - ang * 0.35) + r * 10 + Math.sin(th * 5 + r * 3) * 1.2); v += wS * (0.35 + 0.4 * p) * s * s; }
+      return v;
+    };
+    for (let j = 0; j < h2; j++) for (let i = 0; i < w2; i++) {
+      const o = (j * w2 + i) * 4, nx = (i - ox + 0.5) / Sf.rx, ny = (j - oy + 0.5) / Sf.ry, r2 = nx * nx + ny * ny;
+      if (r2 > 1) { d[o + 3] = 0; continue; }
+      let lv = 2.4 + (H(nx - 0.06, ny - 0.12) - H(nx, ny)) * (wS > 0.3 ? 9 : 7) - r2 * r2 * 1.4;
+      if (wF > 0) { // foam: little bubbles with a bright top and a dark underside
+        const ci = Math.floor((i + 1) / 3), cj = Math.floor(j / 2), hv = ((ci * 73856093) ^ (cj * 19349663)) >>> 0;
+        if (hv % 5 < 2 * wF + 0.5) { const bi = ci * 3 - 1 + (hv % 2), bj = cj * 2; lv += j === bj && i === bi ? 1.4 : j === bj + 1 && i === bi ? -0.9 : 0; }
+      }
+      if (r2 > 0.86) lv -= 0.8; // where it meets the bowl
+      const dth = BAY[(j % 4) * 4 + (i % 4)] / 16;
+      const pal = CREAM_PALS[pi + (pf > dth ? 1 : 0) > 3 ? 3 : pi + (pf > dth ? 1 : 0)], c = pal[clamp(Math.floor(lv + dth - 0.5), 0, 4)];
+      d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+    }
+    WV.img.getContext('2d').putImageData(WV.imgD, 0, 0);
+    x.drawImage(WV.img, Math.round(Sf.cx - ox), Math.round(Sf.cy - oy));
+  }
+  // a pixel line of a given thickness, on the close-up canvas
+  function cuLine(x, x0, y0, x1, y1, wd, col) {
+    x.fillStyle = col; const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 1.5));
+    for (let i = 0; i <= n; i++) { const t = i / n; x.fillRect(Math.round(x0 + (x1 - x0) * t - wd / 2), Math.round(y0 + (y1 - y0) * t - wd / 2), wd, wd); }
+  }
+  function drawWhiskHead(x, hx, hy, L, Wd, spin, sunk, wet) { // a balloon whisk, its tip at (hx, hy), seen from above and behind
+    const top = hy - L, wires = [], du = 0.7 / Math.max(L, Wd);
+    for (let k = 0; k < 4; k++) {
+      const a = spin + (k * Math.PI) / 4, cs = Math.cos(a), sn = Math.sin(a);
+      for (let u = 0; u <= Math.PI + 0.001; u += du) {
+        const rr = Math.sin(u) * Wd, z = ((1 - Math.cos(u)) / 2) * L;
+        if (z > L * (1 - sunk)) continue; // (under the cream)
+        wires.push({ x: Math.round(hx + rr * cs), y: Math.round(top + z + rr * sn * 0.35), back: sn < 0, z });
+      }
+    }
+    for (const pass of [true, false]) {
+      x.fillStyle = '#4a5068'; for (const q of wires) if (q.back === pass) { x.fillRect(q.x - 1, q.y, 3, 1); x.fillRect(q.x, q.y - 1, 1, 3); }
+      for (const q of wires) if (q.back === pass) { x.fillStyle = pass ? '#9aa2b5' : q.z > L * (1 - sunk) - 2 && wet ? '#fff6e4' : q.x < hx ? '#ffffff' : '#d5dbe7'; x.fillRect(q.x, q.y, 1, 1); }
+    }
+    x.fillStyle = '#4a5068'; x.fillRect(Math.round(hx) - 3, Math.round(top) - 3, 7, 5); x.fillStyle = '#d5dbe7'; x.fillRect(Math.round(hx) - 2, Math.round(top) - 2, 5, 3); x.fillStyle = '#ffffff'; x.fillRect(Math.round(hx) - 2, Math.round(top) - 2, 2, 1);
+    return { x: hx, y: top - 2 };
+  }
+  function renderWhip() {
+    if (cuOwner !== 'whip' || (!WV.shown && !cuCv.classList.contains('on'))) return;
+    const V = wvLayout(), x = cuG, t = time;
+    x.imageSmoothingEnabled = false;
+    wvLayers(V);
+    x.drawImage(WV.back, 0, 0);
+    const R = (col, X, Y, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); };
+    // ---- Zech, across the table
+    const zimg = A.zechWhisk[W.zFace] || A.zechWhisk.normal, kz = V.kz, zw = zimg.width * kz, zh = zimg.height * kz;
+    const zbob = W.sub === 'race' && W.stallT < 0.3 && Math.floor(W.zJig) % 2 ? -kz : 0, zl = Math.round(V.zx - zw / 2);
+    x.drawImage(zimg, zl, V.zTop + zbob, zw, zh);
+    x.drawImage(WV.front, 0, 0);
+    const zb = A.BOWLS.zech, bw = zb.width * kz, bh = zb.height * kz, bx = Math.round(V.zx - bw / 2), byy = V.yFar + 3 * kz - bh, zrim = byy + kz;
+    R('rgba(43,39,69,.15)', bx + kz, V.yFar + 3 * kz - 1, bw - 2 * kz, kz);
+    const zph = Math.PI - W.zPh, hx = V.zx + Math.cos(zph) * 3 * kz, hy = zrim - 3 * kz + Math.sin(zph) * 1.2 * kz;
+    const wx = V.zx + Math.cos(zph + 0.9) * 2.6 * kz, wy = zrim + kz;
+    x.drawImage(zb, bx, byy, bw, bh);
+    const zc = W.sub === 'race' || W.sub === 'done' || W.sub === 'countdown' ? W.z : 0, zfill = WV.ing > 0 || W.sub !== 'prep' && W.sub !== 'intro';
+    if (zfill) { const hh = Math.round((1 + zc * 5) * kz); for (let j = 0; j < hh; j += kz) { const hw = Math.round(6 * kz * (1 - Math.pow(j / (hh + kz), 1.4))); R(j + kz >= hh ? '#ffffff' : zc > 0.3 ? '#fffaf0' : '#fff1d6', V.zx - hw, zrim - j - kz, hw * 2, kz); } }
+    cuLine(x, hx, hy, wx, wy - kz, Math.max(1, kz - 1), '#59607c'); // his whisk, in his bowl
+    for (let a = 0; a < 6.28; a += 0.3) R(Math.sin(a) < 0 ? '#9aa6c0' : '#e3e8f2', wx + Math.cos(a + W.zPh) * 2 * kz, wy - kz + Math.sin(a) * kz, Math.max(1, kz - 1), Math.max(1, kz - 1));
+    const sx = zl + 3 * kz, sy = V.zTop + zbob + 18 * kz; // his arm, from the elbow to the whisk
+    cuLine(x, sx, sy, hx, hy, 4 * kz, A.OUT); cuLine(x, sx, sy, hx, hy, 2 * kz, '#7b8758');
+    R(A.OUT, hx - 2 * kz, hy - 2 * kz, 4 * kz, 4 * kz); R('#f6cfa8', hx - kz, hy - kz, 2 * kz, 2 * kz);
+    // ---- the ingredients waiting on the table (the one being poured is drawn later, over the bowl)
+    const ingImg = (k) => (k === 0 ? A.CU.carton(V.iH) : k === 1 ? A.CU.sugarJar(Math.round(V.iH * 0.8)) : A.CU.vanilla(Math.round(V.iH * 0.7)));
+    INGS.forEach((g0, k) => {
+      if (W.sub === 'prep' && WV.ing === k && WV.ingT >= 0) return;
+      const it = V.items[k], im = ingImg(k);
+      R('rgba(43,39,69,.18)', it.x - im.width / 2 + 1, it.y - 1, im.width, 2);
+      x.globalAlpha = W.sub === 'prep' && k < WV.ing ? 0.55 : 1;
+      x.drawImage(im, Math.round(it.x - im.width / 2), Math.round(it.y - im.height));
+      x.globalAlpha = 1;
+    });
+    // ---- her bowl: inside, the cream, the whisk in it, then the front of the bowl
+    const { cx, rx, ry, rimY, botY } = V, Sf = creamSurf(V), p = WV.pv;
+    const ell = (ex, ey, erx, ery, col) => { x.fillStyle = col; for (let j = -Math.ceil(ery); j <= Math.ceil(ery); j++) { const k = 1 - (j / ery) ** 2; if (k < 0) continue; const hw = Math.round(erx * Math.sqrt(k)); x.fillRect(Math.round(ex) - hw, Math.round(ey) + j, hw * 2 + 1, 1); } };
+    ell(cx, rimY, rx + 1, ry + 1, '#59607c'); ell(cx, rimY, rx - 1, ry - 1, '#f3d3de'); ell(cx, rimY + ry * 0.35, rx * 0.86, ry * 0.86, '#f8e1e9');
+    ell(cx, botY, rx * 0.62, ry * 0.62, '#fbeaf0');
+    if (Sf.vol > 0.01) drawCreamTop(x, Sf, p, t);
+    for (const s of WV.specks) { // vanilla seeds and sugar, swirling round with the cream, fading in
+      if (s.life <= 0) continue;
+      const a = s.a + WV.ang * 0.35, X = Sf.cx + Math.cos(a) * s.r * Sf.rx, Y = Sf.cy + Math.sin(a) * s.r * Sf.ry;
+      x.globalAlpha = Math.min(1, s.life); R(s.col, X, Y); x.globalAlpha = 1;
+    }
+    const lifted = W.sub === 'done' ? WV.lift : 0, whR = Math.max(4, Math.round(rx * 0.19)), whL = Math.round(rx * 0.55);
+    const wa = WV.ang, tipX = Sf.cx + Math.cos(wa) * Sf.rx * 0.42, tipY = Sf.cy + Math.sin(wa) * Sf.ry * 0.42 - lifted * rx * 0.9;
+    const sunk = lifted > 0.5 ? 0 : Sf.vol > 0.05 ? 0.28 - 0.08 * p : 0, wet = Sf.vol > 0.05;
+    if (Math.abs(WV.om) > 14 && lifted < 0.3) for (let k = 1; k <= 7; k++) { // a blur of speed behind the whisk
+      const a = wa - k * 0.16 * Math.sign(WV.om); R(k < 4 ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.3)', Sf.cx + Math.cos(a) * Sf.rx * 0.42, Sf.cy + Math.sin(a) * Sf.ry * 0.42 - whL * 0.7, 2, Math.round(whL * 0.5));
+    }
+    const hub = drawWhiskHead(x, tipX, tipY, whL, whR, wa * 1.6, sunk, wet);
+    if (wet && lifted < 0.5) { ell(tipX, tipY - whL * sunk + 1, whR * 0.9, Math.max(1, whR * 0.32), p > 0.3 ? '#ffffff' : '#fff6e4'); R('#f1e5ce', tipX - whR * 0.6, tipY - whL * sunk + 2, whR * 1.2, 1); } // a collar of cream round it
+    if (lifted > 0.3) { ell(tipX, tipY - whL * 0.25, whR * 0.9, whR * 0.7, '#ffffff'); R('#e4e6ee', tipX - 1, tipY - whL * 0.25 + whR * 0.5, whR, 1); R('#ffffff', tipX, tipY - whL * 0.25 - whR - 3, 2, 4); R('#ffffff', tipX + 1, tipY - whL * 0.25 - whR - 5, 1, 2); } // a stiff peak on the whisk
+    for (let X = -rx - 1; X <= rx + 1; X++) { // the front of the bowl
+      const dx = X / (rx + 1), arc = ry * Math.sqrt(Math.max(0, 1 - dx * dx)), lit = 0.65 - 0.5 * dx - 0.3 * dx * dx;
+      const top = Math.round(rimY + arc), hw = rx + 1;
+      for (let Y = top; Y < V.h; Y++) {
+        const yy = (Y - rimY) / (rx * 1.15); if (yy >= 1 || Math.abs(X) > hw * Math.sqrt(1 - yy * yy)) break;
+        x.fillStyle = Math.abs(Math.abs(X) - hw * Math.sqrt(1 - yy * yy)) < 1.2 ? '#59607c' : Y - top < 2 ? '#ffffff' : Y - top < 5 && Y - top >= 3 ? '#ff9db2' : lit > 0.75 ? '#ffe6ee' : lit > 0.45 ? '#f7c9d7' : '#e7a6bb';
+        x.fillRect(cx + X, Y, 1, 1);
+      }
+    }
+    for (let a = 0; a < Math.PI * 2; a += 0.02) { const X = cx + Math.cos(a) * rx, Y = rimY + Math.sin(a) * ry; R(Math.sin(a) > 0 ? '#ffffff' : '#f3e4ea', X, Y); } // the rim
+    // ---- the ingredient being poured in
+    if (W.sub === 'prep' && WV.ingT >= 0) {
+      const k = WV.ing, it = V.items[k], im = ingImg(k), u = WV.ingT, left = it.x < cx;
+      const px = cx + (left ? -rx * 0.3 : rx * 0.3), py = rimY - ry - im.height * 0.55;
+      const mv = u < 0.25 ? easeIO(u / 0.25) : u > 0.78 ? 1 - easeIO((u - 0.78) / 0.22) : 1, tilt = (u < 0.25 ? 0 : u > 0.78 ? mv : Math.min(1, (u - 0.25) / 0.1)) * (left ? 1.9 : -1.9);
+      const X = it.x + (px - it.x) * mv, Y = (it.y - im.height / 2) + (py - (it.y - im.height / 2)) * mv - Math.sin(mv * Math.PI) * 6;
+      x.save(); x.translate(Math.round(X), Math.round(Y)); x.rotate(tilt); x.drawImage(im, -Math.round(im.width / 2), -Math.round(im.height / 2)); x.restore();
+      if (u > 0.33 && u < 0.76) { // pouring
+        const spx = X + (left ? 1 : -1) * im.height * 0.45, spy = Y + 2;
+        if (k === 0) { for (let Y2 = spy; Y2 < Sf.cy; Y2++) R(Y2 % 3 ? '#fff6e4' : '#ffffff', spx + Math.sin(Y2 * 0.4 + t * 20) * 0.6, Y2, 2, 1); ell(spx, Sf.cy, 4, 1.5, '#ffffff'); }
+      }
+    }
+    // ---- her hand on the whisk handle, coming in from the bottom right
+    const hdx = cx + rx * 0.95 + Math.cos(wa) * 3 * (1 - lifted), hdy = V.h - 4 + Math.sin(wa) * 2 - lifted * rx * 0.5;
+    cuLine(x, hub.x, hub.y, hdx, hdy, 5, A.OUT); cuLine(x, hub.x, hub.y, hdx, hdy, 3, '#ff9ec4'); cuLine(x, hub.x + 1, hub.y - 1, hdx + 1, hdy - 1, 1, '#ffd0e2');
+    R(A.OUT, hdx - 6, hdy - 5, 13, 11); R('#ffe2c4', hdx - 5, hdy - 4, 11, 9); R('#f5c9a6', hdx - 5, hdy + 2, 11, 3); R('#ffffff', hdx - 3, hdy - 3, 3, 1);
+    for (let k = 0; k < 3; k++) R('#e8b48f', hdx - 4 + k * 3, hdy - 4, 1, 4);
+    R(A.OUT, hdx + 3, hdy + 1, 14, 12); R('#cfe2ff', hdx + 4, hdy + 2, 12, 10); R('#ffffff', hdx + 4, hdy + 2, 12, 2); // her sleeve
+    // ---- splashes, sugar, drips
+    for (const f of WV.fx) { if (f.life < 0.1 && Math.floor(f.life * 50) % 2) continue; R(f.col, f.x, f.y, f.size || 1, f.size || 1); }
+    // ---- which one next: a bouncing arrow over it
+    if (W.sub === 'prep' && WV.ingT < 0 && WV.ing < INGS.length) {
+      const it = V.items[WV.ing], im = ingImg(WV.ing), ax = it.x, ay = it.y - im.height - 4 - Math.round(Math.abs(Math.sin(t * 5)) * 4), n = 4;
+      for (let j = 0; j < n; j++) R('#13204a', ax - (n - j) - 1, ay - n + j - 1, (n - j) * 2 + 3, 1);
+      for (let j = 0; j < n; j++) R(j < 2 ? '#ffe9a0' : '#ffd84a', ax - (n - j), ay - n + j, (n - j) * 2 + 1, 1);
+      R('#13204a', ax, ay, 1, 1);
+    }
+  }
+  function addIngredient() { // tap: the next ingredient goes in
+    if (W.sub !== 'prep' || WV.ingT >= 0 || WV.ing >= INGS.length) return;
+    WV.ingT = 0; WV.idleT = 0; hideCallout(); sfx.whoosh();
+  }
+  function wvUpdate(dt) {
+    const V = wvLayout(), Sf = creamSurf(V);
+    WV.pv += (W.p - WV.pv) * Math.min(1, dt * 5);
+    // the whisk turns as fast as she taps: about a turn per tap, easing to a stop when she stops
+    const since = time - WV.lastTap, want = W.sub === 'race' && since < Math.max(0.35, WV.iv * 1.8) ? (Math.PI * 2 * 0.6) / WV.iv : 0;
+    WV.om += (want - WV.om) * Math.min(1, dt * 9);
+    WV.ang += WV.om * dt;
+    W.sPh = WV.ang;
+    if (W.sub === 'done') WV.lift = Math.min(1, WV.lift + dt * 2.2);
+    if (W.sub === 'prep') {
+      if (WV.ingT >= 0) {
+        const k = WV.ing, it = V.items[k], left = it.x < V.cx, u0 = WV.ingT; WV.ingT += dt / 1.25;
+        const pouring = WV.ingT > 0.33 && WV.ingT < 0.76, spx = V.cx + (left ? -V.rx * 0.3 : V.rx * 0.3) + (left ? 1 : -1) * V.iH * 0.4;
+        if (k === 0) { if (pouring) WV.vol = Math.min(0.35, (WV.vol || 0) + dt * 0.85); if (pouring && Math.random() < dt * 8) sfx.squish(); }
+        if (k === 1 && pouring) {
+          if (Math.random() < dt * 30) sfx.sift();
+          for (let i = 0; i < 3; i++) WV.fx.push({ x: spx + rand(-2, 2), y: V.rimY - V.ry - V.iH * 0.4, vx: rand(-6, 6), vy: rand(20, 40), g: 260, life: 0.4, col: pick(['#ffffff', '#f4f6fb', '#e3e8f2']), land: Sf.cy });
+        }
+        if (k === 2 && pouring && Math.floor(u0 * 12) !== Math.floor(WV.ingT * 12)) { sfx.blip(); WV.fx.push({ x: spx, y: V.rimY - V.ry - V.iH * 0.3, vx: 0, vy: 30, g: 300, life: 0.5, col: '#5a3412', size: 2, land: Sf.cy, seed: true }); }
+        if (WV.ingT >= 1) {
+          WV.ingT = -1; WV.ing++; sfx.pip(WV.ing / INGS.length);
+          const G = ovToRoom(V, V.zx, V.zTop - 4);
+          if (WV.ing === 2) { W.zFace = 'puff'; popWord(G.x, G.y, pick(['achoo!', 'oops!']), false, '#ffffff'); for (let i = 0; i < 10; i++) WV.fx.push({ x: V.zx + rand(-8, 8) * V.kz / 2, y: V.zTop + 10 * V.kz + rand(-4, 4), vx: rand(-20, 20), vy: rand(-20, 5), g: 30, life: 0.8, col: '#ffffff', size: 2 }); }
+          else if (WV.ing === 1) W.zFace = 'tongue';
+          else W.zFace = 'normal';
+          if (WV.ing >= INGS.length) { // all in: on your marks…
+            later(500, () => { if (W.sub === 'prep') { W.sub = 'countdown'; W.cd = 3; W.cdShown = 4; W.zFace = 'normal'; } });
+          } else showCallout(coarse ? `TAP TO ADD ${INGS[WV.ing].label}!` : `CLICK TO ADD ${INGS[WV.ing].label}!`);
+        }
+      } else if (WV.ing < INGS.length && (WV.idleT += dt) > 6) addIngredient(); // (never stuck: it goes in by itself after a while)
+    }
+    for (const s of WV.specks) s.life -= dt * (W.sub === 'race' ? 0.5 + WV.om * 0.05 : 0.08);
+    for (let i = WV.specks.length - 1; i >= 0; i--) if (WV.specks[i].life <= 0) WV.specks.splice(i, 1);
+    for (let i = WV.fx.length - 1; i >= 0; i--) {
+      const f = WV.fx[i]; f.vy += f.g * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt;
+      if (f.land && f.y >= f.land) { // landed in the bowl: becomes a speck in the cream
+        WV.fx.splice(i, 1);
+        const dx = (f.x - Sf.cx) / Sf.rx; WV.specks.push({ a: Math.atan2(0.3, dx) + rand(-0.5, 0.5), r: Math.min(0.85, Math.abs(dx) + rand(0, 0.3)), col: f.seed ? '#5a3412' : '#ffffff', life: f.seed ? 6 : 1.2 });
+        continue;
+      }
+      if (f.life <= 0) WV.fx.splice(i, 1);
+    }
+  }
+  function whipSplash() { // a tap: cream flicks up off the whisk (less as it stiffens)
+    const V = wvLayout(), Sf = creamSurf(V), n = Math.round(4 - WV.pv * 3);
+    const tx = Sf.cx + Math.cos(WV.ang) * Sf.rx * 0.42, ty = Sf.cy + Math.sin(WV.ang) * Sf.ry * 0.42;
+    for (let i = 0; i < n; i++) WV.fx.push({ x: tx + rand(-3, 3), y: ty - 2, vx: rand(-40, 40), vy: rand(-60, -25), g: 220, life: 0.5, col: WV.pv > 0.3 ? '#ffffff' : '#fff6e4', size: pick([1, 1, 2]) });
+  }
+
   /* =====================================================================
      STAGE 2: strawberry catch (no timer, no way to lose)
      ===================================================================== */
-  Object.assign(CT, { sub: 'idle', caught: 0, spawnT: 0, missStreak: 0, dizzyT: 0, spawned: 0, hud: null, moved: false });
+  Object.assign(CT, { sub: 'idle', caught: 0, spawnT: 0, missStreak: 0, dizzyT: 0, spawned: 0, hud: null, moved: false, pile: [], landT: 0 });
   function catchReset() {
-    Object.assign(CT, { sub: 'idle', caught: 0, spawnT: 0.6, missStreak: 0, dizzyT: 0, spawned: 0, moved: false });
+    Object.assign(CT, { sub: 'idle', caught: 0, spawnT: 0.6, missStreak: 0, dizzyT: 0, spawned: 0, moved: false, pile: [], landT: 0 });
     CT.items.length = 0;
   }
   function catchBegin() {
@@ -628,7 +891,7 @@
     });
   }
   function catchTap() { /* moving is all it takes: the tap already moved her (pointer position) */ }
-  const bowlRim = () => Math.round(kid.y - A.GIRL_H / 2) + 20;
+  const bowlRim = () => Math.round(kid.y - A.GIRL_H / 2) + 23; // (she holds the bowl at her waist, so the pile doesn't hide her face)
   function spawnItem() {
     CT.spawned++;
     const r = Math.random();
@@ -642,6 +905,7 @@
   }
   function catchUpdate(dt) {
     if (CT.dizzyT > 0) CT.dizzyT -= dt;
+    if (CT.landT > 0) CT.landT = Math.max(0, CT.landT - dt);
     if (CT.sub !== 'play' && CT.sub !== 'done') return;
     if (CT.sub === 'play') {
       if (Math.abs(kid.vx) > 30) { CT.moved = true; }
@@ -666,6 +930,7 @@
         } else {
           const n = it.kind === 'gold' ? 3 : 1;
           CT.caught = Math.min(C.strawberriesToCatch, CT.caught + n); CT.missStreak = 0;
+          CT.pile.push(...(n > 1 ? ['straw', 'gold', 'straw'] : ['straw'])); CT.landT = 0.13;
           kid.happyT = 0.35;
           if (n > 1) { sfx.gold(); popWord(kid.x, rim - 20, 'GOLDEN! +3', false, '#ffd84a'); } else { sfx.catch(); popWord(kid.x, rim - 18, '+1', false, '#ffc2d6'); }
           for (let k = 0; k < 5; k++) parts.push({ x: it.x, y: rim - 2, vx: rand(-30, 30), vy: rand(-50, -20), g: 160, life: 0.5, col: n > 1 ? '#ffd84a' : '#ffffff', size: 1, ground: rim + 6 });
@@ -696,15 +961,25 @@
       'Next up: the whipped cream!',
     ], () => stageClear()));
   }
+  // where each strawberry sits in the pile in her bowl: a heap, bottom row first (x from the bowl's middle, y up from its rim)
+  const PILE = (() => {
+    const out = [];
+    [[4, -1], [4, 1], [4, 2.6], [3, 4], [4, 4.8], [3, 6], [2, 7.2], [2, 8.2], [1, 9.5]].forEach(([n, hy], r) => {
+      for (let i = 0; i < n; i++) out.push({ x: (i - (n - 1) / 2) * (n > 3 ? 3.4 : 3.1) + (r % 2 ? 0.7 : -0.5), y: -hy + ((i * 7 + r * 3) % 3 === 0 ? 0.5 : 0), v: (i * 3 + r) % 4 });
+    });
+    return out;
+  })();
   function catchRenderBowl(pose) {
-    const bowl = A.BOWLS.sophia, bx = Math.round(kid.x - bowl.width / 2) + (pose.sx - Math.round(kid.x - A.GIRL_W / 2)), by = pose.sy + 19;
-    // strawberries piling up in the bowl
-    const n = Math.min(CT.caught, 12);
+    const bowl = A.BOWLS.sophia, bx = Math.round(kid.x - bowl.width / 2) + (pose.sx - Math.round(kid.x - A.GIRL_W / 2)), by = pose.sy + 22, mx = bx + bowl.width / 2;
+    g.fillStyle = '#5b7fc0'; g.fillRect(bx + 2, by - 1, bowl.width - 4, 1); g.fillStyle = '#9fc0f0'; g.fillRect(bx + 3, by, bowl.width - 6, 1); // the inside of the bowl
+    // the strawberries she's caught, heaped up (the newest one drops in with a bounce, and the pile jiggles)
+    const n = Math.min(CT.pile.length, PILE.length), jig = CT.landT > 0 ? Math.round(Math.sin(CT.landT * 40)) : 0;
     for (let i = 0; i < n; i++) {
-      const row = Math.floor(i / 4), col = i % 4;
-      const px = bx + 3 + col * 3 + (row % 2) + 0, py = by - 1 - row * 2;
-      g.fillStyle = '#e8405a'; g.fillRect(px, py, 3, 2);
-      g.fillStyle = '#3d9a52'; g.fillRect(px + 1, py - 1, 1, 1);
+      const s = PILE[i], gold = CT.pile[i] === 'gold', img = (gold ? A.MINI_GOLDS : A.MINI_STRAWS)[s.v];
+      const drop = i === n - 1 && CT.landT > 0 ? -Math.round(CT.landT * CT.landT * 60) : 0;
+      const X = Math.round(mx + s.x - 2) + (i % 2 ? jig : 0), Y = Math.round(by + s.y - 2) + drop;
+      g.drawImage(img, X, Y);
+      if (gold && Math.floor(time * 6 + i) % 4 === 0) { g.fillStyle = '#ffffff'; g.fillRect(X + 3, Y - 1, 1, 1); }
     }
     g.drawImage(bowl, bx, by);
   }
@@ -1116,16 +1391,19 @@
   }
   function spongeReset() {
     Object.assign(SP, { sub: 'idle', n: 0, r: 0, tol: 0.11, t: 0, flyT: -1, beepT: 0, cheerT: 0 });
+    Object.assign(OV, { shown: false, heat: 0, knob: 0, timer: 0, spill: 0, door: 0, fx: [], steamT: 0, lift: 0 });
     kid.x = spongeGeo().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
   }
   function spongeBegin() {
     SP.hud = stageHud(`STAGE ${stageIdx + 1} · FLUFFY SPONGE`, [{ key: 's', tag: 'SPONGE', cls: 'her', num: true }]);
     setBar(SP.hud.s, 0, `0/${SPONGES}`);
-    document.body.classList.add('hud-stage');
+    document.body.classList.add('hud-stage', 'closeup');
+    measureHud(); showOven(true); sfx.whoosh();
     SP.sub = 'intro';
     say([
-      `Next: the sponge! A strawberry cake needs ${SPONGES} fluffy layers.`,
-      coarse ? 'Press and hold to bake. Let go when the sponge rises to the line!' : 'Hold the mouse button (or space) to bake. Let go when the sponge rises to the line!',
+      `Next: the sponge! A strawberry cake needs ${SPONGES} fluffy chiffon layers.`,
+      coarse ? 'Press and hold to switch the oven on. Watch the chiffon rise through the window, and let go when its top reaches the gold line!'
+        : 'Hold the mouse button (or space) to switch the oven on. Watch the chiffon rise through the window, and let go when its top reaches the gold line!',
     ], () => { SP.sub = 'ready'; lockT = 0.2; showCallout('HOLD TO BAKE!'); });
   }
   function spongeTap() { // finger / button / space goes down: the oven heats up and the batter starts to rise
@@ -1134,19 +1412,21 @@
   }
   function spongeRelease() { // …and comes up: how did it turn out?
     if (SP.sub !== 'rise') return;
-    const G = spongeGeo(), d = SP.r - SP_TARGET, wy = G.base - 20 * G.k;
+    const V = ovLayout(), d = SP.r - SP_TARGET, q = ovToRoom(V, V.pcx, V.wy0 - 6);
     if (Math.abs(d) <= SP.tol) {
-      SP.sub = 'pop'; SP.flyT = 0; kid.happyT = 0.8; kid.hopT = 0.1;
-      popWord(G.oven, wy - 14 * G.k, Math.abs(d) <= SP.tol / 2 ? 'PERFECT!' : 'FLUFFY!', false, '#ffd84a');
-      sfx.gold();
+      SP.sub = 'pop'; SP.flyT = 0; OV.lift = SP.r; kid.happyT = 0.8; kid.hopT = 0.1;
+      popWord(q.x, q.y, Math.abs(d) <= SP.tol / 2 ? 'PERFECT!' : 'FLUFFY!', false, '#ffd84a');
+      sfx.ding(); sfx.gold();
+      for (let i = 0; i < 10; i++) OV.fx.push({ x: rand(V.pcx - V.pr, V.pcx + V.pr), y: batter(V, SP.r).top + rand(-2, 4), vx: rand(-30, 30), vy: rand(-40, -10), g: 40, life: 0.6, col: pick(['#ffffff', '#ffe9a0', '#ffd84a']) });
     } else {
       SP.sub = 'sink'; SP.tol = Math.min(0.22, SP.tol + 0.04); // a little more forgiving every time
-      popWord(G.oven, wy - 14 * G.k, d < 0 ? 'TOO FLAT!' : 'TOO PUFFY!', false, '#ffffff');
+      popWord(q.x, q.y, d < 0 ? 'TOO FLAT!' : 'TOO PUFFY!', false, '#ffffff');
       sfx.splat();
     }
   }
   function spongeUpdate(dt) {
     SP.t += dt;
+    if (OV.shown || cuCv.classList.contains('on')) ovUpdate(dt);
     const G = spongeGeo();
     if (SP.sub === 'rise') {
       SP.r += (0.25 + 0.55 * SP.r) * dt;
@@ -1154,20 +1434,22 @@
       if (Math.random() < dt * 14) parts.push({ x: G.oven + rand(-12, 12) * G.k, y: G.base - 41 * G.k, vx: rand(-4, 4), vy: rand(-26, -14), g: 0, life: 0.6, col: pick(['#ffffff', '#ffe2b8']), size: 1, ground: 1e9 });
       if (SP.r >= 1) { // held too long: it puffs right over the top of the tin
         SP.sub = 'poof'; SP.tol = Math.min(0.22, SP.tol + 0.04);
-        popWord(G.oven, G.base - 34 * G.k, 'POOF!', false, '#ffffff');
+        const V = ovLayout(), q = ovToRoom(V, V.pcx, V.wy0 - 6);
+        popWord(q.x, q.y, 'POOF!', false, '#ffffff');
         sfx.toast();
         for (let i = 0; i < 14; i++) parts.push({ x: G.oven + rand(-8, 8) * G.k, y: G.base - 24 * G.k, vx: rand(-40, 40), vy: rand(-60, -20), g: 120, life: 0.7, col: pick(['#fffaf1', '#f7cf7d']), size: 2, ground: G.base });
       }
     } else if (SP.sub === 'sink' || SP.sub === 'poof') { // back to a flat tin, then try again
       SP.r = Math.max(0, SP.r - dt * (SP.sub === 'poof' ? 1.4 : 1.8));
       if (SP.r <= 0) { SP.sub = 'ready'; showCallout('HOLD TO BAKE!'); }
-    } else if (SP.sub === 'pop') { // the sponge hops out of the oven onto the pile
-      SP.flyT += dt / 0.7;
+    } else if (SP.sub === 'pop') { // the door opens, the chiffon hops out onto the cooling rack, a fresh pan goes in
+      const f0 = SP.flyT; SP.flyT += dt / 1.15;
+      if (f0 < 0.12 && SP.flyT >= 0.12) sfx.whoosh();
+      if (f0 < 0.7 && SP.flyT >= 0.7) { sfx.catch(); buzz(12); }
       if (SP.flyT >= 1) {
         SP.flyT = -1; SP.n++; SP.r = 0;
         setBar(SP.hud.s, SP.n / SPONGES, `${SP.n}/${SPONGES}`);
-        sfx.catch();
-        if (SP.n >= SPONGES) { SP.sub = 'done'; kid.happyT = 2; stageClear(); }
+        if (SP.n >= SPONGES) { SP.sub = 'done'; kid.happyT = 2; hideCallout(); later(800, () => showOven(false)); later(1000, stageClear); }
         else { SP.sub = 'ready'; showCallout(SP.n === SPONGES - 1 ? 'LAST ONE!' : 'NEXT ONE!'); }
       }
     }
@@ -1230,6 +1512,291 @@
     g.restore();
   }
 
+  /* the oven close-up: a wall oven at eye level on the close-up canvas, and through its glass door a chiffon
+     cake rising in its tube pan: it domes up over the rim, browns, and cracks on top like the real thing */
+  const OV = { shown: false, heat: 0, knob: 0, timer: 0, spill: 0, door: 0, fx: [], steamT: 0, base: null, door0: null, baseKey: '', bg: new Map(), lift: 0 };
+  function ovLayout() {
+    const { H, P, w, h } = cuSize();
+    const Bm = Math.ceil((H * 0.05 + 64) / P), hb = Math.ceil(IC.hudB / P) + 6, hr = Math.ceil(IC.hudR / P) + 6;
+    const fit = (L, T) => { // the oven with its counter below it, or (on wide screens) the cooling rack beside it
+      const aw = w - 6 - L, ah = Math.max(40, h - T - Bm), side = aw / ah > 1.25;
+      return { L, T, aw, ah, side, Wo: Math.floor(side ? Math.min(aw / 1.62, ah / 1.12) : Math.min(aw * 0.94, ah / 1.42)) };
+    };
+    const A1 = fit(6, hb), A2 = fit(hr, 6), F = A2.Wo > A1.Wo * 1.06 ? A2 : A1;
+    const { side, T, ah, L, aw } = F, Wo = Math.max(70, F.Wo), Ho = Math.round(Wo * 0.95);
+    const x0 = Math.round(L + aw / 2 - (side ? Wo * 1.62 : Wo) / 2), y0 = Math.round(T + (ah - Wo * (side ? 1.12 : 1.42)) / 2);
+    const x1 = x0 + Wo, y1 = y0 + Ho, Dc = Math.max(6, Math.round(Wo * 0.12));
+    const yc = side ? y1 + 3 : y1 + Math.round(Wo * 0.27);                         // the counter top's back edge
+    const rw = Math.round(Wo * (side ? 0.56 : 0.8)), rx = side ? x1 + Math.round(Wo * 0.04) : Math.round(x0 + Wo / 2 - rw / 2), ry = yc + Math.round(Dc * 0.5);
+    const Hp = Math.round(Wo * 0.17), dT = y0 + Hp + 3, dB = y1 - 3;                 // control panel, door
+    const wx0 = x0 + Math.round(Wo * 0.11), wx1 = x1 - Math.round(Wo * 0.11), wy0 = dT + Math.round(Wo * 0.14), wy1 = dB - Math.round(Wo * 0.07); // window
+    const ww = wx1 - wx0, wh = wy1 - wy0, cv = { x0: x0 + Math.round(Wo * 0.05), x1: x1 - Math.round(Wo * 0.05), y0: dT + 2, y1: dB - 1 }; // (the cavity behind the door)
+    const rackY = wy0 + Math.round(wh * 0.8), pr = Math.round(ww * 0.27), ph = Math.round(wh * 0.25), pcx = Math.round((wx0 + wx1) / 2);
+    const Rk = Math.max(4, Math.round(Wo * 0.055)), kY = y0 + Math.round(Hp / 2) + 1;
+    const dw = Math.round(Wo * 0.3), dh = Math.max(9, Math.round(Hp * 0.5)), disp = { x: Math.round((x0 + x1) / 2 - dw / 2), y: kY - Math.round(dh / 2), w: dw, h: dh };
+    return { P, w, h, side, Wo, Ho, x0, y0, x1, y1, yc, Dc, rw, rx, ry, Hp, dT, dB, wx0, wx1, wy0, wy1, ww, wh, cv, rackY, pr, pe: 0.3, ph, pcx,
+      pb: rackY - 2, rimY: rackY - 2 - ph, tr: Math.max(2, Math.round(pr * 0.2)), Rk, kY, k1: x0 + Math.round(Wo * 0.16), k2: x1 - Math.round(Wo * 0.16),
+      disp, topCoil: wy0 + Math.round(wh * 0.08), botCoil: wy1 - Math.round(wh * 0.06), cw: Math.round(rw / 3.5) };
+  }
+  // the batter: how high it stands in the pan, how domed and how brown it is, at rise r (0…1)
+  const batter = (V, r) => {
+    const ys = V.pb - V.ph * (0.42 + 1.25 * r), above = Math.max(0, V.rimY - ys);
+    const bulge = Math.min(above, V.ph * 0.24) * 0.9, brown = clamp((r - 0.25) / 0.75, 0, 1);
+    return { ys, above, bulge, brown, top: above > 0 ? ys - bulge - V.pr * V.pe : ys - (V.pr - 1) * V.pe };
+  };
+  function showOven(on) { const G = spongeGeo(); zoomCloseup('sponge', on, G.oven, G.base - 20 * G.k); OV.shown = on; }
+
+  function ovBase(V) { // the kitchen, the oven's body and panel, the counter: drawn once per layout
+    const key = `${V.w}x${V.h}:${V.x0},${V.y0},${V.Wo}`;
+    if (OV.baseKey === key) return OV.base;
+    const c = A.mk(V.w, V.h), x = c.getContext('2d');
+    const R = (col, X, Y, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); };
+    // pastel kitchen tiles
+    const tw = Math.max(8, Math.round(V.Wo / 9)), th = Math.round(tw / 2);
+    R('#e9f4ef', 0, 0, V.w, V.h);
+    for (let y = 0; y < V.h; y += th) {
+      const off = (y / th) % 2 ? tw / 2 : 0;
+      R('#cfe3dc', 0, y, V.w, 1);
+      for (let X = -tw + off; X < V.w; X += tw) { R('#cfe3dc', X, y, 1, th); R('#f6fbf9', X + 1, y + 1, tw - 2, 1); }
+    }
+    for (let y = 0; y < V.h; y += 2) for (let X = (y / 2) % 2; X < V.w; X += 2) { // soft vignette
+      const d = Math.hypot((X - V.w / 2) / V.w, (y - V.h / 2) / V.h);
+      if (d > 0.45) { x.fillStyle = `rgba(40,70,60,${Math.min(0.2, (d - 0.45) * 0.8).toFixed(3)})`; x.fillRect(X, y, 2, 2); }
+    }
+    // the wooden cabinet the oven is built into
+    const fm = Math.max(4, Math.round(V.Wo * 0.05));
+    R('#6e4322', V.x0 - fm - 1, V.y0 - fm - 1, V.Wo + fm * 2 + 2, V.Ho + fm * 2 + 2);
+    R('#c98a55', V.x0 - fm, V.y0 - fm, V.Wo + fm * 2, V.Ho + fm * 2);
+    R('#e2a66c', V.x0 - fm, V.y0 - fm, V.Wo + fm * 2, 1); R('#a86c3c', V.x0 - fm, V.y1 + fm - 1, V.Wo + fm * 2, 1);
+    for (let y = V.y0 - fm + 3; y < V.y1 + fm - 2; y += 5) { R('#bb7d4a', V.x0 - fm + 1, y, fm - 2, 1); R('#bb7d4a', V.x1 + 1, y + 2, fm - 2, 1); }
+    // the oven: white enamel with a blue trim, a control panel along the top
+    R('#59607c', V.x0 - 1, V.y0 - 1, V.Wo + 2, V.Ho + 2);
+    R('#e9edf5', V.x0, V.y0, V.Wo, V.Ho);
+    R('#f4f6fb', V.x0, V.y0, V.Wo, V.Hp); R('#ffffff', V.x0, V.y0, V.Wo, 1);
+    R('#7fb2ff', V.x0, V.y0 + V.Hp - 2, V.Wo, 2); R('#5b8fe0', V.x0, V.y0 + V.Hp, V.Wo, 1);
+    R('#59607c', V.x0, V.dT - 2, V.Wo, 1); R('#c9d1e3', V.x0 + 3, V.dT - 1, V.Wo - 6, 1); // the vent slot above the door
+    for (const kx of [V.k1, V.k2]) { // dials, with little tick marks round them
+      const kn = A.CU.knob(V.Rk);
+      x.drawImage(kn, kx - Math.floor(kn.width / 2), V.kY - Math.floor(kn.height / 2));
+      for (let i = 0; i <= 6; i++) { const a = -2.3 + i * 0.77; R(i === 0 ? '#e8405a' : '#9aa6c0', kx + Math.sin(a) * (V.Rk + 2.5), V.kY - Math.cos(a) * (V.Rk + 2.5)); }
+    }
+    const D = V.disp;
+    R('#59607c', D.x - 1, D.y - 1, D.w + 2, D.h + 2); R('#1f1a2e', D.x, D.y, D.w, D.h); R('#2b2745', D.x, D.y, D.w, 1); // the temperature display
+    // the counter, with the cooling rack waiting on it
+    R('#b98053', 0, V.yc - 1, V.w, 1); R('#e7b680', 0, V.yc, V.w, V.Dc); R('#f2c995', 0, V.yc, V.w, 1);
+    for (let X = 7; X < V.w; X += 23) R('#dcaa73', X, V.yc + 2, 9, 1);
+    R('#a86c3c', 0, V.yc + V.Dc, V.w, 2); R('#cf9a62', 0, V.yc + V.Dc + 2, V.w, V.h);
+    const pw = Math.max(30, Math.round(V.Wo * 0.42)), py = V.yc + V.Dc + 5; // cupboard doors under the counter
+    for (let X = Math.round(V.w / 2 - pw * 3 - 3); X < V.w; X += pw + 3) {
+      R('#a86c3c', X, py, pw, V.h - py); R('#d6a36c', X + 1, py + 1, pw - 2, V.h - py); R('#c08a55', X + 4, py + 4, pw - 8, V.h - py); R('#e2b27b', X + 4, py + 4, pw - 8, 1);
+      R('#59607c', X + Math.round(pw / 2) - 3, py + 7, 7, 3); R('#e3e8f2', X + Math.round(pw / 2) - 2, py + 8, 5, 1);
+    }
+    const rk = A.CU.coolRack(V.rw); x.drawImage(rk, V.rx, V.ry - 4);
+    const floor = V.yc + Math.round(V.Dc * 0.6), lft = V.side ? V.x1 + V.rw + Math.round(V.Wo * 0.08) : 0; // a few baking things on the counter
+    const flour = (X) => { R('#8a7a5a', X - 1, floor - 19, 16, 19); R('#f3ecd8', X, floor - 18, 14, 18); R('#ddd2b4', X, floor - 18, 14, 3); R('#e9e0c6', X + 10, floor - 15, 4, 15);
+      R('#7fb2ff', X, floor - 11, 14, 5); R('#ffd84a', X + 3, floor - 10, 1, 3); R('#ffd84a', X + 5, floor - 10, 1, 3); R('#ffd84a', X + 7, floor - 10, 1, 3); R('#ffffff', X + 1, floor - 17, 2, 1); };
+    const egg = (X) => { R('#a08a6a', X, floor - 7, 6, 7); R('#a08a6a', X - 1, floor - 5, 8, 4); R('#fff6e8', X, floor - 6, 6, 6); R('#fff6e8', X - 1 + 1, floor - 5, 6, 4); R('#e9d9c0', X + 3, floor - 3, 3, 3); R('#ffffff', X + 1, floor - 5, 1, 2); };
+    const milk = (X) => { R('#59607c', X - 1, floor - 17, 10, 17); R('#ffffff', X, floor - 16, 8, 16); R('#e3e8f2', X + 6, floor - 14, 2, 14); R('#3d7bff', X, floor - 17, 8, 3); R('#ffb3cf', X + 1, floor - 10, 6, 4); R('#ffffff', X + 2, floor - 9, 1, 2); };
+    if (!V.side) {
+      const L = V.rx, Rr = V.rx + V.rw;
+      if (L > 26) { flour(Math.round(L / 2 - 8)); }
+      if (V.w - Rr > 26) { egg(Rr + Math.round((V.w - Rr) / 2) - 8); egg(Rr + Math.round((V.w - Rr) / 2)); }
+    } else if (V.w - lft > 40) { flour(lft); egg(lft + 20); egg(lft + 28); milk(lft + 38); }
+    OV.base = c; OV.baseKey = key; OV.door0 = null; OV.bg.clear();
+    return c;
+  }
+  function ovDoor(V) { // the door: enamel, a chrome-framed window (left see-through), the handle
+    if (OV.door0 && OV.door0.key === OV.baseKey) return OV.door0.img;
+    const dw = V.Wo - 4, dh = V.dB - V.dT, c = A.mk(dw, dh), x = c.getContext('2d');
+    const R = (col, X, Y, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); };
+    const ox = V.x0 + 2, oy = V.dT, wx = V.wx0 - ox, wy = V.wy0 - oy;
+    R('#59607c', 0, 0, dw, dh); R('#f4f6fb', 1, 1, dw - 2, dh - 2); R('#ffffff', 1, 1, dw - 2, 1); R('#dfe4ee', 1, dh - 3, dw - 2, 2);
+    R('#7fb2ff', 1, dh - 5, dw - 2, 1);
+    R('#59607c', wx - 3, wy - 3, V.ww + 6, V.wh + 6); R('#c9d1e3', wx - 2, wy - 2, V.ww + 4, V.wh + 4); R('#ffffff', wx - 2, wy - 2, V.ww + 4, 1); R('#9aa6c0', wx - 2, wy + V.wh + 1, V.ww + 4, 1);
+    x.clearRect(wx, wy, V.ww, V.wh);
+    const hy = Math.round((V.wy0 - V.dT) * 0.42); // the handle: a chrome bar on two little posts
+    for (const px of [Math.round(dw * 0.16), Math.round(dw * 0.84) - 2]) { R('#59607c', px - 1, hy - 1, 4, 5); R('#aeb7cb', px, hy, 2, 4); }
+    R('#59607c', Math.round(dw * 0.12) - 1, hy - 3, Math.round(dw * 0.76) + 2, 5); R('#e3e8f2', Math.round(dw * 0.12), hy - 2, Math.round(dw * 0.76), 3);
+    R('#ffffff', Math.round(dw * 0.12) + 2, hy - 2, Math.round(dw * 0.5), 1); R('#aeb7cb', Math.round(dw * 0.12), hy, Math.round(dw * 0.76), 1);
+    const hx = Math.round(dw / 2), hh = dh - 9; // a tiny heart badge
+    R('#e8405a', hx - 2, hh, 2, 1); R('#e8405a', hx + 1, hh, 2, 1); R('#e8405a', hx - 2, hh + 1, 5, 1); R('#e8405a', hx - 1, hh + 2, 3, 1); R('#e8405a', hx, hh + 3, 1, 1);
+    OV.door0 = { key: OV.baseKey, img: c };
+    return c;
+  }
+  function ovInside(V, lvl) { // the empty oven cavity at one of 8 heat levels: lamp-lit, glowing orange as it heats (cached)
+    if (OV.bg.has(lvl)) return OV.bg.get(lvl);
+    const { x0, x1, y0, y1 } = V.cv, cw = x1 - x0, ch = y1 - y0, c = A.mk(cw, ch), x = c.getContext('2d'), heat = lvl / 7;
+    const PAL = ['#1f161c', '#2e2128', '#432c2c', '#5e372c', '#82432b', '#aa552b', '#d06d31', '#ee8f45'];
+    const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    const lx = V.wx0 + V.ww * 0.12 - x0, ly = V.topCoil - 3 - y0;
+    for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
+      const Y = j + y0, edge = Math.min(i, cw - 1 - i) / cw;
+      let v = 0.2 + 0.25 * Math.exp(-((i - lx) ** 2 + (j - ly) ** 2) / (V.ww * 0.4) ** 2) - (edge < 0.12 ? (0.12 - edge) * 1.2 : 0)
+        + heat * (0.42 * Math.exp(-(((Y - V.topCoil) / (V.wh * 0.28)) ** 2)) + 0.55 * Math.exp(-(((Y - V.botCoil) / (V.wh * 0.25)) ** 2)) + 0.12);
+      v += (BAY[(j % 4) * 4 + (i % 4)] / 16 - 0.5) * 0.12;
+      x.fillStyle = PAL[clamp(Math.floor(v * 7), 0, 7)]; x.fillRect(i, j, 1, 1);
+    }
+    // the box: back wall edges and the corners running back to it, shelf runners on the side walls
+    x.fillStyle = 'rgba(0,0,0,.18)';
+    const bi = Math.round(cw * 0.12), bj = Math.round(ch * 0.1);
+    x.fillRect(bi, bj, cw - bi * 2, 1); x.fillRect(bi, ch - bj, cw - bi * 2, 1); x.fillRect(bi, bj, 1, ch - bj * 2); x.fillRect(cw - bi - 1, bj, 1, ch - bj * 2);
+    for (let k = 0; k <= bi; k++) { const f = k / bi; x.fillRect(Math.round(f * bi), Math.round(f * bj), 1, 1); x.fillRect(cw - 1 - Math.round(f * bi), Math.round(f * bj), 1, 1); x.fillRect(Math.round(f * bi), ch - 1 - Math.round(f * bj), 1, 1); x.fillRect(cw - 1 - Math.round(f * bi), ch - 1 - Math.round(f * bj), 1, 1); }
+    for (const f of [0.3, 0.55, 0.8]) { const Y = Math.round(V.wy0 - y0 + V.wh * f); for (const X of [1, cw - 7]) { x.fillStyle = 'rgba(0,0,0,.3)'; x.fillRect(X, Y, 6, 1); x.fillStyle = 'rgba(255,220,180,.18)'; x.fillRect(X, Y - 1, 6, 1); } }
+    OV.bg.set(lvl, c);
+    return c;
+  }
+  function renderOven() {
+    if (cuOwner !== 'sponge' || (!OV.shown && !cuCv.classList.contains('on'))) return;
+    const V = ovLayout(), x = cuG, t = SP.t, heat = OV.heat;
+    x.imageSmoothingEnabled = false;
+    x.drawImage(ovBase(V), 0, 0);
+    const R = (col, X, Y, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); };
+    const hsh = (a, b) => (((a * 73856093) ^ (b * 19349663)) >>> 0) % 101;
+    // ---- inside the oven
+    x.drawImage(ovInside(V, clamp(Math.round(heat * 7), 0, 7)), V.cv.x0, V.cv.y0);
+    const lampX = Math.round(V.wx0 + V.ww * 0.12), lampY = V.topCoil - 3;
+    R('rgba(255,236,170,.25)', lampX - 3, lampY - 2, 8, 5); R('#fff3c4', lampX - 1, lampY - 1, 4, 2); R('#ffffff', lampX, lampY - 1, 1, 1); // the oven light
+    const coilCol = heat > 0.8 ? ['#ff9a4a', '#ffd27a'] : heat > 0.5 ? ['#e0592c', '#ff9a4a'] : heat > 0.2 ? ['#8a3b2a', '#c2552e'] : ['#4b434d', '#6b6370'];
+    for (const cy of [V.topCoil, V.botCoil]) { // heating elements, glowing up as it heats
+      if (heat > 0.15) R(`rgba(255,140,60,${(heat * 0.22).toFixed(2)})`, V.wx0 + V.ww * 0.06, cy - 2, V.ww * 0.88, 5);
+      for (let X = Math.round(V.wx0 + V.ww * 0.08); X < V.wx0 + V.ww * 0.92; X++) {
+        const yy = cy + Math.round(Math.sin(X * 0.55) * 1.2);
+        R(coilCol[0], X, yy, 1, 2); if ((X + Math.floor(t * 6)) % 5 === 0 && heat > 0.5) R(coilCol[1], X, yy, 1, 1);
+      }
+    }
+    if (heat > 0.2) for (let k = 0; k < 6; k++) { // heat shimmer
+      const sx = V.wx0 + V.ww * (0.14 + k * 0.145);
+      for (let j = 0; j < V.wh * 0.22; j += 2) R(`rgba(255,220,180,${(0.1 * heat).toFixed(3)})`, sx + Math.sin(j * 0.45 + t * 9 + k * 2) * 1.5, V.botCoil - 4 - j);
+    }
+    // the rack (back bar, slats, front bar)
+    const rb = V.rackY - Math.round(V.wh * 0.09);
+    R('#6b6f80', V.cv.x0 + 2, rb, V.cv.x1 - V.cv.x0 - 4, 1);
+    for (let X = V.cv.x0 + 4; X < V.cv.x1 - 3; X += 5) R('#7d8295', X, rb + 1, 1, V.rackY - rb);
+    R('#aeb7cb', V.cv.x0 + 1, V.rackY, V.cv.x1 - V.cv.x0 - 2, 2); R('#e3e8f2', V.cv.x0 + 1, V.rackY, V.cv.x1 - V.cv.x0 - 2, 1);
+    // ---- the tube pan and the chiffon in it
+    const sub = SP.sub, empty = sub === 'pop' && SP.flyT >= 0.15 && SP.flyT < 0.82;
+    const r = sub === 'pop' && SP.flyT >= 0.82 ? 0 : SP.r, B = batter(V, r), { pcx, pr, pe, rimY, pb, tr } = V;
+    const ell = (cx, cy, rx, ry, col) => { x.fillStyle = col; for (let j = -Math.ceil(ry); j <= Math.ceil(ry); j++) { const k = 1 - (j / ry) ** 2; if (k < 0) continue; const hw = Math.round(rx * Math.sqrt(k)); x.fillRect(Math.round(cx) - hw, Math.round(cy) + j, hw * 2 + 1, 1); } };
+    const crust = (b, lit) => (lit > 0.75 ? ['#fbe7b0', '#f4cf86', '#e9b065', '#d8964a'] : lit > 0.45 ? ['#f6dc9e', '#ebbd6e', '#dc9d52', '#c4843e'] : ['#ead08c', '#dcaa5c', '#c98a43', '#ab6f33'])[clamp(Math.floor(b * 3.99), 0, 3)];
+    if (B.above <= 0 || empty) { // inside the pan: the back wall, the batter's surface, the tube up the middle
+      ell(pcx, rimY, pr, pr * pe, '#7d8599'); ell(pcx, rimY - 1, pr - 1, (pr - 1) * pe, '#8f97aa');
+      if (!empty) {
+        ell(pcx, B.ys, pr - 1, (pr - 1) * pe, '#e9c57e');
+        ell(pcx, B.ys, pr - 2, (pr - 2) * pe - 0.5, crust(B.brown, 0.8));
+        for (let i = 0; i < 9; i++) { // little bubbles rising and popping in the batter
+          const a = hsh(i, 3) / 101 * 6.28, rr = 0.35 + (hsh(i, 7) / 101) * 0.55, on = Math.floor(t * 3 + i * 0.7) % 3 !== 0 && (sub === 'rise' || i < 4);
+          if (on) R('#fff6dc', pcx + Math.cos(a) * rr * (pr - 3), B.ys + Math.sin(a) * rr * (pr - 3) * pe);
+        }
+      }
+      const tubeTop = rimY - 2, tb = empty ? pb - 2 : B.ys;
+      R('#59607c', pcx - tr - 1, tubeTop, tr * 2 + 3, tb - tubeTop + 1); R('#aeb7cb', pcx - tr, tubeTop, tr * 2 + 1, tb - tubeTop); R('#e3e8f2', pcx - tr, tubeTop, 1, tb - tubeTop);
+      ell(pcx, tubeTop, tr, Math.max(1, tr * pe), '#c9d1e3'); ell(pcx, tubeTop, Math.max(1, tr - 1), Math.max(0.6, (tr - 1) * pe), '#2a1d24');
+    } else { // risen over the rim: golden sides, a domed top that cracks, the hole of the tube in the middle
+      const Rc = pr - 1, cy = B.ys - B.bulge * 0.4, ry = Rc * pe + B.bulge * 0.6;
+      for (let X = -Rc; X <= Rc; X++) {
+        const dx = X / Rc, lit = 0.62 - 0.45 * dx - 0.25 * dx * dx;
+        x.fillStyle = crust(Math.min(1, B.brown + 0.25), lit); x.fillRect(pcx + X, Math.round(B.ys), 1, Math.ceil(rimY + pr * pe - B.ys) + 1);
+        if (hsh(X + 50, 1) % 6 === 0) { x.fillStyle = crust(Math.max(0, B.brown - 0.25), lit + 0.2); x.fillRect(pcx + X, Math.round(B.ys) + 1, 1, Math.ceil(rimY - B.ys)); }
+      }
+      for (let j = -Math.ceil(ry); j <= Math.ceil(ry); j++) for (let X = -Rc; X <= Rc; X++) {
+        const dx = X / Rc, dy = j / ry, rho = dx * dx + dy * dy;
+        if (rho > 1) continue;
+        let col = crust(B.brown, 0.85 - 0.3 * dx - 0.3 * dy);
+        const rr = Math.sqrt(rho);
+        if (B.brown > 0.35 && Math.abs(rr - 0.62) < 0.05 + 0.03 * B.brown && hsh(X + 31, j + 17) % 4) col = '#a86a32';           // the crack ring
+        else if (B.brown > 0.35 && Math.abs(rr - 0.62) < 0.1 && dy < 0 && hsh(X, j) % 3 === 0) col = '#fde9b8';
+        else if (hsh(X + 9, j + 40) % 13 === 0) col = crust(Math.min(1, B.brown + 0.3), 0.3);
+        x.fillStyle = col; x.fillRect(pcx + X, Math.round(cy + j), 1, 1);
+      }
+      ell(pcx, cy, tr + 1, (tr + 1) * pe + 0.5, crust(B.brown, 0.4)); ell(pcx, cy, tr, Math.max(1, tr * pe), '#c9d1e3'); ell(pcx, cy, Math.max(1, tr - 1), Math.max(0.6, (tr - 1) * pe), '#2a1d24');
+    }
+    // the pan's front wall and rim (brushed aluminium)
+    const MET = ['#4a5068', '#6b7389', '#8a92a5', '#aeb7cb', '#d5dbe7', '#f4f6fb'];
+    for (let X = -pr; X <= pr; X++) {
+      const dx = X / pr, arc = pe * pr * Math.sqrt(Math.max(0, 1 - dx * dx)), lit = 0.6 - 0.55 * dx - 0.35 * dx * dx;
+      const top = Math.round(rimY + arc), bot = Math.round(pb + arc);
+      x.fillStyle = Math.abs(X) === pr ? MET[0] : MET[clamp(Math.floor(lit * 5.5), 1, 5)]; x.fillRect(pcx + X, top, 1, bot - top + 1);
+      x.fillStyle = MET[0]; x.fillRect(pcx + X, bot + 1, 1, 1);
+      if (Math.abs(X) < pr) { x.fillStyle = '#ffffff'; x.fillRect(pcx + X, top, 1, 1); }
+    }
+    for (let j = 3; j < V.ph; j += 4) for (let X = -pr + 2; X < pr - 1; X += 1) if (hsh(X, j) % 3 === 0) { // brushed lines
+      const dx = X / pr; R('rgba(255,255,255,.12)', pcx + X, rimY + pe * pr * Math.sqrt(1 - dx * dx) + j);
+    }
+    if (B.above <= 0 || empty) for (let a = Math.PI; a < 2 * Math.PI; a += 0.04) R('#d5dbe7', pcx + Math.cos(a) * pr, rimY + Math.sin(a) * pr * pe); // the back of the rim
+    // held too long: batter spilling over the rim and down the pan
+    if (OV.spill > 0.01) {
+      const S2 = OV.spill;
+      for (let X = -pr; X <= pr; X++) if (hsh(X + 70, 5) % 3) R('#f2cf86', pcx + X, rimY + pe * pr * Math.sqrt(Math.max(0, 1 - (X / pr) ** 2)) - 1, 1, 2);
+      [-0.72, -0.38, 0.06, 0.41, 0.78].forEach((f, i) => {
+        const X = pcx + f * pr, top = rimY + pe * pr * Math.sqrt(1 - f * f), len = S2 * V.ph * (0.35 + (hsh(i, 2) / 101) * 0.6);
+        R('#f2cf86', X - 1, top, 3, len); R('#fde9b8', X - 1, top, 1, len); R('#d8a356', X + 1, top + 1, 1, len - 1); R('#f2cf86', X - 1, top + len, 2, 1);
+      });
+    }
+    // ---- the door (with the oven glass), or the door swinging open
+    const dimg = ovDoor(V);
+    if (OV.door <= 0.001) {
+      x.fillStyle = 'rgba(30,15,25,.16)'; x.fillRect(V.wx0, V.wy0, V.ww, V.wh);
+      R('rgba(0,0,0,.25)', V.wx0, V.wy0, V.ww, 1); R('rgba(0,0,0,.18)', V.wx0, V.wy0, 1, V.wh);
+      for (const [o, wdt, al] of [[0.18, 3, 0.1], [0.3, 1, 0.14], [0.72, 2, 0.08]]) for (let j = 0; j < V.wh; j++) { // reflections on the glass
+        const X = V.wx0 + V.ww * o + j * 0.45 - V.wh * 0.2; if (X >= V.wx0 && X + wdt <= V.wx1) R(`rgba(255,255,255,${al})`, X, V.wy0 + j, wdt, 1);
+      }
+      if (['ready', 'rise', 'sink', 'poof'].includes(sub)) { // the gold line: let go when the top of the cake reaches it
+        const yT = Math.round(batter(V, SP_TARGET).top), ya = Math.round(batter(V, SP_TARGET + SP.tol).top), yb = Math.round(batter(V, SP_TARGET - SP.tol).top);
+        R('rgba(255,216,74,.14)', V.wx0 + 1, ya, V.ww - 2, Math.max(1, yb - ya + 1));
+        for (let X = V.wx0 + 2; X < V.wx1 - 1; X += 3) R(Math.floor(t * 4) % 2 && sub === 'rise' && Math.abs(B.top - yT) < 3 ? '#ffffff' : '#ffd84a', X, yT, 2, 1);
+        R('#59607c', V.wx0 - 6, yT - 2, 5, 5); R('#ffd84a', V.wx0 - 5, yT - 1, 3, 3); R('#fff4b8', V.wx0 - 5, yT - 1, 1, 1); // a gold marker on the frame
+      }
+      x.drawImage(dimg, V.x0 + 2, V.dT);
+    } else {
+      const hD = Math.max(1, Math.round((V.dB - V.dT) * Math.cos(OV.door * 1.35)));
+      R('rgba(43,39,69,.3)', V.x0 + 2, V.dB - 1, V.Wo - 4, 2);
+      x.drawImage(dimg, V.x0 + 2, V.dB - hD, V.Wo - 4, hD);
+      const k = hD / (V.dB - V.dT); R('rgba(40,26,34,.9)', V.wx0, V.dB - hD + (V.wy0 - V.dT) * k, V.ww, V.wh * k);
+    }
+    // ---- the control panel: dials turn, the display warms up, the light comes on
+    const dp = V.disp, temp = Math.round(25 + heat * 145), s = Math.max(1, Math.floor((dp.h - 2) / 5));
+    const str = String(temp), tx = dp.x + Math.round((dp.w - A.textWidth(str, s) - 3 * s) / 2), ty = dp.y + Math.round((dp.h - 5 * s) / 2);
+    A.pixText(x, str, tx, ty, heat > 0.05 ? '#ff9a4a' : '#5b6380', s);
+    R(heat > 0.05 ? '#ff9a4a' : '#5b6380', tx + A.textWidth(str, s) + s, ty, s + 1, s + 1); // °
+    for (const [kx, a] of [[V.k1, -2.3 + OV.knob * 2.2], [V.k2, -2.3 + OV.timer]]) for (let d = 1; d < V.Rk - 0.5; d += 0.5) R('#59607c', kx + Math.sin(a) * d, V.kY - Math.cos(a) * d);
+    const lx = Math.round(V.x0 + V.Wo * 0.3), lyy = V.kY;
+    R('#59607c', lx - 2, lyy - 2, 5, 5); R(heat > 0.05 ? '#ff8a3c' : '#6b2b2b', lx - 1, lyy - 1, 3, 3); if (heat > 0.05) { R('#ffe0a0', lx - 1, lyy - 1, 1, 1); R('rgba(255,140,60,.3)', lx - 3, lyy - 3, 7, 7); }
+    // ---- the cooling rack: finished chiffons, and dotted places for the ones still to bake
+    const slot = (i) => ({ x: V.rx + V.rw * (i + 0.5) / SPONGES, y: V.ry });
+    const ch = A.CU.chiffon(V.cw);
+    for (let i = 0; i < SPONGES; i++) {
+      const p = slot(i);
+      if (i < SP.n) { R('rgba(90,50,20,.22)', p.x - ch.width / 2 + 2, p.y - 1, ch.width - 2, 2); x.drawImage(ch, Math.round(p.x - ch.width / 2), Math.round(p.y - ch.height + 2)); }
+      else if (!(sub === 'pop' && i === SP.n && SP.flyT >= 0.7)) for (let a = 0; a < 6.28; a += 0.5) R('rgba(110,67,34,.35)', p.x + Math.cos(a) * V.cw * 0.45, p.y - 3 + Math.sin(a) * V.cw * 0.13);
+    }
+    if (sub === 'pop' && SP.flyT >= 0.15) { // one hopping out of the oven, onto the rack
+      const u = clamp((SP.flyT - 0.15) / 0.55, 0, 1), e = easeIO(u), p = slot(SP.n), done = batter(V, OV.lift || SP_TARGET);
+      const sx0 = pcx, sy0 = done.ys + ch.height * 0.3, k0 = (pr * 2) / V.cw, k = k0 + (1 - k0) * e;
+      const X = sx0 + (p.x - sx0) * e, Y = sy0 + (p.y - ch.height / 2 - sy0) * e - Math.sin(u * Math.PI) * V.Wo * 0.25;
+      const sq = u >= 1 ? 1 + 0.18 * Math.sin(clamp((SP.flyT - 0.7) / 0.2, 0, 1) * Math.PI) : 1, w = Math.round(ch.width * k * sq), h2 = Math.round(ch.height * k / sq);
+      x.drawImage(ch, Math.round(X - w / 2), Math.round(Y + ch.height * k / 2 - h2 + (u >= 1 ? 2 : 0)), w, h2);
+    }
+    // ---- steam, smoke, sparkles
+    for (const f of OV.fx) { if (f.life < 0.12 && Math.floor(f.life * 50) % 2) continue; x.fillStyle = f.col; x.fillRect(Math.round(f.x), Math.round(f.y), f.size || 1, f.size || 1); }
+  }
+  function ovUpdate(dt) {
+    const V = ovLayout(), on = SP.sub === 'rise';
+    OV.heat = clamp(OV.heat + (on ? dt * 3.5 : -dt * 1.2), 0, 1);
+    OV.knob += ((on ? 1 : 0) - OV.knob) * Math.min(1, dt * 8);
+    if (on) OV.timer += dt * 1.6;
+    OV.spill = SP.sub === 'poof' ? Math.min(1, OV.spill + dt * 3) : Math.max(0, OV.spill - dt * 0.8);
+    const dOpen = SP.sub === 'pop' ? (SP.flyT < 0.75 ? Math.min(1, SP.flyT / 0.15) : Math.max(0, 1 - (SP.flyT - 0.78) / 0.18)) : 0;
+    OV.door += (dOpen - OV.door) * Math.min(1, dt * 18);
+    if (on && (OV.steamT -= dt) <= 0) { // a wisp of steam from the vent
+      OV.steamT = 0.09;
+      OV.fx.push({ x: rand(V.x0 + V.Wo * 0.2, V.x1 - V.Wo * 0.2), y: V.dT - 2, vx: rand(-4, 4), vy: rand(-18, -10), g: -4, life: rand(0.6, 1), col: pick(['rgba(255,255,255,.7)', 'rgba(255,255,255,.45)']), size: pick([1, 2]) });
+    }
+    if (SP.sub === 'poof' && Math.random() < dt * 20) OV.fx.push({ x: rand(V.pcx - V.pr, V.pcx + V.pr), y: V.rimY - 2, vx: rand(-10, 10), vy: rand(-26, -12), g: -6, life: rand(0.5, 0.9), col: pick(['rgba(90,80,90,.6)', 'rgba(130,120,130,.5)']), size: 2 });
+    for (let i = OV.fx.length - 1; i >= 0; i--) { const f = OV.fx[i]; f.vy += f.g * dt; f.x += f.vx * dt; f.y += f.vy * dt; if ((f.life -= dt) <= 0) OV.fx.splice(i, 1); }
+  }
+  // (where a spot on the close-up is, in room pixels: for the pop-up words)
+  const ovToRoom = (V, X, Y) => ({ x: (X * V.P) / S, y: (Y * V.P) / S });
+
   /* =====================================================================
      STAGE 4: icing on top. A close-up at the kitchen counter, drawn on its own canvas with finer
      pixels than the room: pipe cream swirls around the edge, place the strawberries (drag them out
@@ -1239,10 +1806,24 @@
   const cuCv = $('#closeup'), cuG = cuCv.getContext('2d');
   const IC = { sub: 'idle', spots: [], piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], hud: null, t: 0, sq: 0, u: 0,
     squeeze: false, lx: 0, ly: 0, used: 0, puff: 0, acc: 0, hudB: 110, hudR: 340, ghost: false, shown: false, base: null, baseKey: '', seq: 0, nudge: 0 };
-  function cuLayout() { // the close-up's own pixel grid and where everything sits on it
+  let cuOwner = ''; // whose close-up is on that canvas: the oven's or the icing's
+  function cuSize() { // the close-up's own pixel grid (finer than the room's)
     const W = Math.max(1, innerWidth), H = Math.max(1, innerHeight), P = clamp(Math.round(S * 0.6), 2, 4);
     const w = Math.ceil(W / P), h = Math.ceil(H / P);
     if (cuCv.width !== w || cuCv.height !== h) { cuCv.width = w; cuCv.height = h; cuCv.style.width = w * P + 'px'; cuCv.style.height = h * P + 'px'; }
+    return { W, H, P, w, h };
+  }
+  function measureHud() { // where the stage HUD ends, so the close-ups keep clear of it
+    const hr = $('#stageBox').getBoundingClientRect(); // (it slides in from 30px to the left)
+    IC.hudB = Math.max(80, hr.bottom || 0); IC.hudR = Math.max(120, (hr.right || 0) + 30);
+  }
+  function zoomCloseup(owner, on, ox, oy) { // zoom the close-up in from (ox, oy) on the room canvas, or back out to it
+    cuOwner = owner;
+    cuCv.style.transformOrigin = `${ox * S}px ${oy * S}px`;
+    cuCv.classList.toggle('on', on);
+  }
+  function cuLayout() { // where everything on the icing close-up sits
+    const { H, P, w, h } = cuSize();
     // the table goes either below the HUD (full width) or beside it (full height), whichever fits a bigger cake;
     // f leaves room above the cake for the piping bag when it's at the top edge
     const Bm = Math.ceil((H * 0.05 + 64) / P), hb = Math.ceil(IC.hudB / P) + 6, hr = Math.ceil(IC.hudR / P) + 6;
@@ -1258,37 +1839,36 @@
     if (side) { const tot = Wt + 14 + R * 2; x0 = Math.round(mid - tot / 2); y0 = Math.round(T + (ah - Ht - Hf) / 2); bx = x0 + Wt + 14 + R; by = y0 + Math.round((Ht + Hf) * 0.55); }
     else { const tot = Ht + Hf + 12 + R * 2; x0 = Math.round(mid - Wt / 2); y0 = Math.round(T + (ah - tot) / 2); bx = Math.round(mid + Wt * 0.2); by = y0 + Ht + Hf + 12 + R; }
     const r = clamp(Math.round(Wt * 0.052), 4, 12), sr = clamp(Math.round(Wt * 0.048), 4, 11);
-    const ins = r + 4, ring = { L: x0 + ins, R: x0 + Wt - ins, T: y0 + Math.round(ins * 0.85), B: y0 + Ht - Math.round(ins * 0.85) };
-    const inner = { x0: ring.L + r + sr * 0.6, x1: ring.R - r - sr * 0.6, y0: ring.T + r * 0.8 + sr * 0.4, y1: ring.B - r * 0.8 - sr * 0.3 };
+    const ins = r + 4, tcx = x0 + Wt / 2, tcy = y0 + Ht / 2; // (the round cake's oval top)
+    const ring = { cx: tcx, cy: tcy, rx: Wt / 2 - ins, ry: Ht / 2 - ins * 0.85 };
+    const irx = ring.rx - r - sr * 0.6, iry = ring.ry - r * 0.8 - sr * 0.4; // where strawberries can go: inside the ring of swirls
+    const inner = { cx: tcx, cy: tcy, rx: irx, ry: iry, x0: tcx - irx * 0.7, x1: tcx + irx * 0.7, y0: tcy - iry * 0.7, y1: tcy + iry * 0.7 };
     const fR = Math.round(sr * 1.6), bagH = clamp(Math.round(Wt * 0.34), 22, 64);
     const props = side // where the sifter and the piping bag rest on the counter when they're not in her hand
       ? { sx: bx - Math.round(R * 0.35), sy: Math.max(T + fR, by - R - fR - 6), bx: bx + Math.round(R * 0.15), by: Math.min(h - Bm + 4, by + R + Math.round(bagH * 0.32) + 4) }
       : { sx: Math.max(fR + 4, x0 + Math.round(Wt * 0.08) + fR), sy: by - Math.round(R * 0.35), bx: Math.max(Math.round(bagH * 0.5) + 2, x0 + Math.round(Wt * 0.22)), by: by + Math.round(R * 0.55) };
-    return { P, w, h, x0, y0, Wt, Ht, Hf, x1: x0 + Wt, y1: y0 + Ht, bx, by, R, r, sr, ring, inner, fR, bagH, props, lift: coarse ? Math.round(44 / P) : 0 };
+    return { P, w, h, x0, y0, Wt, Ht, Hf, x1: x0 + Wt, y1: y0 + Ht, tcx, tcy, bx, by, R, r, sr, ring, inner, fR, bagH, props, lift: coarse ? Math.round(44 / P) : 0 };
   }
   const buzz = (ms) => { try { if (coarse && navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not allowed here */ } };
   const cuPtr = (V) => ({ x: (ptr.x * S) / V.P, y: (ptr.y * S) / V.P });
   const setCuPtr = (V, x, y) => { ptr.x = (x * V.P) / S; ptr.y = (y * V.P) / S; };
-  function ringPos(V, u) { // a point on the piping ring, u = 0…1 clockwise from the top-left corner
-    const { L, R, T, B } = V.ring, per = 2 * (R - L + B - T);
-    let d = (((u % 1) + 1) % 1) * per;
-    if (d < R - L) return { x: L + d, y: T };
-    if ((d -= R - L) < B - T) return { x: R, y: T + d };
-    if ((d -= B - T) < R - L) return { x: R - d, y: B };
-    return { x: L, y: B - (d - (R - L)) };
+  function ringPos(V, u) { // a point on the piping ring (an oval round the edge of the top), u = 0…1 clockwise from the back
+    const a = -Math.PI / 2 + 2 * Math.PI * u;
+    return { x: V.ring.cx + Math.cos(a) * V.ring.rx, y: V.ring.cy + Math.sin(a) * V.ring.ry };
   }
-  const inInner = (V, p) => p.x >= V.inner.x0 && p.x <= V.inner.x1 && p.y >= V.inner.y0 && p.y <= V.inner.y1;
+  const inOval = (o, p, k = 1) => ((p.x - o.cx) / o.rx) ** 2 + ((p.y - o.cy) / o.ry) ** 2 <= k * k;
+  const inInner = (V, p) => inOval(V.inner, p);
   const inBowl = (V, p) => Math.hypot(p.x - V.bx, p.y - V.by) <= V.R + 4;
   const nextBerry = () => { const k = IC.seq++; const rnd = ((k * 2654435761) >>> 0) / 4294967296; return { kind: rnd < 0.62 ? 'whole' : 'half', ang: Math.round(((k * 7 + 3) % 16) * 100 * Math.PI / 8) / 100 }; };
   function showCloseup(on) {
     const sp = bakeSpot();
-    cuCv.style.transformOrigin = `${(sp.cx + CAKE.w / 2) * S}px ${(sp.cy + CAKE.h / 2) * S}px`; // zooms in from (and back out to) the cake in the room
-    cuCv.classList.toggle('on', on); IC.shown = on;
+    zoomCloseup('icing', on, sp.cx + CAKE.w / 2, sp.cy + CAKE.h / 2); // zooms in from (and back out to) the cake in the room
+    IC.shown = on;
   }
 
   function icingReset() {
     IC.hudB = 110; IC.hudR = 340;
-    const V = cuLayout(), { L, R, T, B } = V.ring, n = clamp(Math.round((2 * (R - L + B - T)) / (V.r * 2 + 4)), 12, 24);
+    const V = cuLayout(), a = V.ring.rx, b = V.ring.ry, per = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b))), n = clamp(Math.round(per / (V.r * 2 + 4)), 12, 24);
     Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0, done: false, ready: false })), cur: null, kl: false, kr: false, piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, seq: 0 });
     showCloseup(false);
     if (ZE.mode !== 'walk') { zechReset(); Object.assign(ZE, { mode: 'walk', x: bakeSpot().him, y: groundY(), tx: bakeSpot().him, face: 'happy' }); }
@@ -1300,8 +1880,7 @@
     ]);
     setBar(IC.hud.c, 0, `0/${IC.spots.length}`); setBar(IC.hud.b, 0, `0/${BERRIES}`); setBar(IC.hud.s, 0);
     document.body.classList.add('hud-stage', 'closeup');
-    const hr = $('#stageBox').getBoundingClientRect(); // (it slides in from 30px to the left)
-    IC.hudB = Math.max(80, hr.bottom || 0); IC.hudR = Math.max(120, (hr.right || 0) + 30);
+    measureHud();
     const V = cuLayout(), p0 = ringPos(V, 0); setCuPtr(V, p0.x - V.r * 3, p0.y + V.lift);
     showCloseup(true);
     sfx.whoosh();
@@ -1320,7 +1899,7 @@
       if (IC.used >= BERRIES || IC.held) return;
       if (inBowl(V, p)) { IC.held = nextBerry(); IC.used++; sfx.blip(); }            // pick one up…
       else if (inInner(V, p) || !coarse) { // …or tap the cake and one hops over from the bowl
-        const target = inInner(V, p) ? p : { x: rand(V.inner.x0, V.inner.x1), y: rand(V.inner.y0, V.inner.y1) };
+        const ra = rand(0, 6.283), rr = Math.sqrt(Math.random()) * 0.9, target = inInner(V, p) ? p : { x: V.inner.cx + Math.cos(ra) * rr * V.inner.rx, y: V.inner.cy + Math.sin(ra) * rr * V.inner.ry };
         IC.hops.push({ ...nextBerry(), fx: (target.x - V.x0) / V.Wt, fy: (target.y - V.y0) / V.Ht, t: 0 }); IC.used++; sfx.whoosh();
       }
     } else if (IC.sub === 'sugar') IC.puff += 16;
@@ -1355,7 +1934,10 @@
       const dx = (b.fx - o.fx) * V.Wt, dy = (b.fy - o.fy) * V.Ht, d = Math.hypot(dx, dy);
       if (d < V.sr * 1.2) { const k = (V.sr * 1.2 - d) / Math.max(1, d); b.fx += (dx || 1) * k / V.Wt * 0.6; b.fy += (dy || 1) * k / V.Ht * 0.6; }
     }
-    b.fx = clamp(b.fx, (V.inner.x0 - V.x0) / V.Wt, (V.inner.x1 - V.x0) / V.Wt); b.fy = clamp(b.fy, (V.inner.y0 - V.y0) / V.Ht, (V.inner.y1 - V.y0) / V.Ht);
+    { // (pulled back inside the ring if it slid out)
+      const px = V.x0 + b.fx * V.Wt - V.inner.cx, py = V.y0 + b.fy * V.Ht - V.inner.cy, d = Math.hypot(px / V.inner.rx, py / V.inner.ry);
+      if (d > 1) { b.fx = (V.inner.cx + px / d - V.x0) / V.Wt; b.fy = (V.inner.cy + py / d - V.y0) / V.Ht; }
+    }
     IC.placed.push({ ...b, t: 0 });
     setBar(IC.hud.b, IC.placed.length / BERRIES, `${IC.placed.length}/${BERRIES}`);
     sfx.catch(); buzz(12);
@@ -1437,7 +2019,7 @@
       const f = IC.flakes[i]; f.y += f.vy * dt; f.x += f.vx * dt;
       if (f.y >= f.land) {
         IC.flakes.splice(i, 1);
-        const on = f.x >= V.x0 + 1 && f.x <= V.x1 - 2 && f.y >= V.y0 + 1 && f.y <= V.y1 - 1;
+        const on = inOval({ cx: V.tcx, cy: V.tcy, rx: V.Wt / 2, ry: V.Ht / 2 }, f, 0.97);
         if (on || IC.specks.length < 900) IC.specks.push({ fx: (f.x - V.x0) / V.Wt, fy: (f.y - V.y0) / V.Ht, on });
         for (const b of IC.placed) if (Math.hypot(V.x0 + b.fx * V.Wt - f.x, V.y0 + b.fy * V.Ht - f.y) < V.sr * 1.1) b.dust = (b.dust || 0) + 1;
       }
@@ -1469,65 +2051,71 @@
       const d = Math.hypot((X - V.w / 2) / V.w, (y - V.h / 2) / V.h);
       if (d > 0.42) { x.fillStyle = `rgba(70,35,10,${Math.min(0.28, (d - 0.42) * 0.9).toFixed(3)})`; x.fillRect(X, y, 2, 2); }
     }
-    // the cake board (and its shadow)
-    const bm = Math.max(4, Math.round(V.Wt * 0.05)), bX = V.x0 - bm, bY = V.y0 - Math.round(bm * 0.6), bW = V.Wt + bm * 2, bH = V.Ht + V.Hf + Math.round(bm * 1.4);
-    R('rgba(90,45,15,.22)', bX + 4, bY + 6, bW, bH + 3); R('rgba(90,45,15,.12)', bX + 6, bY + 9, bW, bH + 3);
-    R('#24356e', bX - 1, bY - 1, bW + 2, bH + 5); R('#cfe2ff', bX, bY, bW, bH); R('#e8f2ff', bX, bY, bW, 1); R('#a9c8f5', bX, bY + bH - 1, bW, 1);
-    R('#3d7bff', bX, bY + bH, bW, 3); R('#2a5bd0', bX, bY + bH + 2, bW, 1); R('#7fb2ff', bX, bY + bH, bW, 1);
-    R('rgba(43,39,69,.16)', V.x0 + 2, V.y1 + V.Hf - 1, V.Wt, 3);
-    // the front of the cake: cream, sponge, strawberries cut in half, sponge, cream, all in a clear acetate wrap
-    const bands = [['cream', 0.12], ['sponge', 0.25], ['fill', 0.25], ['sponge', 0.24], ['cream', 0.14]];
-    let yy = V.y1;
-    bands.forEach(([t, f], bi) => {
-      const hh = bi === bands.length - 1 ? V.y1 + V.Hf - yy : Math.round(V.Hf * f);
-      for (let j = 0; j < hh; j++) for (let X = V.x0; X < V.x1; X++) {
-        let col;
-        if (t === 'sponge') col = j === 0 ? '#fde5a6' : hsh(X, yy + j) % 9 === 0 ? '#e7b35d' : hsh(X + 3, yy + j) % 13 === 0 ? '#fbe0a0' : '#f7cf7d';
-        else col = j === hh - 1 ? '#efe3d2' : '#fffaf1';
-        if (X === V.x1 - 1) col = t === 'sponge' ? '#e2b360' : '#e9e1d6';
-        x.fillStyle = col; x.fillRect(X, yy + j, 1, 1);
-      }
-      if (t === 'fill') { // strawberry halves in the cream
-        const sw = Math.max(4, Math.round(V.sr * 1.7)), gap = Math.round(sw * 1.45);
-        for (let cx = V.x0 + Math.round(gap * 0.6); cx < V.x1 - sw / 2; cx += gap) {
-          for (let j = 0; j < hh - 1; j++) for (let i = -sw / 2; i <= sw / 2; i++) {
-            const ex = i / (sw / 2), ey = (j - (hh - 1)) / (hh - 1); // a dome sitting on the lower sponge
-            const e = ex * ex + ey * ey;
-            if (e > 1) continue;
-            x.fillStyle = e > 0.72 ? '#d63a52' : Math.abs(ex) < 0.18 ? '#fff1f3' : e > 0.4 ? '#ff8fa3' : '#ffc4cf';
-            x.fillRect(Math.round(cx + i), yy + j, 1, 1);
+    // a round cake on a round board: the board and its shadow first
+    const bm = Math.max(4, Math.round(V.Wt * 0.05)), trx = V.Wt / 2, tr_y = V.Ht / 2, bcy = V.tcy + V.Hf, brx = trx + bm, bry = tr_y + bm * 0.6;
+    const oval = (cx, cy, rx, ry, col) => { x.fillStyle = col; for (let j = -Math.ceil(ry); j <= Math.ceil(ry); j++) { const k = 1 - (j / ry) ** 2; if (k < 0) continue; const hw = Math.round(rx * Math.sqrt(k)); x.fillRect(Math.round(cx) - hw, Math.round(cy) + j, hw * 2 + 1, 1); } };
+    oval(V.tcx + 4, bcy + 7, brx + 2, bry + 1, 'rgba(90,45,15,.18)'); oval(V.tcx + 3, bcy + 5, brx, bry, 'rgba(90,45,15,.14)');
+    for (let X = -brx; X <= brx; X++) { const dx = X / brx, a2 = bry * Math.sqrt(Math.max(0, 1 - dx * dx)); R(Math.abs(dx) > 0.97 ? '#24356e' : dx > 0.55 ? '#2c62d6' : '#3d7bff', V.tcx + X, bcy + a2, 1, 3); R('#24356e', V.tcx + X, bcy + a2 + 3, 1, 1); }
+    oval(V.tcx, bcy, brx + 1, bry + 1, '#24356e'); oval(V.tcx, bcy, brx, bry, '#cfe2ff'); oval(V.tcx - 2, bcy - 1, brx - 4, bry - 3, '#dfeaff');
+    oval(V.tcx + 2, bcy + 2, trx + 1, tr_y + 1, 'rgba(43,39,69,.14)');
+    // the side of the cake: cream, sponge, strawberries cut in half, sponge, cream, curving round with it, in a clear acetate wrap
+    const bands = [['cream', 0.12], ['sponge', 0.25], ['fill', 0.25], ['sponge', 0.24], ['cream', 0.14]], O = '#a8907a';
+    const top = (X) => { const dx = (X + 0.5 - V.tcx) / trx; return Math.abs(dx) >= 1 ? null : V.tcy + tr_y * Math.sqrt(1 - dx * dx); };
+    for (let X = Math.floor(V.tcx - trx); X < V.tcx + trx; X++) {
+      const t0 = top(X); if (t0 === null) continue;
+      const dx = (X + 0.5 - V.tcx) / trx, lit = 0.78 - 0.62 * dx * dx - 0.3 * dx, L = lit > 0.6 ? 0 : lit > 0.28 ? 1 : 2;
+      let yy = Math.round(t0);
+      bands.forEach(([t, f], bi) => {
+        const hh = bi === bands.length - 1 ? Math.round(t0) + V.Hf - yy : Math.round(V.Hf * f);
+        for (let j = 0; j < hh; j++) {
+          let col;
+          if (t === 'sponge') col = j === 0 ? ['#fde5a6', '#f6d993', '#e3bf78'][L] : hsh(X, yy + j) % 9 === 0 ? ['#e7b35d', '#dba552', '#c4914a'][L] : ['#f7cf7d', '#efc06a', '#d9a552'][L];
+          else col = j === hh - 1 ? ['#efe3d2', '#e6d9c6', '#d9cbb6'][L] : ['#fffaf1', '#f7efe2', '#e8ddcc'][L];
+          x.fillStyle = col; x.fillRect(X, yy + j, 1, 1);
+        }
+        if (t === 'fill') { // strawberry halves pressed into the cream (squeezed thinner round the sides)
+          const sw = Math.max(4, Math.round(V.sr * 1.7)), dth = (sw * 1.45) / trx, th = Math.asin(clamp(dx, -1, 1)), thc = Math.round(th / dth) * dth; // (spaced evenly round the cake, so they bunch up and turn edge-on at the sides)
+          const cxh = V.tcx + Math.sin(thc) * trx, half = Math.max(0.6, (sw / 2) * Math.cos(thc)), k0 = X + 0.5 - cxh;
+          if (Math.abs(thc) < 1.5 && Math.abs(k0) <= half) for (let j = 0; j < hh - 1; j++) {
+            const ex = k0 / Math.max(1, half), ey = (j - (hh - 1)) / (hh - 1), e2 = ex * ex + ey * ey;
+            if (e2 > 1) continue;
+            x.fillStyle = e2 > 0.72 ? '#d63a52' : Math.abs(ex) < 0.18 ? '#fff1f3' : e2 > 0.4 ? '#ff8fa3' : '#ffc4cf'; x.fillRect(X, yy + j, 1, 1);
           }
         }
-      }
-      yy += hh;
-    });
-    for (const fxg of [0.1, 0.115, 0.72]) R('rgba(255,255,255,.45)', V.x0 + Math.round(V.Wt * fxg), V.y1 + 1, 1, V.Hf - 2); // acetate glints
-    R('#e4f2ff', V.x0, V.y1, V.Wt, 1);
+        yy += hh;
+      });
+      if ([-0.62, -0.57, 0.5].some((g2) => Math.abs(dx - g2) < 0.5 / trx)) R('rgba(255,255,255,.45)', X, Math.round(t0) + 1, 1, V.Hf - 2); // acetate glints
+      R(O, X, Math.round(t0) + V.Hf, 1, 1);
+    }
     // the smooth cream top, with a few palette-knife swirls
     const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; // (ordered dither, so the shading has no hard steps)
-    for (let j = 0; j < V.Ht; j++) for (let X = V.x0; X < V.x1; X++) {
-      const t = j / V.Ht + (BAY[(j % 4) * 4 + (X % 4)] / 16 - 0.5) * 0.1;
-      x.fillStyle = t < 0.15 ? '#fffcf6' : t < 0.6 ? '#fff8ee' : t < 0.9 ? '#fbf2e4' : '#f6ebd9'; x.fillRect(X, V.y0 + j, 1, 1);
+    for (let j = -Math.ceil(tr_y); j <= Math.ceil(tr_y); j++) {
+      const k = 1 - (j / tr_y) ** 2; if (k < 0) continue;
+      const hw = trx * Math.sqrt(k);
+      for (let X = Math.round(V.tcx - hw); X <= Math.round(V.tcx + hw); X++) {
+        const t = (j / tr_y + 1) / 2 + (BAY[((j + 64) % 4) * 4 + (X % 4)] / 16 - 0.5) * 0.1;
+        x.fillStyle = t < 0.15 ? '#fffcf6' : t < 0.6 ? '#fff8ee' : t < 0.9 ? '#fbf2e4' : '#f6ebd9'; x.fillRect(X, Math.round(V.tcy + j), 1, 1);
+      }
     }
     for (let k = 0; k < 7; k++) {
-      const cx = V.x0 + V.Wt * (0.15 + rnd() * 0.7), cy = V.y0 + V.Ht * (0.15 + rnd() * 0.7), rad = V.Wt * (0.12 + rnd() * 0.22), a0 = rnd() * 6.28, span = 1.2 + rnd() * 1.4;
+      const cx = V.tcx + trx * (rnd() - 0.5) * 1.1, cy = V.tcy + tr_y * (rnd() - 0.5) * 1.1, rad = V.Wt * (0.12 + rnd() * 0.22), a0 = rnd() * 6.28, span = 1.2 + rnd() * 1.4;
       for (let a = a0; a < a0 + span; a += 0.6 / rad) {
         const px = Math.round(cx + Math.cos(a) * rad), py = Math.round(cy + Math.sin(a) * rad * 0.62);
-        if (px <= V.x0 + 1 || px >= V.x1 - 2 || py <= V.y0 + 1 || py >= V.y1 - 2) continue;
+        if (!inOval({ cx: V.tcx, cy: V.tcy, rx: trx, ry: tr_y }, { x: px, y: py }, 0.92)) continue;
         R('#f1e3cd', px, py); R('#ffffff', px, py - 1);
       }
     }
-    R('#ffffff', V.x0 + 1, V.y1 - 1, V.Wt - 2, 1);
-    // soft outline around the whole cake (rounded top corners)
-    const O = '#a8907a';
-    R(O, V.x0 + 1, V.y0 - 1, V.Wt - 2, 1); R(O, V.x0 - 1, V.y0 + 1, 1, V.Ht + V.Hf - 1); R(O, V.x1, V.y0 + 1, 1, V.Ht + V.Hf - 1); R(O, V.x0, V.y1 + V.Hf, V.Wt, 1);
-    R(O, V.x0, V.y0, 1, 1); R(O, V.x1 - 1, V.y0, 1, 1);
-    R('#e6d5bd', V.x0, V.y1 - 1, 1, 1); R('#e6d5bd', V.x1 - 1, V.y1 - 1, 1, 1);
+    // a soft outline round it all, and a highlight along the front edge of the top
+    for (let a = 0; a < Math.PI * 2; a += 0.6 / trx) {
+      const X = V.tcx + Math.cos(a) * (trx + 0.6), Y = V.tcy + Math.sin(a) * (tr_y + 0.6);
+      if (Math.sin(a) < 0) R(O, X, Y); else R('#ffffff', V.tcx + Math.cos(a) * (trx - 1), V.tcy + Math.sin(a) * (tr_y - 1));
+    }
+    R(O, V.tcx - trx - 1, V.tcy, 1, V.Hf + 1); R(O, V.tcx + trx, V.tcy, 1, V.Hf + 1);
     IC.base = c; IC.baseKey = key;
     return c;
   }
   function renderCloseup() {
-    if (!IC.shown && !cuCv.classList.contains('on')) return;
+    if (cuOwner !== 'icing' || (!IC.shown && !cuCv.classList.contains('on'))) return;
     const V = cuLayout(), x = cuG, p = cuPtr(V), CU = A.CU;
     x.imageSmoothingEnabled = false;
     x.drawImage(cuBase(V), 0, 0);
@@ -1624,11 +2212,11 @@
     }
   }
   function icingRender() { // (on the room canvas) the cake on its counter, with Zech and Sophia, behind the close-up
-    const sp = bakeSpot(), cut = CAKE.layerCuts[CAKE.layerCuts.length - 2];
+    const sp = bakeSpot();
     g.fillStyle = 'rgba(43,39,69,.2)'; g.fillRect(Math.round(iw / 2 - sp.table.width / 2) - 1, sp.base + 1, sp.table.width + 2, 2);
     g.drawImage(sp.table, Math.round(iw / 2 - sp.table.width / 2), sp.base - sp.table.height + 2);
     if (IC.sub === 'done') g.drawImage(CAKE.img, sp.cx, sp.cy);
-    else g.drawImage(CAKE.img, 0, cut, CAKE.w, CAKE.h - cut, sp.cx, sp.cy + cut, CAKE.w, CAKE.h - cut);
+    else g.drawImage(CAKE.stack[STACK], sp.cx, sp.cy);
     drawZech(); drawGirl();
   }
 
@@ -1714,12 +2302,10 @@
     if (ZE.mode === 'ontop' || (ZE.mode === 'yank' && zechInCake())) drawZech(); // the cake covers his legs
     const n = K.layers;
     if (n > 0) {
-      const cut = CAKE.layerCuts[n - 1], prevCut = n > 1 ? CAKE.layerCuts[n - 2] : CAKE.h;
-      // everything already stacked…
-      if (prevCut < CAKE.h) g.drawImage(CAKE.img, 0, prevCut, CAKE.w, CAKE.h - prevCut, pos.x + dx, pos.y + prevCut, CAKE.w, CAKE.h - prevCut);
-      // …and the newest layer dropping into place
+      // everything already stacked, and the newest layer dropping into place (once it lands, it's all one cake)
       const drop = Math.round(K.dropT * K.dropT * -10);
-      g.drawImage(CAKE.img, 0, cut, CAKE.w, prevCut - cut, pos.x + dx, pos.y + cut + drop, CAKE.w, prevCut - cut);
+      if (drop === 0) g.drawImage(CAKE.stack[Math.min(n, CAKE.stack.length - 1)], pos.x + dx, pos.y);
+      else { g.drawImage(CAKE.stack[n - 1], pos.x + dx, pos.y); g.drawImage(CAKE.layerImg[n - 1], pos.x + dx, pos.y + drop); }
       if (K.alive) g.drawImage(CAKE.faces[K.sub === 'lift' || K.sub === 'handoff' || KN.t >= 0 ? 'angry' : (Math.floor(K.t * 4) % 2 ? 'angry' : 'hurt')], pos.x + dx + CAKE.faceX, pos.y + CAKE.faceY);
     }
     if (KN.t >= 0) kidnapRender();
@@ -1740,7 +2326,7 @@
   function clearStageUi() {
     resetText(); hideCallout();
     document.body.classList.remove('hud-stage', 'boss', 'follow', 'closeup');
-    cuCv.classList.remove('on'); IC.shown = false; IC.held = null; IC.squeeze = false; IC.cur = null;
+    cuCv.classList.remove('on'); IC.shown = false; OV.shown = false; WV.shown = false; IC.held = null; IC.squeeze = false; IC.cur = null;
     if (IC.ghost) { IC.ghost = false; $('#stageBox').classList.remove('ghost'); }
   }
   function showCard(i, keepCake) {
@@ -2126,7 +2712,7 @@
       }
     }
     for (const p of parts) if (p.confetti) drawParticle(p);
-    renderCloseup();
+    renderCloseup(); renderOven(); renderWhip();
   }
 
   /* ================= main loop ================= */
@@ -2151,7 +2737,10 @@
     window.__game = {
       get phase() { return phase; }, get stage() { return phase === 'bake' ? 'bake' : STAGE().key; },
       get sub() { return phase === 'bake' ? K.sub : { catch: CT.sub, sponge: SP.sub, whip: W.sub, icing: IC.sub, boss: B.sub }[STAGE().key]; },
-      get sponge() { return { sub: SP.sub, r: SP.r, n: SP.n, tol: SP.tol, target: SP_TARGET }; },
+      get sponge() {
+        const V = ovLayout();
+        return { sub: SP.sub, r: SP.r, n: SP.n, tol: SP.tol, target: SP_TARGET, shown: OV.shown, heat: OV.heat, door: OV.door, lineY: batter(V, SP_TARGET).top * V.P, topY: batter(V, SP.r).top * V.P };
+      },
       get icing() {
         const V = cuLayout(), k = V.P, sp = (x, y) => ({ x: x * k, y: y * k });
         let on = 0; for (const s of IC.specks) if (s.on) on++;
@@ -2165,7 +2754,7 @@
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
       get letterStep() { return letterStep; },
       get zech() { return { mode: ZE.mode, x: ZE.x * S, y: ZE.y * S, hug: ZE.hug, face: ZE.face, kidnapT: KN.t, holding: KN.holding }; },
-      get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps }; },
+      get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps, ing: WV.ing, om: WV.om, shown: WV.shown, sub: W.sub }; },
       get catch() { return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S })) }; },
       get kid() { return { x: kid.x * S, y: kid.y * S }; }, get cakeHp() { return cake.hp; },
       get music() { return { kind: music.kind, uri: music.uri, playing: music.playing, want: music.want, shown: !songBox.hidden }; }, get tune() { return sfx.songOn(); }, get track() { return sfx.bgmName(); },

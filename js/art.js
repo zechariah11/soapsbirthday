@@ -215,6 +215,10 @@ window.Art = (() => {
     tired: { 7: '..HSSSSSSSSSSSSSSH.D', 8: '..HSSEESSSSSSEESSHDD', 10: '...sSSSSSMMSSSSSs...' },
     lose: { 7: '..HSSEEESSSSEEESSH..', 8: '..HSSSESSSSSSESSSH..', 9: '..HSPPDSSMMSSDPPSH..' },
     happy: { 7: '..HSSSESSSSSSESSSH..', 8: '..HSSESESSSSESESSH..', 9: '..HSPPSSMSSMSSPPSH..', 10: '...sSSSSSMMSSSSSs...' },
+    // funny faces while he's whisking for his life
+    strain: { 7: '..HSSESSSSSSSSESSH.D', 8: '..HSSSESSSSSSESSSHDD', 9: '..HSPPSEWWWWESPPSH..', 10: '...sSSSSEEEESSSSs...' },  // eyes squeezed shut, teeth gritted
+    puff: { 7: '..HSSWESSSSSSWESSH..', 8: '..HSSEESSSSSSEESSH..', 9: '.HSPPPSSSEESSSPPPSH.', 10: '..ssSSSSSSSSSSSSss..' },  // cheeks puffed right out
+    tongue: { 7: '..HSSWESSSSSSSSSSH..', 8: '..HSSEESSSSSSEEESH..', 9: '..HSPPSSSEESSSPPSH..', 10: '...sSSSSSSSPPSSSs...' }, // one eye squinting, tongue out
   };
   function camoSprite(rows) {
     const c = mk(rows[0].length, rows.length), x = ctxOf(c);
@@ -280,7 +284,14 @@ window.Art = (() => {
     '.RRRyR.',
     '..RRR..',
   ], { R: '#e8405a', h: '#ff9aa8', y: '#ffe3a3', g: '#3d9a52', G: '#7ad37a' });
-  const HALF = spr(['.RRR.', 'RpPpR', 'RpWpR', '.RpR.', '..R..'], { R: '#e8405a', p: '#ff8fa3', P: '#ffd3da', W: '#fff2f4' });
+  // little strawberries for the pile in her bowl (a few ways round, and a golden one)
+  const MINI_PAL = { R: '#e8405a', r: '#b8253f', h: '#ffb3bf', y: '#ffe3a3', g: '#3d9a52', G: '#7ad37a' };
+  const MINI_GOLD = { R: '#ffcf3a', r: '#c98a1a', h: '#fff4b8', y: '#fffbe6', g: '#3d9a52', G: '#7ad37a' };
+  const MINI_ROWS = [['.gG.', 'RhRR', 'RyRr', '.Rr.'], ['..gG', '.hRR', 'RRyr', '.Rr.'], ['Gg..', 'RhRR', 'yRRr', '.rr.'], ['.Gg.', 'hRRR', 'RRyr', '.rR.']];
+  const MINI_STRAWS = MINI_ROWS.map((r) => spr(r, MINI_PAL)), MINI_GOLDS = MINI_ROWS.map((r) => spr(r, MINI_GOLD));
+  const HALF_PAL = { R: '#e8405a', r: '#b8253f', p: '#ff8fa3', P: '#ffd3da', W: '#fff2f4' };
+  const HALF = spr(['.RRR.', 'RpPpR', 'RpWpR', '.RpR.', '..R..'], HALF_PAL);
+  const HALVES = [HALF, spr(['RRR', 'pPp', 'pWp', 'RpR', '.R.'], HALF_PAL), spr(['RR', 'pr', 'pr', 'Rr', '.r'], HALF_PAL)]; // face on, turning away, nearly edge-on
   const BOW = spr(['BB.....BB', 'BbB.K.BbB', 'BbbBKBbbB', 'BbB.K.BbB', 'BB.....BB'], { B: '#3d7bff', b: '#a9d0ff', K: '#1d48c4' });
   const FACE_PAL = { K: '#3a1c2c', W: '#ffffff', P: '#ff8fb0', B: '#7fc4ff' };
   const FACES = {
@@ -329,57 +340,87 @@ window.Art = (() => {
       '...........K......K...........',
     ],
   };
-  function buildCake() {
-    const FW = 56, SW = 6, MH = 13, BH = 36;
-    const W = FW + SW, H = MH + BH + 4;
-    const c = mk(W, H), x = ctxOf(c);
-    const P = (col, i, j, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(i, j, w, h); };
-    const layers = [['cream', 3], ['sponge', 6], ['fill', 7], ['sponge', 6], ['fill', 7], ['sponge', 5], ['cream', 3]];
-    const faceCx = Math.floor(FW / 2);
-    const colorAt = (t, j, h, i, y) => t === 'sponge'
-      ? (j === 0 ? '#fde5a6' : ((i * 5 + y * 3) % 9 === 0 ? '#e7b35d' : '#f7cf7d'))
-      : (j === h - 1 ? '#f1e4d4' : '#fffaf1');
-    const SIDE = { '#fde5a6': '#e9c682', '#e7b35d': '#cf9a48', '#f7cf7d': '#e2b360', '#f1e4d4': '#d9cbbb', '#fffaf1': '#e9e1d6' };
-    let y = MH;
-    layers.forEach(([t, h], li) => {
-      for (let j = 0; j < h; j++) {
-        for (let i = 0; i < FW; i++) P(colorAt(t, j, h, i, y + j), i, y + j);
-        for (let s = 0; s < SW; s++) P(SIDE[colorAt(t, j, h, s, y + j)], FW + s, y + j - Math.floor((s + 1) / 2));
+  function buildCake() { // a round layer cake (front view, a little from above), built up layer by layer
+    const W = 62, R = 31, e = 6, MH = 12, BH = 32, H = MH + BH + e + 5, cx = W / 2 - 0.5;
+    const arc = (i) => { const dx = (i - cx) / R; return Math.abs(dx) >= 1 ? 0 : e * Math.sqrt(1 - dx * dx); };
+    const lvl = (i) => { const dx = (i - cx) / R, lit = 0.78 - 0.62 * dx * dx - 0.3 * dx; return lit > 0.62 ? 0 : lit > 0.3 ? 1 : 2; }; // cylinder lighting
+    const BODY = { sponge: ['#f9dc94', '#f2c770', '#d9a552'], cream: ['#ffffff', '#fbf3e6', '#e6dccd'], fill: ['#ffffff', '#fbf3e6', '#e6dccd'] };
+    const TOP = { sponge: ['#fde9b4', '#f9dfa3'], cream: ['#ffffff', '#faf5ec'], fill: ['#ffffff', '#faf5ec'] };
+    const bands = [['cream', 3], ['sponge', 6], ['fill', 6], ['sponge', 5], ['fill', 6], ['sponge', 4], ['cream', 2]]; // top to bottom
+    const bandTop = []; let yy = MH; for (const [, h] of bands) { bandTop.push(yy); yy += h; }
+    const faceCx = Math.floor(W / 2);
+    const layerBands = [null, [5, 6], [4], [3], [2], [0, 1], null]; // (bottom up: board, sponge, cream+berries, sponge, cream+berries, sponge+cream, strawberry top)
+    const ellipse = (x, T, rx, ry, cols) => { // a flat top, lit from the back left
+      for (let j = Math.floor(T - ry); j <= Math.ceil(T + ry); j++) for (let i = 0; i < W; i++) {
+        const u = (i - cx) / rx, v = (j - T) / ry; if (u * u + v * v > 1) continue;
+        x.fillStyle = (u + 0.25) ** 2 + (v + 0.45) ** 2 < 0.55 ? cols[0] : cols[1]; x.fillRect(i, j, 1, 1);
       }
-      if (t === 'fill') {
-        for (let hx = 3 + (li === 4 ? 4 : 0); hx < FW - 4; hx += 8) {
-          if (li === 4 && Math.abs(hx + 2 - faceCx) < 9) continue; // leave room for the boss's mouth
-          x.drawImage(HALF, hx, y + 1);
+    };
+    const layer = (k) => {
+      const c = mk(W, H), x = ctxOf(c), P = (col, i, j, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(i, j, w, h); };
+      if (k === 0) { // the blue cake board: an oval disc
+        const T = MH + BH + 1;
+        for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+          const u = (i - cx) / (R + 0.5), v = (j - T) / (e + 0.8), top = u * u + v * v <= 1, dx = (i - cx) / (R + 0.5);
+          const fr = Math.abs(dx) < 1 && j > T && j <= T + (e + 0.8) * Math.sqrt(1 - dx * dx) + 3;
+          if (top) P(u + v < -0.3 ? '#e4f0ff' : '#cfe2ff', i, j); else if (fr) P(j > T + (e + 0.8) * Math.sqrt(1 - dx * dx) + 2 ? '#2a5bd0' : lvl(i) === 2 ? '#2c62d6' : '#3d7bff', i, j);
+        }
+        return c;
+      }
+      if (k === 6) { // the top: cream, a mountain of strawberries, piped swirls round the edge, the bow
+        ellipse(x, MH, R, e, TOP.cream);
+        const swirl = (sx, sy) => { P('#d9cbb6', sx - 2, sy + 1, 5, 1); P('#ffffff', sx - 2, sy - 1, 4, 2); P('#fffaf1', sx + 1, sy, 1, 1); P('#e9dfd0', sx - 1, sy + 1, 3, 1); P('#ffffff', sx, sy - 2, 1, 1); };
+        for (let a = Math.PI + 0.25; a < 2 * Math.PI - 0.2; a += 0.38) swirl(Math.round(cx + Math.cos(a) * (R - 3)), Math.round(MH + Math.sin(a) * (e - 1)));
+        for (const [ry, wf, y0] of [[0.55, 0.62, MH - 10], [0.75, 0.8, MH - 7], [0.9, 0.86, MH - 4]]) { // the strawberry mountain, back rows first
+          const half = R * wf, n = Math.max(2, Math.round((half * 2) / 7));
+          for (let q = 0; q < n; q++) { const sx = Math.round(cx - half + (q + 0.5) * ((half * 2) / n) - 3.5); x.drawImage(STRAW, sx, y0 + Math.round(Math.abs(sx + 3.5 - cx) / R * 3 * ry)); }
+        }
+        for (let a = 0.18; a < Math.PI - 0.1; a += 0.33) swirl(Math.round(cx + Math.cos(a) * (R - 2)), Math.round(MH + Math.sin(a) * (e - 1)));
+        for (const [i, j] of [[18, 5], [27, 3], [37, 4], [45, 7], [22, 9], [33, 8], [41, 10], [14, 10]]) P('#ffffff', i, j); // sugar dust
+        x.drawImage(BOW, Math.floor((W - BOW.width) / 2), 0);
+        return c;
+      }
+      const ids = layerBands[k], top = bands[ids[0]];
+      ellipse(x, bandTop[ids[0]], R, e, TOP[top[0]]);
+      if (top[0] === 'sponge') for (let q = 0; q < 14; q++) P('#ecc277', Math.round(cx + Math.cos(q * 2.4) * R * 0.7 * ((q % 3) + 1) / 3), Math.round(bandTop[ids[0]] + Math.sin(q * 2.4) * e * 0.6 * ((q % 3) + 1) / 3)); // (pores)
+      for (const b of ids) {
+        const [t, h] = bands[b];
+        for (let i = 0; i < W; i++) {
+          if (Math.abs((i - cx) / R) >= 1) continue;
+          const y0 = Math.round(bandTop[b] + arc(i)), L = lvl(i);
+          for (let j = 0; j < h; j++) {
+            let col = BODY[t][L];
+            if (t === 'sponge') col = j === 0 && b !== ids[0] ? '#fde5a6' : (i * 5 + (y0 + j) * 3) % 9 === 0 ? (L === 2 ? '#c4914a' : '#e7b35d') : col;
+            if (t !== 'sponge' && j === h - 1) col = L === 2 ? '#d9cdbd' : '#f1e4d4';
+            P(col, i, y0 + j);
+          }
+        }
+        if (t === 'fill') for (let q = -7; q <= 7; q++) { // strawberry halves pressed into the cream all the way round (closer and thinner towards the sides)
+          const th = (q + (b === 4 ? 0.5 : 0)) * 0.21, sn = Math.sin(th);
+          if (Math.abs(th) > 1.5) continue;
+          const v = Math.abs(sn) < 0.55 ? 0 : Math.abs(sn) < 0.86 ? 1 : 2, im = HALVES[v], hx = Math.round(cx + sn * (R - 1) - im.width / 2 + 0.5);
+          x.drawImage(v === 2 && sn < 0 ? flip(im) : im, hx, Math.round(bandTop[b] + arc(hx + im.width / 2)) + 1);
         }
       }
-      y += h;
-    });
-    // blue cake board
-    P('#a9d0ff', 0, MH + BH, FW, 1); P('#3d7bff', 0, MH + BH + 1, FW, 2); P('#2a5bd0', 0, MH + BH + 3, FW, 1);
-    for (let s = 0; s < SW; s++) { const o = MH + BH - Math.floor((s + 1) / 2); P('#7fb2f0', FW + s, o, 1, 1); P('#2c62d6', FW + s, o + 1, 1, 3); }
-    // acetate-wrap glint
-    for (let j = MH + 2; j < MH + BH - 3; j += 2) P('#e4f2ff', 2, j);
-    for (let j = MH + 2; j < MH + 14; j += 2) P('#e4f2ff', 4, j);
-    // mountain of strawberries (back row first)
-    [[3, 7], [5, 3], [7, 0]].forEach(([yy, start]) => {
-      for (let sx = start; sx < W - 6; sx += 7) x.drawImage(STRAW, sx, yy);
-    });
-    for (const [i, j] of [[10, 4], [23, 3], [37, 4], [48, 6], [16, 8], [30, 7], [44, 9], [5, 9]]) P('#ffffff', i, j); // sugar dust
-    for (let rx = 1; rx < FW - 3; rx += 5) { P('#c9b9a6', rx, MH - 2, 4, 1); P('#ffffff', rx + 1, MH - 2, 2, 1); P('#fffaf1', rx, MH - 1, 4, 1); P('#f1e4d4', rx + 3, MH - 1, 1, 1); } // piped cream swirls
-    x.drawImage(BOW, Math.floor((W - BOW.width) / 2), 0);
-
-    const img = outline(c);
+      if (k <= 5) for (let j = 0; j < H; j += 2) for (const gi of [Math.round(cx - R * 0.62), Math.round(cx - R * 0.55)]) { // the acetate wrap's glint
+        const y0 = bandTop[ids[0]] + arc(gi), y1 = bandTop[ids[ids.length - 1]] + bands[ids[ids.length - 1]][1] + arc(gi);
+        if (j >= y0 + 1 && j < y1) P('rgba(228,242,255,.85)', gi, j);
+      }
+      return c;
+    };
+    const layers = [0, 1, 2, 3, 4, 5, 6].map(layer);
+    const stack = [mk(W + 2, H + 2)]; // stack[n]: the first n layers, put together and outlined
+    for (let n = 1; n <= 7; n++) { const c = mk(W, H), x = ctxOf(c); for (let k = 0; k < n; k++) x.drawImage(layers[k], 0, 0); stack.push(outline(c)); }
+    const img = stack[7];
     const faces = {};
     for (const k of Object.keys(FACES)) faces[k] = spr(FACES[k], FACE_PAL);
     return {
-      img, white: silhouette(img, '#ffffff'), faces,
+      img, white: silhouette(img, '#ffffff'), faces, stack, layerImg: layers.map((l) => outline(l)),
       w: img.width, h: img.height,
-      faceX: 1 + faceCx - 15, faceY: 1 + MH + 15,
+      faceX: 1 + faceCx - 15, faceY: 1 + MH + e + 11,
       ropeX: Math.floor(img.width / 2) - 1,
-      // where each layer starts (from the bottom up), for building the cake in the cutscene:
-      // board, sponge, cream+berries, sponge, cream+berries, sponge+cream, strawberry mountain
-      layerCuts: [1 + MH + BH, 1 + MH + 29, 1 + MH + 22, 1 + MH + 16, 1 + MH + 9, 1 + MH, 0],
-      geo: { FW, SW, MH, BH }, // (inside the 1px outline) for icing the top in the icing stage
+      // the top of each layer (from the bottom up), for building the cake in the cutscene
+      layerCuts: [1 + MH + BH, 1 + bandTop[5], 1 + bandTop[4], 1 + bandTop[3], 1 + bandTop[2], 1 + MH, 0],
     };
   }
 
@@ -939,13 +980,108 @@ window.Art = (() => {
         return c;
       });
     }
-    return { rosette, berry, bowl, pipingBag, sifter, shadow, frost, bagDown };
+    // a baked chiffon cake out of its tube pan (3/4 view): golden sides, a cracked top, the hole down the middle
+    function chiffon(W) {
+      return memo(`chif${W}`, () => {
+        const R = W / 2, ry = Math.max(2, Math.round(R * 0.3)), Hs = Math.round(W * 0.5), cw = W + 2, ch = Hs + ry * 2 + 3;
+        const c = mk(cw, ch), x = ctxOf(c), cx = cw / 2 - 0.5, ty = ry + 1, hsh = (a, b) => (((a * 73856093) ^ (b * 19349663)) >>> 0) % 97;
+        for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
+          const dx = (i - cx) / R;
+          if (Math.abs(dx) > 1) continue;
+          const arc = Math.sqrt(1 - dx * dx) * ry, dy = (j - ty) / ry, rho = Math.hypot(dx, dy);
+          let col = null;
+          if (rho <= 1) { // the top
+            if (rho < 0.2) col = '#3a2418';
+            else if (rho < 0.3) col = dy < 0 ? '#a8692f' : '#e9b469';
+            else if (Math.abs(rho - 0.64) < 0.07 && hsh(i, j) % 3) col = '#a86a32';
+            else { const b = 0.75 - 0.3 * dx - 0.35 * dy; col = b > 0.85 ? '#f6cf86' : b > 0.6 ? '#ecb96c' : '#dda257'; if (hsh(i + 7, j) % 11 === 0) col = '#c98a43'; }
+          } else if (j > ty && j <= ty + Hs + arc) { // the sides
+            const b = 0.6 - 0.45 * dx - 0.25 * dx * dx;
+            col = b > 0.72 ? '#eab066' : b > 0.5 ? '#d99a4c' : b > 0.3 ? '#c4843e' : '#a96d31';
+            if (hsh(i, j >> 2) % 7 === 0) col = '#f0c27a';
+            if (j > ty + Hs + arc - 2) col = '#9c612c';
+          }
+          if (col) { x.fillStyle = col; x.fillRect(i, j, 1, 1); }
+        }
+        return outline(c, '#6e4322');
+      });
+    }
+    // a wire cooling rack, seen from the front (a little from above)
+    function coolRack(w) {
+      return memo(`rack${w}`, () => {
+        const c = mk(w, 8), x = ctxOf(c);
+        x.fillStyle = '#8a92a5'; x.fillRect(1, 1, w - 2, 1);
+        x.fillStyle = '#aeb7cb'; for (let i = 2; i < w - 2; i += 4) x.fillRect(i, 2, 1, 3);
+        x.fillStyle = '#6b7389'; x.fillRect(0, 5, w, 1); x.fillStyle = '#e3e8f2'; x.fillRect(0, 4, w, 1); x.fillStyle = '#ffffff'; for (let i = 3; i < w; i += 9) x.fillRect(i, 4, 3, 1);
+        x.fillStyle = '#59607c'; for (const lx of [2, w - 4]) x.fillRect(lx, 6, 2, 2);
+        return c;
+      });
+    }
+    // an oven dial: a ridged silver knob (its pointer is drawn on top, so it can turn)
+    function knob(R) {
+      return memo(`knob${R}`, () => {
+        const size = R * 2 + 3, c = mk(size, size), x = ctxOf(c), cx = size / 2 - 0.5;
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+          const d = Math.hypot(i - cx, j - cx), a = Math.atan2(j - cx, i - cx);
+          if (d > R + 1) continue;
+          let col = d > R ? '#59607c' : d > R - 1.5 ? (Math.round(a * 12 / Math.PI) % 2 ? '#c9d1e3' : '#9aa6c0') : (i - cx) + (j - cx) < -R * 0.4 ? '#ffffff' : (i - cx) + (j - cx) > R * 0.5 ? '#c9d1e3' : '#eef2f8';
+          x.fillStyle = col; x.fillRect(i, j, 1, 1);
+        }
+        return c;
+      });
+    }
+    // the whipped cream's ingredients: a carton of cold cream, a jar of sugar, a little bottle of vanilla
+    function carton(H) {
+      return memo(`carton${H}`, () => {
+        const W = Math.max(10, Math.round(H * 0.6)), c = mk(W + 2, H + 2), x = ctxOf(c), roof = Math.round(H * 0.26);
+        for (let j = 0; j < roof; j++) { const hw = Math.round((W / 2) * (j / roof)); x.fillStyle = j < 2 ? '#e3e8f2' : '#ffffff'; x.fillRect(1 + Math.round(W / 2) - hw, 1 + j, hw * 2, 1); x.fillStyle = '#c9d1e3'; x.fillRect(1 + Math.round(W / 2), 1 + j, 1, 1); }
+        x.fillStyle = '#e3e8f2'; x.fillRect(1 + Math.round(W / 2) - 1, 0, 3, 2);
+        x.fillStyle = '#ffffff'; x.fillRect(1, 1 + roof, W, H - roof); x.fillStyle = '#e3e8f2'; x.fillRect(W - 2, 1 + roof, 3, H - roof);
+        x.fillStyle = '#7fb2ff'; x.fillRect(1, 1 + roof + Math.round((H - roof) * 0.3), W, Math.max(3, Math.round((H - roof) * 0.3)));
+        if (W >= 21) pixText(x, 'CREAM', 1 + Math.round((W - 19) / 2), 1 + roof + Math.round((H - roof) * 0.3) + 1, '#ffffff');
+        x.fillStyle = '#ff9db2'; x.fillRect(1 + Math.round(W / 2) - 1, H - Math.round((H - roof) * 0.22), 3, 2);
+        return outline(c, '#59607c');
+      });
+    }
+    function sugarJar(H) {
+      return memo(`sugar${H}`, () => {
+        const W = Math.max(10, Math.round(H * 0.72)), c = mk(W + 2, H + 2), x = ctxOf(c), lid = Math.max(3, Math.round(H * 0.18));
+        x.fillStyle = '#ff9db2'; x.fillRect(2, 1, W - 2, lid); x.fillStyle = '#ffc2d6'; x.fillRect(2, 1, W - 2, 1); x.fillStyle = '#e8708f'; x.fillRect(2, lid, W - 2, 1);
+        for (let j = lid + 1; j < H + 1; j++) for (let i = 1; i < W + 1; i++) { x.fillStyle = (i * 7 + j * 13) % 5 === 0 ? '#e3e8f2' : (i + j) % 7 === 0 ? '#ffffff' : '#f4f6fb'; x.fillRect(i, j, 1, 1); }
+        x.fillStyle = 'rgba(160,200,255,.45)'; x.fillRect(1, lid + 1, 2, H - lid); x.fillStyle = 'rgba(255,255,255,.9)'; x.fillRect(3, lid + 3, 1, Math.round(H * 0.4));
+        const ly = lid + Math.round((H - lid) * 0.35);
+        x.fillStyle = '#fff3c4'; x.fillRect(2, ly, W - 2, 7); if (W >= 21) pixText(x, 'SUGAR', 1 + Math.round((W - 19) / 2), ly + 1, '#c98a43');
+        return outline(c, '#59607c');
+      });
+    }
+    function vanilla(H) {
+      return memo(`vanilla${H}`, () => {
+        const W = Math.max(6, Math.round(H * 0.42)), c = mk(W + 2, H + 2), x = ctxOf(c), cap = Math.max(3, Math.round(H * 0.2)), neck = Math.max(2, Math.round(H * 0.1));
+        x.fillStyle = '#2b2745'; x.fillRect(1 + Math.round(W * 0.25), 1, Math.round(W * 0.5), cap);
+        x.fillStyle = '#7a4a22'; x.fillRect(1 + Math.round(W * 0.3), 1 + cap, Math.round(W * 0.4), neck);
+        x.fillStyle = '#8a4f1e'; x.fillRect(1, 1 + cap + neck, W, H - cap - neck); x.fillStyle = '#b8732f'; x.fillRect(2, 2 + cap + neck, 1, H - cap - neck - 2);
+        x.fillStyle = '#fff3c4'; x.fillRect(1, 1 + cap + neck + Math.round((H - cap - neck) * 0.3), W, Math.max(3, Math.round((H - cap - neck) * 0.4)));
+        x.fillStyle = '#5a3412'; x.fillRect(1 + Math.round(W / 2) - 1, 2 + cap + neck + Math.round((H - cap - neck) * 0.3), 1, 2); x.fillRect(1 + Math.round(W / 2), 3 + cap + neck + Math.round((H - cap - neck) * 0.3), 1, 1);
+        return outline(c, '#3b2416');
+      });
+    }
+    return { rosette, berry, bowl, pipingBag, sifter, shadow, frost, bagDown, chiffon, coolRack, knob, carton, sugarJar, vanilla };
   })();
+  // little 3x5 pixel letters straight onto a canvas (the oven's temperature display)
+  function pixText(x, str, X, Y, col, s = 1) {
+    x.fillStyle = col;
+    let cx = X;
+    for (const ch of String(str).toUpperCase()) {
+      const gl = FONT[ch] || FONT[' '];
+      for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (gl[j][i] === '#') x.fillRect(cx + i * s, Y + j * s, s, s);
+      cx += 4 * s;
+    }
+  }
 
   return {
-    OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
+    OUT, mk, spr, outline, flip, silhouette, foil, textWidth, pixText, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
-    STRAW, HEART, STAR, CREAM_HAND,
+    STRAW, HEART, STAR, CREAM_HAND, MINI_STRAWS, MINI_GOLDS,
     zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, CU,
   };
 })();
