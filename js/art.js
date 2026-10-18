@@ -378,6 +378,7 @@ window.Art = (() => {
       // where each layer starts (from the bottom up), for building the cake in the cutscene:
       // board, sponge, cream+berries, sponge, cream+berries, sponge+cream, strawberry mountain
       layerCuts: [1 + MH + BH, 1 + MH + 29, 1 + MH + 22, 1 + MH + 16, 1 + MH + 9, 1 + MH, 0],
+      geo: { FW, SW, MH, BH }, // (inside the 1px outline) for icing the top in the icing stage
     };
   }
 
@@ -393,6 +394,13 @@ window.Art = (() => {
     zech: outline(spr(WHISK_ROWS, { h: '#5a6b45', w: '#dfe4ee' }), '#5b6380'),
   };
   const STRAW_O = outline(STRAW);
+  // a freshly baked sponge (they stack up on top of the oven) and the icing stage's piping bag
+  const SPONGE = outline(spr([
+    '..cccccccccccccccc..', '.cCCCCCCCCCCCCCCCCc.', 'cyyyyyyyyyyyyyyyyyyc', 'cyyhyyyyhyyyyyhyyyyc', 'cyyyyyhyyyyyyyyyhyyc', 'cyyyyyyyyyyhyyyyyyyc', '.cccccccccccccccccc.',
+  ], { c: '#c98a3e', C: '#e7b35d', y: '#f7cf7d', h: '#e2b360' }));
+  const PIPING = outline(spr([
+    'BBBBBBBBB', 'bbbbbbbbb', 'whwwwwwww', 'whwwwwwww', '.hwwwwww.', '.wwwwwww.', '..wwwww..', '..wwwww..', '...www...', '...sss...', '....s....',
+  ], { B: '#5b8fe0', b: '#7fb2ff', w: '#ffffff', h: '#e4eefc', s: '#c9d1e3' }));
   const GOLD_STRAW = outline(spr(['..gGg..', '.YgYgY.', 'YhYYYYY', 'YYwYYwY', 'YwYYYYY', '.YYYwY.', '..YYY..'],
     { Y: '#ffcf3a', h: '#fff4b8', w: '#fffbe6', g: '#3d9a52', G: '#7ad37a' }), '#9a6a1a');
   const TOAST = outline(spr(['.dddddd.', 'dTTTTTTd', 'dTkTTkTd', 'dTTkkTTd', 'dTkTTTTd', 'dTTTTkTd', '.dddddd.'],
@@ -776,6 +784,6 @@ window.Art = (() => {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
     STRAW, HEART, STAR, CREAM_HAND,
-    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter,
+    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, PIPING,
   };
 })();

@@ -1,25 +1,30 @@
 # sophia's birthday ♡
 
-A tiny pixel-art birthday game in three stages, all in the same pixel party room. Princess
+A tiny pixel-art birthday game in five stages, all in the same pixel party room. Princess
 Sophia bakes a giant Sungsimdang strawberry cake:
 
 1. **Strawberry Catch**: strawberries rain from the ceiling; she runs left/right with a bowl to
    catch them (dodging burnt toast). There's no timer and no way to lose: if she keeps missing,
    strawberries start falling closer to her.
-2. **Whipped Cream Showdown**: a tap-as-fast-as-you-can race against Zech (in Korean Army
+2. **Fluffy Sponge**: press and hold to bake; the batter rises in the oven window, and she lets go
+   when it reaches the dotted line (too early = flat, too long = POOF). Three sponges pile up on
+   top of the oven. The target zone gets wider after every miss.
+3. **Whipped Cream Showdown**: a tap-as-fast-as-you-can race against Zech (in Korean Army
    uniform). It looks like a close race, but he's quietly rubber-banded so she always wins.
-3. **Cutscene**: she stacks the cake layer by layer, one tap per layer, then the cake
-   comes alive. Zech tries to run, a whipped-cream arm shoots out of the cake, grabs him, dangles
+   Then a short **cutscene**: she stacks the cake layer by layer, one tap per layer.
+4. **Icing on Top**: drag the piping bag back and forth to spread cream over the bare sponge top,
+   then tap to drop strawberries onto it until the strawberry mountain is complete. Then the cake
+   comes alive: Zech tries to run, a whipped-cream arm shoots out of the cake, grabs him, dangles
    him over the top and plops him into the strawberries, and the cake gets hoisted up as a piñata.
-4. **Piñata Cake Monster**: run under the hanging cake and tap to jump and whack it with a baguette
+5. **Piñata Cake Monster**: run under the hanging cake and tap to jump and whack it with a baguette
    (Zech yells for help from the top) until its HP bar is empty. Zech tumbles out, they run to each other and hug, she levels
    up, and he hands her a letter… the wrong one (his whipping rematch request). Then the wrong one
    again (his denied leave request to come a week early). Then, finally, the real letter, with your
    song (see `song` below) or a little jazz-waltz "Happy Birthday".
 
 Music is synthesised too (`js/music.js`) and loops seamlessly: a calm, Animal Crossing-ish room
-theme (cake building, rescue, envelopes), a bouncy marimba tune for the strawberry catch, a sporty
-race theme for the whipping battle, a driving chiptune battle theme from the moment the cake comes
+theme (cake building, rescue, envelopes), a bouncy marimba tune for the strawberry catch, a cosy
+music-box tune by the oven, a sporty race theme for the whipping battle, a dreamy one for the icing, a driving chiptune battle theme from the moment the cake comes
 alive, and for the real letter a jazz-waltz "Happy Birthday" (about 100 s per cycle, with new
 vibraphone and flute solos each time round) that keeps playing while she reads. The ♪ button mutes it all.
 
@@ -49,7 +54,7 @@ click the ✏️ pencil, then **Commit changes**). The live site updates a minut
 You can write `{name}`, `{age}` or `{opponent}` inside any text and it will be filled in
 (`{NAME}` / `{OPPONENT}` give the name in capitals, like the battle text).
 
-Tip: add `?stage=2`, `?stage=bake` or `?stage=3` to the address to jump straight to a stage
+Tip: add `?stage=sponge`, `?stage=whip`, `?stage=bake`, `?stage=icing` or `?stage=boss` (or a number) to the address to jump straight to a stage
 (handy for checking your edits).
 
 About Spotify: the song plays in Spotify's own little player inside the letter. Browsers only let

@@ -4,7 +4,9 @@
 
    room     – calm, Animal Crossing-ish (kalimba, electric piano, plucky bass, shaker)   F major, 92 bpm
    catch    – bouncy marimba tune for the strawberry catch                              C major, 116 bpm
+   oven     – cosy music-box tune while the sponges bake                               Bb major, 100 bpm
    whip     – bright, sporty race theme for the whipping battle                         G major, 132 bpm
+   icing    – dreamy, sparkly vibraphone tune for icing the cake                        D major, 96 bpm
    boss     – driving chiptune battle theme for the cake monster                        A minor, 156 bpm
    birthday – "Happy Birthday" as a jazz waltz with reharmonised choruses, an embellished head,
               vibraphone and flute solos (freshly improvised every time round), ~100 s per cycle      */
@@ -221,6 +223,40 @@ window.Music = (() => {
       [7, 0, 84, 0.5], [7, 0.5, 83, 0.5], [7, 1, 81, 0.5], [7, 1.5, 78, 0.5], [7, 2, 74, 0.5], [7, 2.5, 76, 0.5], [7, 3, 78, 0.5], [7, 3.5, 81, 0.5],
     ],
   });
+  const oven = loopTrack({ // cosy music-box tune while the sponges bake, in Bb major
+    bpm: 100, swing: 0.6, vol: 0.5, lead: 'glock', leadVol: 0.15, comp: 'ep', compVol: 0.8, bass: 'bounce', drums: 'shaker',
+    second: { inst: 'kalimba', shift: -12, vol: 0.7 },
+    V: { Bbmaj7: [57, 62, 65], Gm7: [58, 62, 65], Cm7: [58, 63, 67], F7: [57, 63, 67], Dm7: [57, 60, 65] },
+    R: { Bbmaj7: 46, Gm7: 43, Cm7: 48, F7: 41, Dm7: 38 },
+    bars: [['Bbmaj7'], ['Gm7'], ['Cm7'], ['F7'], ['Dm7'], ['Gm7'], ['Cm7'], ['F7']],
+    mel: [
+      [0, 0, 74, 1], [0, 1, 77, 0.5], [0, 1.5, 81, 0.5], [0, 2, 82, 1.5], [0, 3.5, 81, 0.5],
+      [1, 0, 79, 1], [1, 1, 74, 1], [1, 2, 70, 1], [1, 3, 74, 1],
+      [2, 0, 75, 0.5], [2, 0.5, 79, 0.5], [2, 1, 84, 1], [2, 2, 82, 1], [2, 3, 79, 1],
+      [3, 0, 81, 1.5], [3, 1.5, 79, 0.5], [3, 2, 77, 1], [3, 3, 75, 1],
+      [4, 0, 74, 0.5], [4, 0.5, 77, 0.5], [4, 1, 81, 1], [4, 2, 84, 1.5], [4, 3.5, 81, 0.5],
+      [5, 0, 82, 1], [5, 1, 81, 0.5], [5, 1.5, 79, 0.5], [5, 2, 74, 2],
+      [6, 0, 72, 0.5], [6, 0.5, 75, 0.5], [6, 1, 79, 0.5], [6, 1.5, 82, 0.5], [6, 2, 81, 1], [6, 3, 79, 1],
+      [7, 0, 77, 1], [7, 1, 81, 0.5], [7, 1.5, 84, 0.5], [7, 2, 75, 1], [7, 3, 72, 1],
+    ],
+  });
+  const icing = loopTrack({ // dreamy and sparkly for icing the cake, in D major
+    bpm: 96, swing: 0.55, vol: 0.5, lead: 'vibes', leadVol: 0.15, comp: 'ep', compVol: 0.8, bass: 'bounce', drums: 'shaker',
+    second: { inst: 'glock', shift: 12, vol: 0.4 },
+    V: { Dmaj7: [57, 61, 66], Bm7: [57, 62, 66], Gmaj7: [54, 59, 62], A7: [55, 61, 64], 'F#m7': [57, 61, 64], Em7: [55, 59, 62] },
+    R: { Dmaj7: 38, Bm7: 47, Gmaj7: 43, A7: 45, 'F#m7': 42, Em7: 40 },
+    bars: [['Dmaj7'], ['Bm7'], ['Gmaj7'], ['A7'], ['F#m7'], ['Bm7'], ['Em7'], ['A7']],
+    mel: [
+      [0, 0, 78, 1], [0, 1, 81, 1], [0, 2, 85, 1.5], [0, 3.5, 81, 0.5],
+      [1, 0, 83, 1], [1, 1, 78, 0.5], [1, 1.5, 74, 0.5], [1, 2, 78, 2],
+      [2, 0, 79, 0.5], [2, 0.5, 83, 0.5], [2, 1, 86, 1], [2, 2, 83, 1], [2, 3, 78, 1],
+      [3, 0, 76, 1], [3, 1, 79, 1], [3, 2, 85, 1], [3, 3, 81, 1],
+      [4, 0, 85, 1], [4, 1, 81, 0.5], [4, 1.5, 78, 0.5], [4, 2, 76, 2],
+      [5, 0, 86, 1], [5, 1, 85, 0.5], [5, 1.5, 83, 0.5], [5, 2, 78, 1], [5, 3, 81, 1],
+      [6, 0, 79, 0.5], [6, 0.5, 83, 0.5], [6, 1, 88, 1], [6, 2, 86, 1], [6, 3, 83, 1],
+      [7, 0, 81, 1], [7, 1, 79, 0.5], [7, 1.5, 76, 0.5], [7, 2, 73, 1], [7, 3, 76, 1],
+    ],
+  });
   const boss = loopTrack({
     bpm: 156, vol: 0.5, lead: 'lead', leadVol: 0.06, leadShift: -12, comp: 'arp16', bass: 'pump', drums: 'boss',
     second: { inst: 'lead', shift: 0, vol: 0.45 }, // second time round the tune is doubled an octave up
@@ -358,7 +394,7 @@ window.Music = (() => {
     },
   };
 
-  const tracks = { room, catch: catchT, whip, boss, birthday };
+  const tracks = { room, catch: catchT, oven, whip, icing, boss, birthday };
   // render a track straight into a context (for offline previews / tests)
   function offline(ctx, dest, name, start, seconds) {
     const tr = tracks[name], B = 60 / tr.bpm, st = {};

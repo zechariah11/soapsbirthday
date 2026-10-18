@@ -6,7 +6,7 @@
   "whipTaps": 40,
   "hitsToBreak": 5,
   "bossName": "Giant Strawberry Cake",
-  "startScreen": "I couldn't be there today, so little you is baking a giant 성심당딸기시루케이크: catch the strawberries, beat me at whipping the cream, then build the cake (and deal with whatever happens next).",
+  "startScreen": "I couldn't be there today, so little you is baking a giant 성심당딸기시루케이크: catch the strawberries, bake the sponges, beat me at whipping the cream, then stack it up and ice it (and deal with whatever happens next).",
   "greeting": "Dear {name},",
   "letter": [
     "Happy birthday, my love. I'm so sorry I can't be there with you today, so I built you a tiny corner of the internet instead (and yes, I made you beat up a cake with bread to get here).",
