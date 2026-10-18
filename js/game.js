@@ -220,6 +220,7 @@
       blip: () => play((t) => tone(rand(860, 980), t, 0.025, 0.045)),
       rise: (r) => play((t) => tone(320 + r * 520, t, 0.05, 0.03, 'triangle')),
       squish: () => play((t) => noise(t, 0.05, 0.05, 900, 'lowpass')),
+      sift: () => play((t) => noise(t, 0.04, 0.03, 5000, 'highpass')),
       pip: (k) => play((t) => { tone(660 + k * 520, t, 0.05, 0.05, 'triangle'); tone(990 + k * 780, t + 0.04, 0.06, 0.04, 'sine'); }),
       tick: () => play((t) => tone(1500, t, 0.012, 0.012, 'sine')), // the letter's typewriter: barely there, so the music carries
     };
@@ -1183,163 +1184,375 @@
   }
 
   /* =====================================================================
-     STAGE 4: icing on top. A top-down close-up of the cake: trace around the edge to pipe
-     little cream swirls, then tap inside the ring to place the strawberries wherever she likes.
+     STAGE 4: icing on top. A close-up at the kitchen counter, drawn on its own canvas with finer
+     pixels than the room: pipe cream swirls around the edge, place the strawberries (drag them out
+     of the bowl, or tap a spot), then shake the sifter to dust it all with powdered sugar.
      ===================================================================== */
-  const BERRIES = 12;
-  const IC = { sub: 'idle', spots: [], berries: [], hud: null, t: 0, sq: 0, u: 0, fade: 0, piped: 0 };
-  const tipLift = () => (coarse ? 10 : 0); // on phones the nozzle sits a little above the finger, so you can see it
-  function icingView() { // the zoomed-in cake top, in game pixels, clear of the HUD at the top and the text box at the bottom
-    const T = Math.ceil(84 / S) + 4, Bm = Math.ceil(100 / S) + 4, avail = Math.max(30, ih - T - Bm);
-    let w = Math.min(iw * 0.78, 120), h = w * 0.8;
-    if (h > avail * 0.8) { h = avail * 0.8; w = h / 0.8; }
-    w = Math.round(w); h = Math.round(h);
-    const x0 = Math.round(iw / 2 - w / 2), y0 = Math.round(T + avail / 2 - h / 2);
-    const ins = Math.max(4, Math.round(w * 0.065));
-    return { x0, y0, w, h, x1: x0 + w, y1: y0 + h, ins };
+  const BERRIES = 12, SUGAR_GOAL = 260;
+  const cuCv = $('#closeup'), cuG = cuCv.getContext('2d');
+  const IC = { sub: 'idle', spots: [], piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], hud: null, t: 0, sq: 0, u: 0,
+    squeeze: false, lx: 0, ly: 0, used: 0, puff: 0, acc: 0, hudB: 110, hudR: 340, ghost: false, shown: false, base: null, baseKey: '', seq: 0, nudge: 0 };
+  function cuLayout() { // the close-up's own pixel grid and where everything sits on it
+    const W = Math.max(1, innerWidth), H = Math.max(1, innerHeight), P = clamp(Math.round(S * 0.6), 2, 4);
+    const w = Math.ceil(W / P), h = Math.ceil(H / P);
+    if (cuCv.width !== w || cuCv.height !== h) { cuCv.width = w; cuCv.height = h; cuCv.style.width = w * P + 'px'; cuCv.style.height = h * P + 'px'; }
+    // the table goes either below the HUD (full width) or beside it (full height), whichever fits a bigger cake;
+    // f leaves room above the cake for the piping bag when it's at the top edge
+    const Bm = Math.ceil((H * 0.05 + 64) / P), hb = Math.ceil(IC.hudB / P) + 6, hr = Math.ceil(IC.hudR / P) + 6;
+    const fit = (L, T, f) => {
+      const aw = w - 6 - L, ah = Math.max(40, h - T - Bm), side = aw / ah > 1.2; // wide: the bowl sits beside the cake, otherwise below it
+      const Wt = Math.floor(side ? Math.min(aw / 1.62, ah / (1.02 + f)) : Math.min(aw * 0.9, (ah - 10) / (1.36 + f)));
+      return { L, T: T + Math.round(Wt * f), aw, ah: ah - Math.round(Wt * f), side, Wt };
+    };
+    const A1 = fit(6, hb, 0.06), A2 = fit(hr, 4, 0.28), F = A2.Wt > A1.Wt * 1.06 ? A2 : A1;
+    const { side, T, ah } = F, Wt = Math.max(60, F.Wt), mid = F.L + F.aw / 2;
+    const Ht = Math.round(Wt * 0.62), Hf = Math.round(Wt * 0.3), R = Math.round(Wt * (side ? 0.26 : 0.2));
+    let x0, y0, bx, by;
+    if (side) { const tot = Wt + 14 + R * 2; x0 = Math.round(mid - tot / 2); y0 = Math.round(T + (ah - Ht - Hf) / 2); bx = x0 + Wt + 14 + R; by = y0 + Math.round((Ht + Hf) * 0.55); }
+    else { const tot = Ht + Hf + 12 + R * 2; x0 = Math.round(mid - Wt / 2); y0 = Math.round(T + (ah - tot) / 2); bx = Math.round(mid + Wt * 0.2); by = y0 + Ht + Hf + 12 + R; }
+    const r = clamp(Math.round(Wt * 0.042), 4, 10), sr = clamp(Math.round(Wt * 0.048), 4, 11);
+    const ins = r + 4, ring = { L: x0 + ins, R: x0 + Wt - ins, T: y0 + Math.round(ins * 0.85), B: y0 + Ht - Math.round(ins * 0.85) };
+    const inner = { x0: ring.L + r + sr * 0.6, x1: ring.R - r - sr * 0.6, y0: ring.T + r * 0.8 + sr * 0.4, y1: ring.B - r * 0.8 - sr * 0.3 };
+    const fR = Math.round(sr * 1.6), bagH = clamp(Math.round(Wt * 0.34), 22, 64);
+    const props = side // where the sifter and the piping bag rest on the counter when they're not in her hand
+      ? { sx: bx - Math.round(R * 0.35), sy: Math.max(T + fR, by - R - fR - 6), bx: bx + Math.round(R * 0.15), by: Math.min(h - Bm + 4, by + R + Math.round(bagH * 0.32) + 4) }
+      : { sx: Math.max(fR + 4, x0 + Math.round(Wt * 0.08) + fR), sy: by - Math.round(R * 0.35), bx: Math.max(Math.round(bagH * 0.5) + 2, x0 + Math.round(Wt * 0.22)), by: by + Math.round(R * 0.55) };
+    return { P, w, h, x0, y0, Wt, Ht, Hf, x1: x0 + Wt, y1: y0 + Ht, bx, by, R, r, sr, ring, inner, fR, bagH, props, lift: coarse ? Math.round(44 / P) : 0 };
   }
-  function edgePos(V, u) { // a point on the piping ring, u = 0…1 clockwise from the top-left corner
-    const L = V.x0 + V.ins, R = V.x1 - V.ins, T = V.y0 + V.ins, B = V.y1 - V.ins, per = 2 * (R - L + B - T);
+  const buzz = (ms) => { try { if (coarse && navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not allowed here */ } };
+  const cuPtr = (V) => ({ x: (ptr.x * S) / V.P, y: (ptr.y * S) / V.P });
+  const setCuPtr = (V, x, y) => { ptr.x = (x * V.P) / S; ptr.y = (y * V.P) / S; };
+  function ringPos(V, u) { // a point on the piping ring, u = 0…1 clockwise from the top-left corner
+    const { L, R, T, B } = V.ring, per = 2 * (R - L + B - T);
     let d = (((u % 1) + 1) % 1) * per;
     if (d < R - L) return { x: L + d, y: T };
     if ((d -= R - L) < B - T) return { x: R, y: T + d };
     if ((d -= B - T) < R - L) return { x: R - d, y: B };
     return { x: L, y: B - (d - (R - L)) };
   }
+  const inInner = (V, p) => p.x >= V.inner.x0 && p.x <= V.inner.x1 && p.y >= V.inner.y0 && p.y <= V.inner.y1;
+  const inBowl = (V, p) => Math.hypot(p.x - V.bx, p.y - V.by) <= V.R + 4;
+  const nextBerry = () => { const k = IC.seq++; const rnd = ((k * 2654435761) >>> 0) / 4294967296; return { kind: rnd < 0.62 ? 'whole' : 'half', ang: Math.round(((k * 7 + 3) % 16) * 100 * Math.PI / 8) / 100 }; };
+  function showCloseup(on) {
+    const sp = bakeSpot();
+    cuCv.style.transformOrigin = `${(sp.cx + CAKE.w / 2) * S}px ${(sp.cy + CAKE.h / 2) * S}px`; // zooms in from (and back out to) the cake in the room
+    cuCv.classList.toggle('on', on); IC.shown = on;
+  }
+
   function icingReset() {
-    const V = icingView(), per = 2 * (V.w + V.h - 4 * V.ins), n = clamp(Math.round(per / 12), 14, 28);
-    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0 })), berries: [], t: 0, sq: 0, u: 0, fade: 0, piped: 0 });
+    IC.hudB = 110; IC.hudR = 340;
+    const V = cuLayout(), { L, R, T, B } = V.ring, n = clamp(Math.round((2 * (R - L + B - T)) / (V.r * 2 + 4)), 14, 30);
+    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0 })), piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, seq: 0 });
+    showCloseup(false);
     if (ZE.mode !== 'walk') { zechReset(); Object.assign(ZE, { mode: 'walk', x: bakeSpot().him, y: groundY(), tx: bakeSpot().him, face: 'happy' }); }
     kid.x = bakeSpot().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
-    const p0 = edgePos(V, 0); ptr.x = p0.x - 10; ptr.y = p0.y + tipLift();
   }
   function icingBegin() {
-    IC.hud = stageHud(`STAGE ${stageIdx + 1} · ICING ON TOP`, [{ key: 'c', tag: 'CREAM', cls: 'her', num: true }, { key: 'b', tag: '🍓', cls: 'berry', num: true }]);
-    setBar(IC.hud.c, 0, `0/${IC.spots.length}`); setBar(IC.hud.b, 0, `0/${BERRIES}`);
-    document.body.classList.add('hud-stage');
+    IC.hud = stageHud(`STAGE ${stageIdx + 1} · ICING ON TOP`, [
+      { key: 'c', tag: 'CREAM', cls: 'her', num: true }, { key: 'b', tag: '🍓', cls: 'berry', num: true }, { key: 's', tag: 'SUGAR', cls: 'sugar' },
+    ]);
+    setBar(IC.hud.c, 0, `0/${IC.spots.length}`); setBar(IC.hud.b, 0, `0/${BERRIES}`); setBar(IC.hud.s, 0);
+    document.body.classList.add('hud-stage', 'closeup');
+    const hr = $('#stageBox').getBoundingClientRect(); // (it slides in from 30px to the left)
+    IC.hudB = Math.max(80, hr.bottom || 0); IC.hudR = Math.max(120, (hr.right || 0) + 30);
+    const V = cuLayout(), p0 = ringPos(V, 0); setCuPtr(V, p0.x - V.r * 3, p0.y + V.lift);
+    showCloseup(true);
+    sfx.whoosh();
     IC.sub = 'intro';
     say([
       'Time to decorate the top!',
-      coarse ? 'Trace the piping bag all the way around the edge to pipe little cream swirls.' : 'Move the piping bag all the way around the edge to pipe little cream swirls.',
-    ], () => { IC.sub = 'pipe'; lockT = 0.2; document.body.classList.add('follow', 'closeup'); showCallout('PIPE AROUND THE EDGE!'); });
+      coarse ? 'Press and hold to squeeze the piping bag, and trace it around the edge to pipe little cream swirls.'
+        : 'Hold the mouse button (or space) to squeeze the piping bag, and trace it around the edge to pipe little cream swirls.',
+    ], () => { IC.sub = 'pipe'; lockT = 0.2; document.body.classList.add('follow'); showCallout(coarse ? 'HOLD & TRACE THE EDGE!' : 'HOLD & TRACE THE EDGE!'); });
   }
-  const icingTip = () => ({ x: ptr.x, y: ptr.y - tipLift() });
-  function icingTap() { // a strawberry, placed where she tapped (inside the ring of cream)
-    if (IC.sub !== 'berries' || IC.berries.length >= BERRIES) return;
-    const V = icingView(), mx = (V.ins + 9) / V.w, my = (V.ins + 9) / V.h;
-    let fx = (ptr.x - V.x0) / V.w, fy = (ptr.y - V.y0) / V.h;
-    if (fx < -0.1 || fx > 1.1 || fy < -0.1 || fy > 1.1) { fx = rand(mx, 1 - mx); fy = rand(my, 1 - my); } // (space bar / taps off the cake)
-    IC.berries.push({ fx: clamp(fx, mx, 1 - mx), fy: clamp(fy, my, 1 - my), t: 0 });
-    setBar(IC.hud.b, IC.berries.length / BERRIES, `${IC.berries.length}/${BERRIES}`);
-    sfx.whoosh();
+  function icingTap() {
+    const V = cuLayout(), p = cuPtr(V);
+    if (IC.sub === 'pipe') IC.squeeze = true;
+    else if (IC.sub === 'berries') {
+      if (IC.used >= BERRIES || IC.held) return;
+      if (inBowl(V, p)) { IC.held = nextBerry(); IC.used++; sfx.blip(); }            // pick one up…
+      else if (inInner(V, p) || !coarse) { // …or tap the cake and one hops over from the bowl
+        const target = inInner(V, p) ? p : { x: rand(V.inner.x0, V.inner.x1), y: rand(V.inner.y0, V.inner.y1) };
+        IC.hops.push({ ...nextBerry(), fx: (target.x - V.x0) / V.Wt, fy: (target.y - V.y0) / V.Ht, t: 0 }); IC.used++; sfx.whoosh();
+      }
+    } else if (IC.sub === 'sugar') IC.puff += 16;
+  }
+  function icingRelease() {
+    if (IC.sub === 'pipe') IC.squeeze = false;
+    if (IC.held) {
+      const V = cuLayout(), p = cuPtr(V), q = { x: p.x, y: p.y - V.lift * 0.5 };
+      if (inInner(V, q)) placeBerry(V, { ...IC.held, fx: (q.x - V.x0) / V.Wt, fy: (q.y - V.y0) / V.Ht });
+      else { IC.used--; sfx.splat(); } // dropped off the cake: back into the bowl it goes
+      IC.held = null;
+    }
+  }
+  function placeBerry(V, b) {
+    for (const o of IC.placed) { // don't land exactly on top of another one
+      const dx = (b.fx - o.fx) * V.Wt, dy = (b.fy - o.fy) * V.Ht, d = Math.hypot(dx, dy);
+      if (d < V.sr * 1.2) { const k = (V.sr * 1.2 - d) / Math.max(1, d); b.fx += (dx || 1) * k / V.Wt * 0.6; b.fy += (dy || 1) * k / V.Ht * 0.6; }
+    }
+    b.fx = clamp(b.fx, (V.inner.x0 - V.x0) / V.Wt, (V.inner.x1 - V.x0) / V.Wt); b.fy = clamp(b.fy, (V.inner.y0 - V.y0) / V.Ht, (V.inner.y1 - V.y0) / V.Ht);
+    IC.placed.push({ ...b, t: 0 });
+    setBar(IC.hud.b, IC.placed.length / BERRIES, `${IC.placed.length}/${BERRIES}`);
+    sfx.catch(); buzz(12);
+    const x = V.x0 + b.fx * V.Wt, y = V.y0 + b.fy * V.Ht;
+    for (let i = 0; i < 6; i++) IC.fx.push({ x, y, vx: rand(-30, 30), vy: rand(-30, 10), g: 60, life: 0.35, col: pick(['#ffffff', '#fff3e0']) });
+    if (IC.placed.length >= BERRIES) {
+      IC.sub = 'placed'; hideCallout(); kid.happyT = 1;
+      popWord(iw / 2, ih * 0.22, 'SO PRETTY!', false, '#ffd84a'); sfx.gold();
+      later(900, () => { if (IC.sub === 'placed') { IC.sub = 'sugar'; document.body.classList.add('follow'); showCallout(coarse ? 'SHAKE TO DUST WITH SUGAR!' : 'SHAKE THE SIFTER OVER THE CAKE!'); } });
+    }
   }
   function icingUpdate(dt) {
     IC.t += dt;
-    const V = icingView();
     if (ZE.mode === 'walk') ZE.tx = bakeSpot().him;
+    if (!IC.shown) return;
+    const V = cuLayout(), p = cuPtr(V);
     if (IC.sub === 'pipe') {
-      if (keys.left || keys.right) { // arrow keys walk the bag around the ring
-        IC.u += ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 0.11 * dt;
-        const p = edgePos(V, IC.u); ptr.x = p.x; ptr.y = p.y + tipLift();
+      const auto = keys.left || keys.right;
+      if (auto) { IC.u += ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 0.08 * dt; const q = ringPos(V, IC.u); setCuPtr(V, q.x, q.y + V.lift); }
+      const tip = { x: p.x, y: p.y - V.lift };
+      if (IC.squeeze || auto) {
+        let best = null, bd = V.r + 5;
+        for (const s of IC.spots) { if (s.g >= 1) continue; const q = ringPos(V, s.u), d = Math.hypot(q.x - tip.x, q.y - tip.y); if (d < bd) { bd = d; best = s; } }
+        if (best) {
+          best.g = Math.min(1, best.g + dt * 4);
+          if (best.g >= 1) {
+            IC.piped++;
+            setBar(IC.hud.c, IC.piped / IC.spots.length, `${IC.piped}/${IC.spots.length}`);
+            sfx.pip(IC.piped / IC.spots.length); buzz(8);
+            const q = ringPos(V, best.u);
+            for (let i = 0; i < 5; i++) IC.fx.push({ x: q.x, y: q.y - V.r * 0.6, vx: rand(-35, 35), vy: rand(-45, -10), g: 50, life: 0.45, col: pick(['#ffffff', '#ffe9a0', '#ffd84a']) });
+          }
+        }
+        if ((IC.sq -= dt) <= 0) { IC.sq = 0.07; sfx.squish(); }
+        if (Math.random() < dt * 30) IC.fx.push({ x: tip.x + rand(-1, 1), y: tip.y, vx: rand(-6, 6), vy: rand(4, 14), g: 40, life: 0.25, col: '#ffffff' });
       }
-      const tip = icingTip();
-      let squeezing = false;
-      for (const sp of IC.spots) {
-        if (sp.g >= 1) continue;
-        const p = edgePos(V, sp.u);
-        if (Math.hypot(p.x - tip.x, p.y - tip.y) > 6) continue;
-        sp.g = Math.min(1, sp.g + dt * 6); squeezing = true;
-        if (sp.g >= 1) {
-          IC.piped++;
-          setBar(IC.hud.c, IC.piped / IC.spots.length, `${IC.piped}/${IC.spots.length}`);
-          sfx.pip(IC.piped / IC.spots.length);
-          for (let i = 0; i < 3; i++) parts.push({ x: p.x, y: p.y, vx: rand(-20, 20), vy: rand(-24, -6), g: 40, life: 0.35, col: pick(['#ffffff', '#ffd84a']), size: 1, ground: 1e9, over: true });
+      if (IC.piped >= IC.spots.length) {
+        IC.sub = 'piped'; IC.squeeze = false; hideCallout(); document.body.classList.remove('follow');
+        sfx.gold(); kid.happyT = 1; ZE.cheerT = 1;
+        popWord(iw / 2, ih * 0.22, 'BEAUTIFUL!', false, '#ffffff');
+        later(1000, () => { if (IC.sub === 'piped') { IC.sub = 'berries'; showCallout(coarse ? 'DRAG BERRIES TO THE CAKE!' : 'DRAG STRAWBERRIES ONTO THE CAKE!'); } });
+      }
+    }
+    for (let i = IC.hops.length - 1; i >= 0; i--) { // strawberries hopping over from the bowl
+      const h = IC.hops[i]; h.t += dt / 0.42;
+      if (h.t >= 1) { IC.hops.splice(i, 1); placeBerry(V, h); }
+    }
+    for (const b of IC.placed) if (b.t < 1) b.t = Math.min(1, b.t + dt / 0.3);
+    if (IC.sub === 'berries' && keys.left !== keys.right && Math.random() < dt * 3 && IC.used < BERRIES) icingTap(); // (keyboard: arrows keep them coming)
+    if (IC.sub === 'sugar') {
+      if (keys.left || keys.right) { const q = cuPtr(V); setCuPtr(V, clamp(q.x + ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 140 * dt, V.x0, V.x1), V.y0 + V.Ht * 0.5 + V.lift); IC.puff += dt * 40; }
+      const sx = p.x, sy = p.y - V.lift;
+      const sp = Math.hypot(p.x - IC.lx, p.y - IC.ly) / Math.max(dt, 1e-3);
+      IC.acc += (sp > 25 ? Math.min(1, sp / 240) * 110 * dt : 0) + IC.puff; IC.puff = 0;
+      if (IC.acc > 0.5 && Math.random() < dt * 25) sfx.sift();
+      while (IC.acc >= 1) {
+        IC.acc -= 1;
+        const a = Math.random() * 6.283, rr = Math.sqrt(Math.random()) * V.fR, y = sy + Math.sin(a) * rr * 0.8;
+        IC.flakes.push({ x: sx + Math.cos(a) * rr, y, vy: rand(18, 34), land: y + rand(6, 14), vx: rand(-4, 4) });
+      }
+      let inside = 0; for (const s of IC.specks) if (s.on) inside++;
+      setBar(IC.hud.s, inside / SUGAR_GOAL);
+      if (inside >= SUGAR_GOAL) {
+        IC.sub = 'done'; hideCallout(); document.body.classList.remove('follow');
+        kid.happyT = 2; ZE.cheerT = 1.5; sfx.gold();
+        popWord(iw / 2, ih * 0.22, 'PERFECT CAKE!', true, '#ffd84a');
+        for (let i = 0; i < 40; i++) IC.fx.push({ x: rand(V.x0, V.x1), y: rand(V.y0, V.y1 + V.Hf), vx: rand(-20, 20), vy: rand(-50, -10), g: 30, life: rand(0.5, 1.1), col: pick(['#ffffff', '#ffe9a0', '#ffd84a', '#ffc2d6']) });
+        later(1600, () => showCloseup(false));
+        later(1900, stageClear);
+      }
+    }
+    IC.lx = p.x; IC.ly = p.y;
+    for (let i = IC.flakes.length - 1; i >= 0; i--) { // sugar snowing down; it stays where it lands on the cake
+      const f = IC.flakes[i]; f.y += f.vy * dt; f.x += f.vx * dt;
+      if (f.y >= f.land) {
+        IC.flakes.splice(i, 1);
+        const on = f.x >= V.x0 + 1 && f.x <= V.x1 - 2 && f.y >= V.y0 + 1 && f.y <= V.y1 - 1;
+        if (on || IC.specks.length < 900) IC.specks.push({ fx: (f.x - V.x0) / V.Wt, fy: (f.y - V.y0) / V.Ht, on });
+        for (const b of IC.placed) if (Math.hypot(V.x0 + b.fx * V.Wt - f.x, V.y0 + b.fy * V.Ht - f.y) < V.sr * 1.1) b.dust = (b.dust || 0) + 1;
+      }
+    }
+    for (let i = IC.fx.length - 1; i >= 0; i--) { const f = IC.fx[i]; f.vy += f.g * dt; f.x += f.vx * dt; f.y += f.vy * dt; if ((f.life -= dt) <= 0) IC.fx.splice(i, 1); }
+  }
+
+  function cuBase(V) { // the counter, the board and the cake: drawn once per layout
+    const key = `${V.w}x${V.h}:${V.x0},${V.y0},${V.Wt},${V.bx},${V.by}`;
+    if (IC.baseKey === key) return IC.base;
+    const c = A.mk(V.w, V.h), x = c.getContext('2d'), rnd = A.seeded(27);
+    const R = (col, X, Y, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); };
+    const hsh = (a, b) => { let n = Math.imul(a, 374761393) + Math.imul(b, 668265263); n = Math.imul(n ^ (n >>> 13), 1274126177); return (n ^ (n >>> 16)) >>> 0; };
+    // a warm wooden counter, with a soft vignette
+    const ph = Math.max(9, Math.round(V.h / 26)), PL = ['#e7b680', '#dfac75', '#eabf8d', '#e2b07a'];
+    for (let y = 0; y < V.h; y++) {
+      const row = Math.floor(y / ph), base = PL[row % PL.length], off = (row * 53) % 97;
+      for (let X = 0; X < V.w; X++) {
+        let col = base;
+        const hv = hsh(X >> 3, y);
+        if (y % ph === 0) col = '#b98053';
+        else if ((X + off) % 113 === 0) col = '#c48a59';
+        else if (hv % 23 === 0) col = '#d29c64';
+        else if ((hsh(X >> 5, row) % 5 === 0) && (y % ph) === (hsh(row, X >> 5) % (ph - 2)) + 1) col = '#cf9860';
+        x.fillStyle = col; x.fillRect(X, y, 1, 1);
+      }
+    }
+    for (let y = 0; y < V.h; y += 2) for (let X = 0; X < V.w; X += 2) {
+      const d = Math.hypot((X - V.w / 2) / V.w, (y - V.h / 2) / V.h);
+      if (d > 0.42) { x.fillStyle = `rgba(70,35,10,${Math.min(0.28, (d - 0.42) * 0.9).toFixed(3)})`; x.fillRect(X, y, 2, 2); }
+    }
+    // the cake board (and its shadow)
+    const bm = Math.max(4, Math.round(V.Wt * 0.05)), bX = V.x0 - bm, bY = V.y0 - Math.round(bm * 0.6), bW = V.Wt + bm * 2, bH = V.Ht + V.Hf + Math.round(bm * 1.4);
+    R('rgba(90,45,15,.22)', bX + 4, bY + 6, bW, bH + 3); R('rgba(90,45,15,.12)', bX + 6, bY + 9, bW, bH + 3);
+    R('#24356e', bX - 1, bY - 1, bW + 2, bH + 5); R('#cfe2ff', bX, bY, bW, bH); R('#e8f2ff', bX, bY, bW, 1); R('#a9c8f5', bX, bY + bH - 1, bW, 1);
+    R('#3d7bff', bX, bY + bH, bW, 3); R('#2a5bd0', bX, bY + bH + 2, bW, 1); R('#7fb2ff', bX, bY + bH, bW, 1);
+    R('rgba(43,39,69,.16)', V.x0 + 2, V.y1 + V.Hf - 1, V.Wt, 3);
+    // the front of the cake: cream, sponge, strawberries cut in half, sponge, cream, all in a clear acetate wrap
+    const bands = [['cream', 0.12], ['sponge', 0.25], ['fill', 0.25], ['sponge', 0.24], ['cream', 0.14]];
+    let yy = V.y1;
+    bands.forEach(([t, f], bi) => {
+      const hh = bi === bands.length - 1 ? V.y1 + V.Hf - yy : Math.round(V.Hf * f);
+      for (let j = 0; j < hh; j++) for (let X = V.x0; X < V.x1; X++) {
+        let col;
+        if (t === 'sponge') col = j === 0 ? '#fde5a6' : hsh(X, yy + j) % 9 === 0 ? '#e7b35d' : hsh(X + 3, yy + j) % 13 === 0 ? '#fbe0a0' : '#f7cf7d';
+        else col = j === hh - 1 ? '#efe3d2' : '#fffaf1';
+        if (X === V.x1 - 1) col = t === 'sponge' ? '#e2b360' : '#e9e1d6';
+        x.fillStyle = col; x.fillRect(X, yy + j, 1, 1);
+      }
+      if (t === 'fill') { // strawberry halves in the cream
+        const sw = Math.max(4, Math.round(V.sr * 1.7)), gap = Math.round(sw * 1.45);
+        for (let cx = V.x0 + Math.round(gap * 0.6); cx < V.x1 - sw / 2; cx += gap) {
+          for (let j = 0; j < hh - 1; j++) for (let i = -sw / 2; i <= sw / 2; i++) {
+            const ex = i / (sw / 2), ey = (j - (hh - 1)) / (hh - 1); // a dome sitting on the lower sponge
+            const e = ex * ex + ey * ey;
+            if (e > 1) continue;
+            x.fillStyle = e > 0.72 ? '#d63a52' : Math.abs(ex) < 0.18 ? '#fff1f3' : e > 0.4 ? '#ff8fa3' : '#ffc4cf';
+            x.fillRect(Math.round(cx + i), yy + j, 1, 1);
+          }
         }
       }
-      if (squeezing && (IC.sq -= dt) <= 0) { IC.sq = 0.1; sfx.squish(); }
-      if (IC.piped >= IC.spots.length) {
-        IC.sub = 'piped'; hideCallout(); document.body.classList.remove('follow');
-        sfx.gold(); kid.happyT = 1; ZE.cheerT = 1;
-        popWord(iw / 2, V.y0 - 6, 'BEAUTIFUL!', false, '#ffffff');
-        later(1000, () => { if (IC.sub === 'piped') { IC.sub = 'berries'; showCallout(coarse ? 'TAP TO ADD STRAWBERRIES!' : 'CLICK TO ADD STRAWBERRIES!'); } });
+      yy += hh;
+    });
+    for (const fxg of [0.1, 0.115, 0.72]) R('rgba(255,255,255,.45)', V.x0 + Math.round(V.Wt * fxg), V.y1 + 1, 1, V.Hf - 2); // acetate glints
+    R('#e4f2ff', V.x0, V.y1, V.Wt, 1);
+    // the smooth cream top, with a few palette-knife swirls
+    const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; // (ordered dither, so the shading has no hard steps)
+    for (let j = 0; j < V.Ht; j++) for (let X = V.x0; X < V.x1; X++) {
+      const t = j / V.Ht + (BAY[(j % 4) * 4 + (X % 4)] / 16 - 0.5) * 0.1;
+      x.fillStyle = t < 0.15 ? '#fffcf6' : t < 0.6 ? '#fff8ee' : t < 0.9 ? '#fbf2e4' : '#f6ebd9'; x.fillRect(X, V.y0 + j, 1, 1);
+    }
+    for (let k = 0; k < 7; k++) {
+      const cx = V.x0 + V.Wt * (0.15 + rnd() * 0.7), cy = V.y0 + V.Ht * (0.15 + rnd() * 0.7), rad = V.Wt * (0.12 + rnd() * 0.22), a0 = rnd() * 6.28, span = 1.2 + rnd() * 1.4;
+      for (let a = a0; a < a0 + span; a += 0.6 / rad) {
+        const px = Math.round(cx + Math.cos(a) * rad), py = Math.round(cy + Math.sin(a) * rad * 0.62);
+        if (px <= V.x0 + 1 || px >= V.x1 - 2 || py <= V.y0 + 1 || py >= V.y1 - 2) continue;
+        R('#f1e3cd', px, py); R('#ffffff', px, py - 1);
       }
     }
-    for (const b of IC.berries) if (b.t < 1) {
-      b.t = Math.min(1, b.t + dt / 0.28);
-      if (b.t >= 1) {
-        sfx.catch();
-        for (let i = 0; i < 4; i++) parts.push({ x: V.x0 + b.fx * V.w, y: V.y0 + b.fy * V.h, vx: rand(-25, 25), vy: rand(-25, 25), g: 0, life: 0.3, col: '#ffffff', size: 1, ground: 1e9, over: true });
-      }
-    }
-    if (IC.sub === 'berries' && IC.berries.length >= BERRIES && IC.berries.every((b) => b.t >= 1)) {
-      IC.sub = 'done'; hideCallout(); kid.happyT = 2; ZE.cheerT = 1.5;
-      popWord(iw / 2, V.y0 - 6, 'PERFECT CAKE!', false, '#ffd84a');
-      popWord(ZE.x, ZE.y - 36, 'Ooh, fancy!', false, '#d6f5c4');
-      stageClear();
-    }
-    if (IC.sub === 'done') IC.fade = Math.min(1, IC.fade + dt / 1.2);
+    R('#ffffff', V.x0 + 1, V.y1 - 1, V.Wt - 2, 1);
+    // soft outline around the whole cake (rounded top corners)
+    const O = '#a8907a';
+    R(O, V.x0 + 1, V.y0 - 1, V.Wt - 2, 1); R(O, V.x0 - 1, V.y0 + 1, 1, V.Ht + V.Hf - 1); R(O, V.x1, V.y0 + 1, 1, V.Ht + V.Hf - 1); R(O, V.x0, V.y1 + V.Hf, V.Wt, 1);
+    R(O, V.x0, V.y0, 1, 1); R(O, V.x1 - 1, V.y0, 1, 1);
+    R('#e6d5bd', V.x0, V.y1 - 1, 1, 1); R('#e6d5bd', V.x1 - 1, V.y1 - 1, 1, 1);
+    IC.base = c; IC.baseKey = key;
+    return c;
   }
-  function icingRender() {
-    // behind the close-up: the cake on its counter (finished once she's done), Zech and Sophia
+  function renderCloseup() {
+    if (!IC.shown && !cuCv.classList.contains('on')) return;
+    const V = cuLayout(), x = cuG, p = cuPtr(V), CU = A.CU;
+    x.imageSmoothingEnabled = false;
+    x.drawImage(cuBase(V), 0, 0);
+    const R = (col, X, Y, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); };
+    const shade = (X, Y, rx, ry, col) => { const sh = CU.shadow(rx, ry, col); x.drawImage(sh, Math.round(X - sh.width / 2), Math.round(Y - sh.height / 2)); };
+    const tip = { x: p.x, y: p.y - V.lift };
+    // the piping ring: faint guides where a swirl still needs to go, then the swirls
+    const spots = IC.spots.map((s) => ({ s, q: ringPos(V, s.u) })).sort((a, b) => a.q.y - b.q.y);
+    for (const { s, q } of spots) {
+      const X = Math.round(q.x), Y = Math.round(q.y);
+      if (s.g <= 0) {
+        const near = IC.sub === 'pipe' && Math.hypot(q.x - tip.x, q.y - tip.y) < V.r + 5, rx = V.r * 0.8, ry = V.r * 0.66;
+        x.fillStyle = near ? '#ffcf4a' : Math.floor(IC.t * 2 + s.u * 8) % 2 ? '#e3cfb3' : '#eddcc5';
+        for (let a = 0; a < 6.28; a += 0.62) x.fillRect(Math.round(X + Math.cos(a) * rx), Math.round(Y + Math.sin(a) * ry), 1, 1);
+        continue;
+      }
+      const st = Math.max(1, Math.ceil(s.g * 5)), img = CU.rosette(V.r, st);
+      shade(X + 1, Y + img.height * 0.32, img.width * 0.42, 2, '150,110,60');
+      x.drawImage(img, X - Math.floor(img.width / 2), Y - Math.floor(img.height / 2));
+    }
+    // strawberries on the cake (with a little squash as they land), frosting over as the sugar falls on them
+    for (const b of IC.placed.slice().sort((a, c) => a.fy - c.fy)) {
+      const img = CU.berry(V.sr, b.kind, b.ang), X = V.x0 + b.fx * V.Wt, Y = V.y0 + b.fy * V.Ht;
+      const k = 1 + 0.22 * Math.sin(Math.min(1, b.t) * Math.PI) * (1 - b.t), w = Math.round(img.width * k), h = Math.round(img.height * (2 - k));
+      shade(X + 2, Y + V.sr * 0.55, V.sr * 0.95, Math.max(2, V.sr * 0.3), '130,50,50');
+      const ix = Math.round(X - w / 2), iy = Math.round(Y - h / 2);
+      x.drawImage(img, ix, iy, w, h);
+      if (b.dust) { x.globalAlpha = Math.min(0.5, b.dust / 50); x.drawImage(CU.frost(V.sr, b.kind, b.ang), ix, iy, w, h); x.globalAlpha = 1; }
+    }
+    // powdered sugar where it landed: tiny grains, white on the berries, a soft sparkle on the cream
+    for (const s of IC.specks) {
+      const X = Math.round(V.x0 + s.fx * V.Wt), Y = Math.round(V.y0 + s.fy * V.Ht);
+      if (s.on) { R('rgba(190,160,120,.28)', X, Y + 1); R('#ffffff', X, Y); } else R('rgba(255,255,255,.6)', X, Y);
+    }
+    // the tools waiting on the counter
+    const P2 = V.props;
+    if (!['pipe', 'intro', 'idle'].includes(IC.sub)) {
+      const bag = CU.bagDown(V.bagH);
+      shade(P2.bx + 2, P2.by + bag.height * 0.3, bag.width * 0.45, Math.max(2, bag.height * 0.25));
+      x.drawImage(bag, Math.round(P2.bx - bag.width / 2), Math.round(P2.by - bag.height / 2));
+    }
+    if (!['sugar', 'done'].includes(IC.sub)) {
+      const sf = CU.sifter(V.fR);
+      shade(P2.sx + 3, P2.sy + 3, V.fR + 2, V.fR * 0.8);
+      x.drawImage(sf, Math.round(P2.sx - sf.height / 2), Math.round(P2.sy - sf.height / 2));
+    }
+    // the bowl of strawberries she caught
+    const bowl = CU.bowl(V.R);
+    shade(V.bx + 4, V.by + 5, V.R + 3, V.R * 0.92);
+    x.drawImage(bowl, V.bx - Math.floor(bowl.width / 2), V.by - Math.floor(bowl.height / 2));
+    const left = BERRIES - IC.used, slots = [[0, 0], ...[0, 1, 2, 3, 4].map((i) => [0.32, i * 1.257 + 0.3]), ...[0, 1, 2, 3, 4, 5].map((i) => [0.62, i * 1.047])];
+    for (let i = Math.min(left, slots.length) - 1; i >= 0; i--) {
+      const [rr, a] = slots[i], img = CU.berry(Math.max(3, V.sr - 1), 'whole', Math.round(((i * 5) % 16) * 100 * Math.PI / 8) / 100);
+      x.drawImage(img, Math.round(V.bx + Math.cos(a) * rr * V.R - img.width / 2), Math.round(V.by + Math.sin(a) * rr * V.R - img.height / 2));
+    }
+    if (IC.sub === 'berries' && !IC.held && IC.placed.length + IC.hops.length === 0) { // a bouncing arrow: start here!
+      const ax = V.bx, ay = V.by - V.R - 4 - Math.round(Math.abs(Math.sin(IC.t * 5)) * 4), n = Math.max(4, Math.round(V.R * 0.16));
+      for (let j = 0; j < n; j++) { R('#13204a', ax - (n - j) - 1, ay - n + j - 1, (n - j) * 2 + 3, 1); }
+      for (let j = 0; j < n; j++) { R(j < 2 ? '#ffe9a0' : '#ffd84a', ax - (n - j), ay - n + j, (n - j) * 2 + 1, 1); }
+      R('#13204a', ax, ay, 1, 1);
+    }
+    // strawberries in mid-hop
+    for (const h of IC.hops) {
+      const img = CU.berry(V.sr, h.kind, h.ang), tx = V.x0 + h.fx * V.Wt, ty = V.y0 + h.fy * V.Ht, e = h.t;
+      const X = V.bx + (tx - V.bx) * e, Y = V.by + (ty - V.by) * e - Math.sin(e * Math.PI) * V.Wt * 0.28;
+      shade(V.bx + (tx - V.bx) * e, V.by + (ty - V.by) * e + 2, V.sr * 0.7, 2);
+      x.drawImage(img, Math.round(X - img.width / 2), Math.round(Y - img.height / 2));
+    }
+    // sugar in the air, and little sparkles / cream drips
+    for (const f of IC.flakes) { R('rgba(120,100,80,.3)', f.x + 1, f.y + 1); R('#ffffff', f.x, f.y); }
+    for (const f of IC.fx) { if (f.life < 0.12 && Math.floor(f.life * 50) % 2) continue; x.fillStyle = f.col; x.fillRect(Math.round(f.x), Math.round(f.y), 1, 1); }
+    // whatever's in her hand (the HUD fades while it's behind it)
+    const ghost = IC.shown && (tip.y - (IC.sub === 'pipe' ? V.bagH : V.fR * 2)) * V.P < IC.hudB && (tip.x - V.bagH * 0.4) * V.P < IC.hudR;
+    if (ghost !== IC.ghost) { IC.ghost = ghost; $('#stageBox').classList.toggle('ghost', ghost); }
+    if (IC.sub === 'pipe' || IC.sub === 'intro') {
+      const squeezing = IC.sub === 'pipe' && (IC.squeeze || keys.left || keys.right), bag = CU.pipingBag(V.bagH, squeezing);
+      x.drawImage(bag, Math.round(tip.x - bag.width / 2 + 2), Math.round(tip.y - bag.height + 1));
+    } else if (IC.held) {
+      const img = CU.berry(V.sr, IC.held.kind, IC.held.ang), Y = p.y - V.lift * 0.5;
+      shade(p.x + 4, Y + V.sr * 0.9, V.sr * 0.8, Math.max(2, V.sr * 0.28));
+      x.drawImage(img, Math.round(p.x - img.width * 0.55), Math.round(Y - img.height * 0.65), Math.round(img.width * 1.1), Math.round(img.height * 1.1));
+    } else if (IC.sub === 'sugar') {
+      const sf = CU.sifter(V.fR), wob = Math.round(Math.sin(IC.t * 30) * (IC.acc > 0.2 ? 1 : 0));
+      shade(tip.x + 6, tip.y + V.fR + 4, V.fR * 0.9, Math.max(2, V.fR * 0.3));
+      x.drawImage(sf, Math.round(tip.x - sf.height / 2) + wob, Math.round(tip.y - sf.height / 2));
+    }
+  }
+  function icingRender() { // (on the room canvas) the cake on its counter, with Zech and Sophia, behind the close-up
     const sp = bakeSpot(), cut = CAKE.layerCuts[CAKE.layerCuts.length - 2];
     g.fillStyle = 'rgba(43,39,69,.2)'; g.fillRect(Math.round(iw / 2 - sp.table.width / 2) - 1, sp.base + 1, sp.table.width + 2, 2);
     g.drawImage(sp.table, Math.round(iw / 2 - sp.table.width / 2), sp.base - sp.table.height + 2);
     if (IC.sub === 'done') g.drawImage(CAKE.img, sp.cx, sp.cy);
     else g.drawImage(CAKE.img, 0, cut, CAKE.w, CAKE.h - cut, sp.cx, sp.cy + cut, CAKE.w, CAKE.h - cut);
     drawZech(); drawGirl();
-    // the close-up, looking straight down at the top of the cake (it fades away when she's done)
-    const a = 1 - IC.fade;
-    if (a <= 0) return;
-    g.globalAlpha = a;
-    const V = icingView(), O = A.OUT;
-    g.fillStyle = 'rgba(19,32,74,.5)'; g.fillRect(0, 0, iw, ih);
-    const R = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
-    // tablecloth, cake board, cake top
-    const tx = V.x0 - 14, ty = V.y0 - 11, tw = V.w + 28, th = V.h + 22;
-    R('#8aa6d4', tx - 1, ty, tw + 2, th); R('#8aa6d4', tx, ty - 1, tw, th + 2);
-    for (let y = ty; y < ty + th; y++) for (let x = tx; x < tx + tw; x += 1) {
-      const a1 = ((x - tx) >> 2) % 2, b1 = ((y - ty) >> 2) % 2;
-      if (x === tx || x === tx + tw - 1 || y === ty || y === ty + th - 1) continue;
-      g.fillStyle = a1 && b1 ? '#b9d3fb' : a1 || b1 ? '#dde9fd' : '#ffffff'; g.fillRect(x, y, 1, 1);
-    }
-    R('rgba(43,39,69,.25)', V.x0 - 2, V.y0 - 1, V.w + 9, V.h + 9);       // shadow
-    R(O, V.x0 - 5, V.y0 - 5, V.w + 10, V.h + 10); R('#3d7bff', V.x0 - 4, V.y0 - 4, V.w + 8, V.h + 8); R('#7fb2ff', V.x0 - 4, V.y0 - 4, V.w + 8, 1); R('#2a5bd0', V.x0 - 4, V.y1 + 3, V.w + 8, 1);
-    R(O, V.x0 - 1, V.y0 - 1, V.w + 2, V.h + 2);
-    R('#fbf1de', V.x0, V.y0, V.w, V.h);
-    R('#fff8ec', V.x0, V.y0, V.w, 1); R('#fff8ec', V.x0, V.y0, 1, V.h);
-    R('#eadcc3', V.x0, V.y1 - 2, V.w, 2); R('#f1e5cf', V.x1 - 1, V.y0, 1, V.h);
-    for (const [cx0, cy0] of [[0, 0], [V.w - 1, 0], [0, V.h - 1], [V.w - 1, V.h - 1]]) R(O, V.x0 + cx0, V.y0 + cy0, 1, 1); // rounded corners
-    for (let i = 0; i < 14; i++) { // palette-knife marks in the smooth cream
-      const hx = (i * 2654435761) >>> 0, x = V.x0 + 6 + (hx % Math.max(1, V.w - 18)), y = V.y0 + 6 + ((hx >>> 9) % Math.max(1, V.h - 14));
-      R('#f1e4cc', x, y, 5 + (hx % 4), 1); R('#fff8ec', x + 1, y - 1, 3, 1);
-    }
-    // the ring: dotted targets, and swirls where she's piped
-    for (const s of IC.spots) {
-      const p = edgePos(V, s.u), x = Math.round(p.x), y = Math.round(p.y);
-      if (s.g <= 0) {
-        if (Math.floor(IC.t * 3 + s.u * 6) % 2) g.fillStyle = '#9fbbe3'; else g.fillStyle = '#c9d6ea';
-        for (const [ox, oy] of [[-3, 0], [3, 0], [0, -3], [0, 3], [-2, -2], [2, -2], [-2, 2], [2, 2]]) g.fillRect(x + ox, y + oy, 1, 1);
-      } else {
-        const img = A.ROSETTE[s.g < 0.4 ? 0 : s.g < 1 ? 1 : 2], ix = x - Math.floor(img.width / 2), iy = y - Math.floor(img.height / 2);
-        R('rgba(120,90,50,.18)', ix + 1, iy + 2, img.width - 1, img.height - 1); // a soft shadow so the white swirls stand out
-        g.drawImage(img, ix, iy);
-      }
-    }
-    // strawberries (dropping in, then sitting where she put them)
-    const bs = IC.berries.slice().sort((p, q) => p.fy - q.fy), S0 = A.TOP_STRAW;
-    for (const b of bs) {
-      const x = V.x0 + b.fx * V.w, y = V.y0 + b.fy * V.h, e = 1 - Math.pow(1 - b.t, 3), k = 1 + (1 - e) * 1.2;
-      R('rgba(43,39,69,.2)', Math.round(x - 3), Math.round(y + 3), 7, 2);
-      const w = Math.round(S0.width * k), h = Math.round(S0.height * k);
-      g.drawImage(S0, Math.round(x - w / 2), Math.round(y - h / 2 - (1 - e) * 8), w, h);
-    }
-    // the piping bag
-    if (IC.sub === 'pipe' || IC.sub === 'intro') {
-      const tip = icingTip(), P = A.PIPING;
-      g.drawImage(P, Math.round(tip.x) - 5, Math.round(tip.y) - P.height + 1);
-    }
-    for (const p of parts) if (p.over) drawParticle(p);
-    g.globalAlpha = 1;
   }
 
   /* =====================================================================
@@ -1443,13 +1656,15 @@
     { key: 'catch', title: 'Strawberry Catch', how: () => (coarse ? 'Drag left & right to catch!' : 'Move left & right to catch!'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
     { key: 'sponge', title: 'Fluffy Sponge', how: () => (coarse ? 'Press and hold to bake, let go at the line!' : 'Hold to bake, let go at the line!'), reset: spongeReset, begin: spongeBegin, update: spongeUpdate, tap: spongeTap, release: spongeRelease },
     { key: 'whip', title: 'Whipped Cream Showdown', how: () => (coarse ? 'Tap as fast as you can!' : 'Click as fast as you can!'), reset: whipReset, begin: whipBegin, update: whipUpdate, tap: whipTap },
-    { key: 'icing', title: 'Icing on Top', how: () => (coarse ? 'Trace around the edge to pipe cream, then tap to add strawberries!' : 'Move around the edge to pipe cream, then click to add strawberries!'), reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap },
+    { key: 'icing', title: 'Icing on Top', how: () => 'Pipe cream swirls, add strawberries, then dust with sugar!', reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap, release: icingRelease },
     { key: 'boss', title: 'Piñata Cake Monster', how: () => `${coarse ? 'Tap' : 'Click'} to jump & swing your baguette and rescue ${C.opponentName}!`, reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
   ];
   const stageIndex = (key) => STAGES.findIndex((st) => st.key === key);
   function clearStageUi() {
     resetText(); hideCallout();
     document.body.classList.remove('hud-stage', 'boss', 'follow', 'closeup');
+    cuCv.classList.remove('on'); IC.shown = false; IC.held = null; IC.squeeze = false;
+    if (IC.ghost) { IC.ghost = false; $('#stageBox').classList.remove('ghost'); }
   }
   function showCard(i, keepCake) {
     clearStageUi();
@@ -1834,6 +2049,7 @@
       }
     }
     for (const p of parts) if (p.confetti) drawParticle(p);
+    renderCloseup();
   }
 
   /* ================= main loop ================= */
@@ -1860,11 +2076,13 @@
       get sub() { return phase === 'bake' ? K.sub : { catch: CT.sub, sponge: SP.sub, whip: W.sub, icing: IC.sub, boss: B.sub }[STAGE().key]; },
       get sponge() { return { sub: SP.sub, r: SP.r, n: SP.n, tol: SP.tol, target: SP_TARGET }; },
       get icing() {
-        const V = icingView(), lift = tipLift();
+        const V = cuLayout(), k = V.P, sp = (x, y) => ({ x: x * k, y: y * k });
+        let on = 0; for (const s of IC.specks) if (s.on) on++;
         return {
-          sub: IC.sub, piped: IC.piped, n: IC.spots.length, berries: IC.berries.length, landed: IC.berries.filter((b) => b.t >= 1).length,
-          ring: IC.spots.map((sp) => { const p = edgePos(V, sp.u); return { x: p.x * S, y: (p.y + lift) * S, done: sp.g >= 1 }; }),
-          inner: { x0: (V.x0 + V.ins + 10) * S, y0: (V.y0 + V.ins + 10) * S, x1: (V.x1 - V.ins - 10) * S, y1: (V.y1 - V.ins - 10) * S },
+          sub: IC.sub, piped: IC.piped, n: IC.spots.length, placed: IC.placed.length, used: IC.used, held: !!IC.held, sugar: on / SUGAR_GOAL, shown: IC.shown, lift: V.lift * k,
+          ring: IC.spots.map((s) => { const q = ringPos(V, s.u); return { ...sp(q.x, q.y + V.lift), done: s.g >= 1 }; }),
+          bowl: sp(V.bx, V.by), cake: { x0: V.x0 * k, y0: V.y0 * k, x1: V.x1 * k, y1: V.y1 * k },
+          inner: { x0: V.inner.x0 * k, y0: V.inner.y0 * k, x1: V.inner.x1 * k, y1: V.inner.y1 * k },
         };
       },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },

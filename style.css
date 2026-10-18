@@ -36,6 +36,13 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 button:disabled { cursor: default; }
 
 #game { position: fixed; left: 0; top: 0; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+/* the icing close-up: zooms in from the cake on the counter, and back out when she's done */
+#closeup {
+  position: fixed; z-index: 2; left: 0; top: 0; display: block; pointer-events: none;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  opacity: 0; transform: scale(.25); transition: opacity .45s, transform .45s cubic-bezier(.3, 1.3, .6, 1);
+}
+#closeup.on { opacity: 1; transform: none; }
 
 /* stepped-corner pixel window */
 .px-box {
@@ -122,12 +129,14 @@ body.boss .player-box { opacity: 1; transform: none; }
   opacity: 0; transform: translateX(-30px); transition: opacity .3s steps(3), transform .3s steps(3);
 }
 body.hud-stage .stage-box { opacity: 1; transform: none; }
+body.hud-stage .stage-box.ghost { opacity: .3; } /* (see-through while the piping bag is behind it) */
 .stage-label { font-size: 8px; line-height: 1.4; color: var(--blue); text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stage-box .bar-row .tag { flex: none; width: calc(6ch + 8px); box-sizing: border-box; text-align: center; overflow: hidden; white-space: nowrap; } /* same width for every name (up to 6 letters), so both bars match */
 .stage-box .num { font-size: 9px; min-width: 40px; text-align: right; }
 .bar i.her { background: #3d9bff; transition: width .12s steps(3); }
 .bar i.him { background: #8a9a5b; transition: width .12s steps(3); }
 .bar i.berry { background: #ff5577; transition: width .3s steps(6); }
+.bar i.sugar { background: #fff6e8; transition: width .12s steps(3); }
 
 .callout {
   position: fixed; z-index: 5; left: 50%; top: max(30vh, 120px); transform: translateX(-50%);

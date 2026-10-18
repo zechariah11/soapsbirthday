@@ -789,10 +789,175 @@ window.Art = (() => {
     return outline(c, '#13204a'); // 34x36
   }
 
+  /* ---------------- the icing close-up (drawn with finer pixels than the room) ---------------- */
+  const CU = (() => {
+    const cache = new Map();
+    const memo = (key, fn) => { if (!cache.has(key)) cache.set(key, fn()); return cache.get(key); };
+    const pick = (b, steps) => { for (const [lim, col] of steps) if (b >= lim) return col; return steps[steps.length - 1][1]; };
+    // a star-tip cream swirl, piped in stages (s = 1…5, 5 = finished with its little curled peak)
+    function rosette(r, s) {
+      return memo(`ros${r}-${s}`, () => {
+        const rr = r * [0.4, 0.58, 0.74, 0.88, 1][s - 1], ry = rr * 0.82, size = Math.ceil(r * 2) + 5, c = mk(size, size), x = ctxOf(c), cx = size / 2 - 0.5, cy = size / 2 - 0.5;
+        const inside = (i, j) => ((i - cx) / rr) ** 2 + ((j - cy) / ry) ** 2 <= 1;
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+          if (!inside(i, j)) continue;
+          const dx = (i - cx) / rr, dy = (j - cy) / ry, rho = Math.min(1, Math.hypot(dx, dy)), th = Math.atan2(dy, dx);
+          const ridge = Math.cos(6 * (th + 2.4 * rho) - s * 0.7);
+          const b = 0.8 - 0.22 * (dx + dy) * 0.7 + 0.13 * ridge * (0.4 + rho) - 0.28 * rho ** 3;
+          x.fillStyle = pick(b, [[0.9, '#ffffff'], [0.78, '#fffbf5'], [0.66, '#f8f0e5'], [0.54, '#eee3d2'], [-9, '#e0d0b9']]);
+          x.fillRect(i, j, 1, 1);
+        }
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) { // soft outline, darker underneath
+          if (inside(i, j)) continue;
+          if (inside(i - 1, j) || inside(i + 1, j) || inside(i, j - 1) || inside(i, j + 1)) { x.fillStyle = j > cy ? '#c9b195' : '#e0cdb4'; x.fillRect(i, j, 1, 1); }
+        }
+        if (s === 5) { // the curled peak where the nozzle lifted off
+          const px = Math.round(cx - rr * 0.15), py = Math.round(cy - ry * 0.3);
+          x.fillStyle = '#ffffff'; x.fillRect(px, py, 2, 1); x.fillRect(px + 1, py - 1, 1, 1);
+          x.fillStyle = '#e6d7c2'; x.fillRect(px, py + 1, 2, 1);
+        }
+        return c;
+      });
+    }
+    // a strawberry seen from above: whole (lying on its side, leafy top) or halved (cut side up), at any angle
+    function berry(sr, kind, ang) {
+      return memo(`berry${sr}-${kind}-${ang.toFixed(2)}`, () => {
+        const size = Math.ceil(sr * 3.2) + 4, c = mk(size, size), x = ctxOf(c), cx = size / 2 - 0.5, cy = size / 2 - 0.5;
+        const ca = Math.cos(ang), sa = Math.sin(ang), tipL = 1.35 * sr, topL = kind === 'half' ? 0.95 * sr : 0.85 * sr, W = 0.92 * sr;
+        const hw = (u) => (u < 0 ? W * (1 - 0.62 * (-u / tipL)) * Math.sqrt(Math.max(0, 1 - (u / tipL) ** 6)) : W * Math.sqrt(Math.max(0, 1 - (u / topL) ** 2)));
+        const local = (i, j) => { const dx = i - cx, dy = j - cy; return [dx * ca + dy * sa, -dx * sa + dy * ca]; };
+        const inside = (i, j) => { const [u, v] = local(i, j); return u >= -tipL && u <= topL && Math.abs(v) <= hw(u); };
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+          if (!inside(i, j)) continue;
+          const [u, v] = local(i, j), e = Math.abs(v) / Math.max(0.5, hw(u)), nx = (i - cx) / sr, ny = (j - cy) / sr;
+          let col;
+          if (kind === 'half') { // cut face: red skin at the rim, pink flesh, a pale heart down the middle
+            const rim = e > 0.78 || u < -tipL + 1.4 || u > topL - 1.2;
+            const core = Math.abs(v) < 0.22 * sr && u > -tipL * 0.75 && u < topL * 0.6;
+            col = rim ? (e > 0.9 ? '#c22a44' : '#e8405a') : core ? '#fff1f3' : e > 0.55 ? '#ff8fa3' : e > 0.3 ? '#ffb3c1' : '#ffd6dc';
+            if (!rim && !core && ((Math.round(u * 1.7) + Math.round(v * 1.7)) % 7 === 0)) col = '#ffc4cf';
+          } else {
+            const b = 0.62 - 0.22 * nx - 0.26 * ny - 0.3 * e * e;
+            col = pick(b, [[0.78, '#ff7a8c'], [0.6, '#f04a63'], [0.42, '#d93450'], [0.26, '#bd2741'], [-9, '#9c1d36']]);
+            const gu = (u + tipL) / 2.3, gv = v / 2.3; // seeds in a little diamond lattice
+            if (Math.abs(gu - Math.round(gu)) < 0.22 && Math.abs(gv - Math.round(gv) - (Math.round(gu) % 2) * 0.5) < 0.22 && e < 0.85) col = b > 0.55 ? '#ffe9a0' : '#e8c048';
+          }
+          x.fillStyle = col; x.fillRect(i, j, 1, 1);
+        }
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) { // outline
+          if (inside(i, j)) continue;
+          if (inside(i - 1, j) || inside(i + 1, j) || inside(i, j - 1) || inside(i, j + 1)) { x.fillStyle = kind === 'half' ? '#9a2234' : '#7a1828'; x.fillRect(i, j, 1, 1); }
+        }
+        if (kind !== 'half') {
+          // a glossy highlight
+          const hx = Math.round(cx - sr * 0.35), hy = Math.round(cy - sr * 0.4);
+          x.fillStyle = '#ffd3da'; x.fillRect(hx, hy, 2, 1); x.fillStyle = '#ffffff'; x.fillRect(hx, hy, 1, 1);
+          // the leafy green top
+          const tx = cx + ca * topL * 0.85, ty = cy + sa * topL * 0.85;
+          for (const da of [0, 0.95, -0.95, 2.1, -2.1]) {
+            const a2 = ang + da, len = sr * (Math.abs(da) > 2 ? 0.55 : 0.7);
+            for (let k = 0; k <= len; k += 0.5) {
+              const px = Math.round(tx + Math.cos(a2) * k), py = Math.round(ty + Math.sin(a2) * k);
+              x.fillStyle = k < len * 0.4 ? '#2f7a43' : '#43a85c'; x.fillRect(px, py, 1, 1);
+              if (k < len * 0.6) { x.fillStyle = '#2f7a43'; x.fillRect(px + (Math.abs(Math.sin(a2)) > 0.7 ? 1 : 0), py + (Math.abs(Math.sin(a2)) > 0.7 ? 0 : 1), 1, 1); }
+            }
+          }
+          x.fillStyle = '#7ad37a'; x.fillRect(Math.round(tx), Math.round(ty), 1, 1);
+          x.fillStyle = '#255c33'; x.fillRect(Math.round(tx + ca), Math.round(ty + sa), 1, 1);
+        }
+        return c;
+      });
+    }
+    // a pale blue bowl from above
+    function bowl(R) {
+      return memo(`bowl${R}`, () => {
+        const size = R * 2 + 4, c = mk(size, size), x = ctxOf(c), cx = size / 2 - 0.5, cy = size / 2 - 0.5;
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+          const d = Math.hypot(i - cx, j - cy);
+          if (d > R + 1) continue;
+          let col;
+          if (d > R) col = '#5b7fc0';
+          else if (d > R - 3) col = (i - cx) + (j - cy) < -R * 0.3 ? '#ffffff' : (i - cx) + (j - cy) > R * 0.6 ? '#a9c8f5' : '#d5e6ff';
+          else if (d > R - 4) col = '#8aaee6';
+          else { const sh = (j - cy) / R; col = sh < -0.35 ? '#9fc0f0' : sh < 0.2 ? '#b5d1f7' : '#c6dcfa'; }
+          x.fillStyle = col; x.fillRect(i, j, 1, 1);
+        }
+        return c;
+      });
+    }
+    // the piping bag (nozzle down), and a squeezed version of it
+    function pipingBag(h, squeezed) {
+      return memo(`bag${h}-${squeezed ? 1 : 0}`, () => {
+        const w = Math.round(h * 0.62), c = mk(w + 2, h + 2), x = ctxOf(c), cx = (w + 2) / 2;
+        const top = 1, cuff = Math.round(h * 0.16), coneEnd = Math.round(h * 0.82);
+        for (let j = 0; j <= coneEnd; j++) {
+          const t = j / coneEnd, half = (w / 2) * (1 - t * 0.82) * (squeezed && t > 0.2 && t < 0.7 ? 0.86 : 1);
+          for (let i = Math.round(cx - half); i <= Math.round(cx + half); i++) {
+            const e = (i - (cx - half)) / Math.max(1, half * 2);
+            let col = j < cuff ? (j < 2 ? '#bcd7ff' : e < 0.3 ? '#9cc3ff' : '#7fb2ff') : t > 0.45 ? (e < 0.35 ? '#fff7ec' : e > 0.8 ? '#efe2cf' : '#fdf1e2') : (e < 0.3 ? '#ffffff' : e > 0.8 ? '#e3e9f3' : '#f5f8fc');
+            if (j === cuff) col = '#5b8fe0';
+            x.fillStyle = col; x.fillRect(i, j + top, 1, 1);
+          }
+        }
+        x.fillStyle = '#9fb2cf'; // outline of the cone
+        for (let j = 0; j <= coneEnd; j++) { const t = j / coneEnd, half = (w / 2) * (1 - t * 0.82) * (squeezed && t > 0.2 && t < 0.7 ? 0.86 : 1); x.fillRect(Math.round(cx - half) - 1, j + top, 1, 1); x.fillRect(Math.round(cx + half) + 1, j + top, 1, 1); }
+        x.fillRect(Math.round(cx - w / 2), top - 1 + 1, w + 1, 1);
+        const nz = Math.max(2, Math.round(w * 0.16)); // the star nozzle
+        for (let j = coneEnd; j < h; j++) {
+          const half = nz * (1 - (j - coneEnd) / (h - coneEnd) * 0.5);
+          for (let i = Math.round(cx - half); i <= Math.round(cx + half); i++) { x.fillStyle = (i + j) % 2 ? '#c9d1e3' : '#eef2f8'; x.fillRect(i, j + top, 1, 1); }
+          x.fillStyle = '#7d8599'; x.fillRect(Math.round(cx - half) - 1, j + top, 1, 1); x.fillRect(Math.round(cx + half) + 1, j + top, 1, 1);
+        }
+        return c;
+      });
+    }
+    // a sugar sifter from above: a round mesh with a little handle
+    function sifter(R) {
+      return memo(`sift${R}`, () => {
+        const size = R * 2 + 4, c = mk(size + R + 2, size), x = ctxOf(c), cx = size / 2 - 0.5, cy = size / 2 - 0.5;
+        x.fillStyle = '#7d8599'; x.fillRect(size - 2, Math.round(cy) - 2, R + 3, 5); x.fillStyle = '#c9d1e3'; x.fillRect(size - 2, Math.round(cy) - 1, R + 2, 3);
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+          const d = Math.hypot(i - cx, j - cy);
+          if (d > R + 1) continue;
+          let col = d > R ? '#6b7389' : d > R - 2 ? ((i - cx) + (j - cy) < 0 ? '#eef2f8' : '#aeb7cb') : (i + j) % 3 === 0 || (i - j + 99) % 3 === 0 ? '#b8c2d6' : ((i * 7 + j * 3) % 5 === 0 ? '#ffffff' : '#f4f6fb');
+          x.fillStyle = col; x.fillRect(i, j, 1, 1);
+        }
+        return c;
+      });
+    }
+    // a soft oval shadow (darker in the middle, dithered at the edge)
+    function shadow(rx, ry, col = '90,45,15') {
+      rx = Math.max(1, Math.round(rx)); ry = Math.max(1, Math.round(ry));
+      return memo(`sh${rx}x${ry}${col}`, () => {
+        const c = mk(rx * 2 + 1, ry * 2 + 1), x = ctxOf(c);
+        for (let j = -ry; j <= ry; j++) for (let i = -rx; i <= rx; i++) {
+          const e = (i / (rx + 0.5)) ** 2 + (j / (ry + 0.5)) ** 2;
+          if (e > 1 || (e > 0.75 && (i + j) % 2)) continue;
+          x.fillStyle = `rgba(${col},${e < 0.45 ? 0.26 : 0.16})`; x.fillRect(i + rx, j + ry, 1, 1);
+        }
+        return c;
+      });
+    }
+    // powdered sugar settling on a strawberry: its shape in white, drawn over it a little at a time
+    const frost = (sr, kind, ang) => memo(`frost${sr}-${kind}-${ang.toFixed(2)}`, () => silhouette(berry(sr, kind, ang), '#ffffff'));
+    // the piping bag, put down on the counter on its side
+    function bagDown(h) {
+      return memo(`bagdown${h}`, () => {
+        const src = pipingBag(h, false), c = mk(src.height + 4, src.width + 4), x = ctxOf(c);
+        x.translate(c.width / 2, c.height / 2); x.rotate(-Math.PI / 2 - 0.12); x.drawImage(src, -src.width / 2, -src.height / 2);
+        const d = x.getImageData(0, 0, c.width, c.height), a = d.data; // keep it crisp: no half-see-through pixels
+        for (let i = 3; i < a.length; i += 4) a[i] = a[i] > 110 ? 255 : 0;
+        x.setTransform(1, 0, 0, 1, 0, 0); x.putImageData(d, 0, 0);
+        return c;
+      });
+    }
+    return { rosette, berry, bowl, pipingBag, sifter, shadow, frost, bagDown };
+  })();
+
   return {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
     STRAW, HEART, STAR, CREAM_HAND,
-    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, PIPING, ROSETTE, TOP_STRAW,
+    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, PIPING, ROSETTE, TOP_STRAW, CU,
   };
 })();
