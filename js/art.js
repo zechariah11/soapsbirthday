@@ -728,8 +728,8 @@ window.Art = (() => {
       for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 23);
       R('#7e9f6a', bx0 - 1, sTop + 1, 1, 22); R('#7e9f6a', bx0 + bw0, sTop + 1, 1, 22);
       const pl = sx0 + 13 + bw0 + 4;                                                                  // a fluffy pillow
-      box(pl, sTop + 6, 15, 11, '#ffd1e8', '#d77fa6'); R('#ffe6f1', pl + 1, sTop + 7, 5, 1); R('#ffffff', pl + 2, sTop + 8, 2, 1);
-      R('#ff9ec4', pl + 6, sTop + 10, 3, 3); R('#ffe6f1', pl + 7, sTop + 11, 1, 1);
+      box(pl, sTop + 6, 15, 11, '#a3aabb', '#6b7389'); R('#c3c9d6', pl + 1, sTop + 7, 5, 1); R('#dfe3ea', pl + 2, sTop + 8, 2, 1);
+      R('#868ea3', pl + 6, sTop + 10, 3, 3); R('#b8bfcd', pl + 7, sTop + 11, 1, 1);
     } else {
       const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
       const sBottom = feet - 3, sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
