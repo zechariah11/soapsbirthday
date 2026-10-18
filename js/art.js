@@ -365,6 +365,7 @@ window.Art = (() => {
       for (let sx = start; sx < W - 6; sx += 7) x.drawImage(STRAW, sx, yy);
     });
     for (const [i, j] of [[10, 4], [23, 3], [37, 4], [48, 6], [16, 8], [30, 7], [44, 9], [5, 9]]) P('#ffffff', i, j); // sugar dust
+    for (let rx = 1; rx < FW - 3; rx += 5) { P('#c9b9a6', rx, MH - 2, 4, 1); P('#ffffff', rx + 1, MH - 2, 2, 1); P('#fffaf1', rx, MH - 1, 4, 1); P('#f1e4d4', rx + 3, MH - 1, 1, 1); } // piped cream swirls
     x.drawImage(BOW, Math.floor((W - BOW.width) / 2), 0);
 
     const img = outline(c);
@@ -395,6 +396,15 @@ window.Art = (() => {
   };
   const STRAW_O = outline(STRAW);
   // a freshly baked sponge (they stack up on top of the oven) and the icing stage's piping bag
+  // top-down icing close-up: cream swirls (as they're piped: small, medium, done) and a strawberry seen from above
+  const ROSETTE_PAL = { w: '#ffffff', W: '#ffffff', s: '#dfe4ee', c: '#c9d1e3' };
+  const ROSETTE = [
+    outline(spr(['wW', 'sw'], ROSETTE_PAL), '#9aa6c0'),
+    outline(spr(['.wW.', 'wWsw', 'wsWw', '.sw.'], ROSETTE_PAL), '#9aa6c0'),
+    outline(spr(['..wWw..', '.wWsWw.', 'wWsWwWw', 'WsWcWsW', 'wWwWsWw', '.wsWwW.', '..wWw..'], ROSETTE_PAL), '#8a96b2'),
+  ];
+  const TOP_STRAW = outline(spr(['..rrrrr..', '.rRRrrrr.', 'rRhrsrrsr', 'rRrrrrrrr', 'rsrrsrrsr', 'rrrrrrrrd', 'rrsrrsrrd', '.rrrrrrd.', '..gdgdg..'],
+    { r: '#e8405a', R: '#ff6b7f', h: '#ffd6dc', s: '#ffd84a', d: '#b8253f', g: '#3d9a52' }));
   const SPONGE = outline(spr([
     '..cccccccccccccccc..', '.cCCCCCCCCCCCCCCCCc.', 'cyyyyyyyyyyyyyyyyyyc', 'cyyhyyyyhyyyyyhyyyyc', 'cyyyyyhyyyyyyyyyhyyc', 'cyyyyyyyyyyhyyyyyyyc', '.cccccccccccccccccc.',
   ], { c: '#c98a3e', C: '#e7b35d', y: '#f7cf7d', h: '#e2b360' }));
@@ -784,6 +794,6 @@ window.Art = (() => {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
     STRAW, HEART, STAR, CREAM_HAND,
-    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, PIPING,
+    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, PIPING, ROSETTE, TOP_STRAW,
   };
 })();

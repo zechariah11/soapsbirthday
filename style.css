@@ -136,6 +136,7 @@ body.hud-stage .stage-box { opacity: 1; transform: none; }
   display: none;
 }
 .callout.show { display: block; animation: pulse .5s steps(2) infinite; }
+body.closeup .callout { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + max(5vh, 24px)); } /* (under the icing close-up, not on it) */
 @keyframes pulse { 50% { transform: translateX(-50%) scale(1.12); } }
 
 .stage-card {

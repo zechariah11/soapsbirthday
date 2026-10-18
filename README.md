@@ -12,8 +12,9 @@ Sophia bakes a giant Sungsimdang strawberry cake:
 3. **Whipped Cream Showdown**: a tap-as-fast-as-you-can race against Zech (in Korean Army
    uniform). It looks like a close race, but he's quietly rubber-banded so she always wins.
    Then a short **cutscene**: she stacks the cake layer by layer, one tap per layer.
-4. **Icing on Top**: drag the piping bag back and forth to spread cream over the bare sponge top,
-   then tap to drop strawberries onto it until the strawberry mountain is complete. Then the cake
+4. **Icing on Top**: a top-down close-up of the cake. Trace the piping bag around the edge to pipe
+   a ring of little cream swirls, then tap inside the ring to place twelve strawberries wherever
+   she likes. Then the cake
    comes alive: Zech tries to run, a whipped-cream arm shoots out of the cake, grabs him, dangles
    him over the top and plops him into the strawberries, and the cake gets hoisted up as a piñata.
 5. **Piñata Cake Monster**: run under the hanging cake and tap to jump and whack it with a baguette
@@ -24,7 +25,7 @@ Sophia bakes a giant Sungsimdang strawberry cake:
 
 Music is synthesised too (`js/music.js`) and loops seamlessly: a calm, Animal Crossing-ish room
 theme (cake building, rescue, envelopes), a bouncy marimba tune for the strawberry catch, a cosy
-music-box tune by the oven, a sporty race theme for the whipping battle, a dreamy one for the icing, a driving chiptune battle theme from the moment the cake comes
+music-box tune by the oven, a sporty race theme for the whipping battle, a dreamy one for the icing, a villain-riff-to-heroic-chorus battle theme from the moment the cake comes
 alive, and for the real letter a jazz-waltz "Happy Birthday" (about 100 s per cycle, with new
 vibraphone and flute solos each time round) that keeps playing while she reads. The ♪ button mutes it all.
 

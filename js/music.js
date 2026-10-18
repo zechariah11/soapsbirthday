@@ -7,7 +7,7 @@
    oven     – cosy music-box tune while the sponges bake                               Bb major, 100 bpm
    whip     – bright, sporty race theme for the whipping battle                         G major, 132 bpm
    icing    – dreamy, sparkly vibraphone tune for icing the cake                        D major, 96 bpm
-   boss     – driving chiptune battle theme for the cake monster                        A minor, 156 bpm
+   boss     – villain riff → verse → build → heroic chorus → cheeky breakdown            D minor, 168 bpm
    birthday – "Happy Birthday" as a jazz waltz with reharmonised choruses, an embellished head,
               vibraphone and flute solos (freshly improvised every time round), ~100 s per cycle      */
 window.Music = (() => {
@@ -101,6 +101,13 @@ window.Music = (() => {
       case 'chick': nz(ctx, dest, t, 0.03 * vol, 0.025, 'highpass', 3500); break;
       case 'brush': nz(ctx, dest, t, 0.035 * vol, 0.16, 'bandpass', 3000, 0.7); break;
       case 'crash': nz(ctx, dest, t, 0.08 * vol, 0.7, 'highpass', 4500); break;
+      case 'tom': {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.setValueAtTime(210, t); o.frequency.exponentialRampToValueAtTime(95, t + 0.16);
+        g.gain.setValueAtTime(0.32 * vol, t); g.gain.setTargetAtTime(0, t + 0.01, 0.08);
+        o.connect(g).connect(dest); o.start(t); o.stop(t + 0.5);
+        break;
+      }
     }
   }
 
@@ -257,23 +264,107 @@ window.Music = (() => {
       [7, 0, 81, 1], [7, 1, 79, 0.5], [7, 1.5, 76, 0.5], [7, 2, 73, 1], [7, 3, 76, 1],
     ],
   });
-  const boss = loopTrack({
-    bpm: 156, vol: 0.5, lead: 'lead', leadVol: 0.06, leadShift: -12, comp: 'arp16', bass: 'pump', drums: 'boss',
-    second: { inst: 'lead', shift: 0, vol: 0.45 }, // second time round the tune is doubled an octave up
-    V: { Am: [57, 60, 64], F: [57, 60, 65], G: [55, 59, 62], E7: [56, 59, 62, 64], Dm: [57, 62, 65] },
-    R: { Am: 45, F: 41, G: 43, E7: 40, Dm: 38 },
-    bars: [['Am'], ['F'], ['G'], ['E7'], ['Am'], ['F'], ['Dm'], ['E7']],
-    mel: [
-      [0, 0, 81, 1.5], [0, 1.5, 76, 0.5], [0, 2, 81, 0.5], [0, 2.5, 83, 0.5], [0, 3, 84, 1],
-      [1, 0, 84, 0.5], [1, 0.5, 83, 0.5], [1, 1, 81, 1], [1, 2, 77, 1], [1, 3, 81, 1],
-      [2, 0, 83, 1.5], [2, 1.5, 79, 0.5], [2, 2, 86, 1], [2, 3, 83, 1],
-      [3, 0, 80, 1], [3, 1, 83, 1], [3, 2, 88, 1.5], [3, 3.5, 86, 0.5],
-      [4, 0, 84, 1], [4, 1, 83, 0.5], [4, 1.5, 81, 0.5], [4, 2, 88, 1.5], [4, 3.5, 84, 0.5],
-      [5, 0, 81, 1], [5, 1, 84, 1], [5, 2, 89, 1], [5, 3, 88, 0.5], [5, 3.5, 84, 0.5],
-      [6, 0, 86, 1], [6, 1, 84, 0.5], [6, 1.5, 81, 0.5], [6, 2, 77, 1], [6, 3, 81, 1],
-      [7, 0, 83, 0.5], [7, 0.5, 80, 0.5], [7, 1, 76, 0.5], [7, 1.5, 80, 0.5], [7, 2, 83, 0.5], [7, 2.5, 86, 0.5], [7, 3, 88, 1],
-    ],
-  });
+  // ---------------- the cake monster battle: a 28-bar piece in D minor, 168 bpm ----------------
+  // riff (4) → verse (8) → build (4) → heroic chorus (8) → cheeky breakdown (4), which fills back into the riff
+  const BV2 = { Dm: [62, 65, 69], Bb: [62, 65, 70], Gm: [62, 67, 70], A7: [61, 64, 67], C: [60, 64, 67], F: [60, 65, 69], Cdim: [61, 64, 67, 70] };
+  const BR2 = { Dm: 38, Bb: 46, Gm: 43, A7: 45, C: 48, F: 41, Cdim: 49 };
+  const BOSS_BARS = [
+    ['riff', ['Dm']], ['riff', ['Bb']], ['riff', ['Gm']], ['riff', ['A7']],
+    ['verse', ['Dm']], ['verse', ['Bb']], ['verse', ['Gm']], ['verse', ['A7']], ['verse', ['Dm']], ['verse', ['Bb']], ['verse', ['Gm', 'A7']], ['verse', ['Dm']],
+    ['build', ['Bb']], ['build', ['C']], ['build', ['Cdim']], ['build', ['A7']],
+    ['chorus', ['F']], ['chorus', ['C']], ['chorus', ['Dm']], ['chorus', ['Bb']], ['chorus', ['F']], ['chorus', ['C']], ['chorus', ['Bb']], ['chorus', ['A7']],
+    ['down', ['Dm']], ['down', ['Bb']], ['down', ['Gm']], ['down', ['A7']],
+  ];
+  const G3 = (b) => [[b, 0.5], [b + 0.5, 0.25], [b + 0.75, 0.25]]; // the gallop: da-da-dum
+  const RIFF = [ // [bar, beat, midi, beats] (bass plays it as written, the lead two octaves up)
+    ...G3(0).map(([b, d]) => [0, b, 50, d]), [0, 1, 53, 0.5], [0, 1.5, 50, 0.5], [0, 2, 52, 0.5], [0, 2.5, 50, 0.5], [0, 3, 49, 0.5], [0, 3.5, 50, 0.5],
+    ...G3(0).map(([b, d]) => [1, b, 46, d]), [1, 1, 50, 0.5], [1, 1.5, 46, 0.5], [1, 2, 48, 0.5], [1, 2.5, 46, 0.5], [1, 3, 45, 1],
+    ...G3(0).map(([b, d]) => [2, b, 43, d]), [2, 1, 46, 0.5], [2, 1.5, 43, 0.5], [2, 2, 45, 0.5], [2, 2.5, 43, 0.5], [2, 3, 41, 0.5], [2, 3.5, 40, 0.5],
+    ...G3(0).map(([b, d]) => [3, b, 45, d]), [3, 1, 49, 0.5], [3, 1.5, 52, 0.5], [3, 2, 55, 0.5], [3, 2.5, 52, 0.5], [3, 3, 49, 0.5], [3, 3.5, 52, 0.5],
+  ];
+  const VERSE = [
+    [0, 0, 69, 1], [0, 1, 74, 0.5], [0, 1.5, 76, 0.5], [0, 2, 77, 1], [0, 3, 76, 0.5], [0, 3.5, 74, 0.5],
+    [1, 0, 74, 1.5], [1, 1.5, 70, 0.5], [1, 2, 77, 1.5], [1, 3.5, 74, 0.5],
+    [2, 0, 79, 1], [2, 1, 77, 0.5], [2, 1.5, 76, 0.5], [2, 2, 74, 1], [2, 3, 70, 1],
+    [3, 0, 69, 0.5], [3, 0.5, 73, 0.5], [3, 1, 76, 0.5], [3, 1.5, 79, 0.5], [3, 2, 81, 1.5], [3, 3.5, 79, 0.5],
+    [4, 0, 77, 1], [4, 1, 76, 0.5], [4, 1.5, 74, 0.5], [4, 2, 81, 1], [4, 3, 77, 1],
+    [5, 0, 77, 0.5], [5, 0.5, 79, 0.5], [5, 1, 77, 0.5], [5, 1.5, 74, 0.5], [5, 2, 82, 1.5], [5, 3.5, 81, 0.5],
+    [6, 0, 79, 1], [6, 1, 82, 1], [6, 2, 81, 0.5], [6, 2.5, 79, 0.5], [6, 3, 76, 0.5], [6, 3.5, 73, 0.5],
+    [7, 0, 74, 1.5], [7, 1.5, 69, 0.5], [7, 2, 74, 0.5], [7, 2.5, 76, 0.5], [7, 3, 77, 1],
+  ];
+  const CHORUS = [
+    [0, 0, 72, 0.5], [0, 0.5, 77, 0.5], [0, 1, 81, 1], [0, 2, 84, 1.5], [0, 3.5, 81, 0.5],
+    [1, 0, 79, 1.5], [1, 1.5, 76, 0.5], [1, 2, 79, 0.5], [1, 2.5, 81, 0.5], [1, 3, 79, 1],
+    [2, 0, 77, 1], [2, 1, 81, 1], [2, 2, 86, 1.5], [2, 3.5, 84, 0.5],
+    [3, 0, 82, 1.5], [3, 1.5, 81, 0.5], [3, 2, 77, 1], [3, 3, 74, 1],
+    [4, 0, 72, 0.5], [4, 0.5, 77, 0.5], [4, 1, 81, 1], [4, 2, 84, 1.5], [4, 3.5, 86, 0.5],
+    [5, 0, 88, 1.5], [5, 1.5, 86, 0.5], [5, 2, 84, 1], [5, 3, 79, 1],
+    [6, 0, 86, 1], [6, 1, 82, 1], [6, 2, 77, 0.5], [6, 2.5, 79, 0.5], [6, 3, 81, 0.5], [6, 3.5, 82, 0.5],
+    [7, 0, 81, 2], [7, 2, 76, 0.5], [7, 2.5, 79, 0.5], [7, 3, 85, 0.5], [7, 3.5, 88, 0.5],
+  ];
+  const TAUNT = [ // the cake, gloating, on a glockenspiel
+    [0, 0, 86, 0.5], [0, 0.5, 81, 0.5], [0, 1, 77, 0.5], [0, 1.5, 81, 0.5], [0, 2, 86, 1],
+    [1, 0, 86, 0.5], [1, 0.5, 82, 0.5], [1, 1, 77, 0.5], [1, 1.5, 82, 0.5], [1, 2, 86, 1],
+    [2, 0, 86, 0.5], [2, 0.5, 82, 0.5], [2, 1, 79, 0.5], [2, 1.5, 82, 0.5], [2, 2, 86, 1],
+    [3, 0, 85, 0.5], [3, 0.5, 81, 0.5], [3, 1, 76, 0.5], [3, 1.5, 79, 0.5], [3, 2, 81, 0.5], [3, 2.5, 85, 0.5],
+  ];
+  const DMIN = [2, 4, 5, 7, 9, 10, 0, 1]; // D minor (with the C# of A7) for the brass harmony a third below
+  const third = (m) => (DMIN.includes(pc(m - 4)) ? m - 4 : m - 3);
+  INST.brass = { parts: [[1, 1, 'sawtooth'], [1.006, 0.7, 'sawtooth']], attack: 0.01, decay: 0.35, sus: 0.55, lp: 2400 };
+  INST.stab = { parts: [[1, 1, 'sawtooth'], [1.008, 0.8, 'sawtooth']], attack: 0.003, decay: 0.09, sus: 0, lp: 3000 };
+  INST.saw = { parts: [[1, 1, 'sawtooth'], [0.5, 0.6, 'square']], attack: 0.003, decay: 0.11, sus: 0.35, lp: 950 };
+  const boss = {
+    bpm: 168, meter: 4, vol: 0.5, startBar: 0,
+    render(ctx, dest, g, t, B) {
+      const bar = g % BOSS_BARS.length, [sec, chords] = BOSS_BARS[bar], at = (b) => t + b * B;
+      const ch = (beat) => chords[Math.min(chords.length - 1, Math.floor((beat * chords.length) / 4))];
+      const D = (k, b, v) => drum(ctx, dest, k, at(b), v);
+      const pick = (list, first) => list.filter((e) => e[0] === bar - first);
+      if (sec === 'riff') { // the villain riff, bass and lead in octaves, with brass stabs
+        for (const [, b, m, d] of pick(RIFF, 0)) {
+          voice(ctx, dest, m, at(b), d * B * 0.9, 0.11, INST.saw);
+          voice(ctx, dest, m + 24, at(b), d * B * 0.9, 0.045, INST.lead);
+        }
+        for (const b of [0, 2.5]) for (const m of BV2[ch(b)]) voice(ctx, dest, m, at(b), B * 0.3, 0.035, INST.stab);
+        D('kick', 0); D('kick', 0.75, 0.7); D('kick', 2); D('kick', 2.75, 0.7); D('snare', 1); D('snare', 3);
+        for (let i = 0; i < 8; i++) D('hat', i / 2, i % 2 ? 0.5 : 0.9);
+        if (bar === 0) D('crash', 0);
+      } else if (sec === 'verse') {
+        for (const [, b, m, d] of pick(VERSE, 4)) voice(ctx, dest, m, at(b), d * B * 0.95, 0.06, INST.lead);
+        for (let i = 0; i < 16; i++) { const vs = BV2[ch(i / 4)]; voice(ctx, dest, vs[[0, 1, 2, 1][i % 4]] + 12, at(i / 4), B * 0.22, i % 4 === 0 ? 0.026 : 0.017, INST.arp); }
+        for (let b = 0; b < 4; b++) for (const [o, d] of [[0, 0.5], [0.5, 0.25], [0.75, 0.25]]) voice(ctx, dest, BR2[ch(b)] + (o ? 12 : 0), at(b + o), d * B, o ? 0.06 : 0.09, INST.saw);
+        D('kick', 0); D('kick', 1.5, 0.7); D('kick', 2); D('snare', 1); D('snare', 3);
+        for (let i = 0; i < 8; i++) D('hat', i / 2, i % 2 ? 0.5 : 0.9);
+        if (bar === 4) D('crash', 0);
+      } else if (sec === 'build') { // tension: tremolo notes climbing, snare roll
+        const k = bar - 12, notes = [[74], [76], [76, 79], [81, 85, 88]][k];
+        for (let i = 0; i < 16; i++) voice(ctx, dest, notes[k === 3 ? Math.min(2, i >> 2) : i % notes.length], at(i / 4), B * 0.22, 0.03 + k * 0.006, INST.lead);
+        for (const m of BV2[ch(0)]) voice(ctx, dest, m, at(0), B * 3.8, 0.02, INST.brass);
+        voice(ctx, dest, BR2[ch(0)], at(0), B * 1.9, 0.1, INST.saw); voice(ctx, dest, BR2[ch(0)], at(2), B * 1.9, 0.1, INST.saw);
+        for (let b = 0; b < 4; b++) D('kick', b);
+        if (k < 2) { D('snare', 1); D('snare', 3); }
+        else if (k === 2) for (let i = 0; i < 8; i++) D('snare', i / 2, 0.45 + i * 0.05);
+        else { for (let i = 0; i < 12; i++) D('snare', i / 4, 0.4 + i * 0.05); D('tom', 3, 0.9); D('tom', 3.25, 0.8); D('tom', 3.5, 0.7); D('tom', 3.75, 0.6); }
+      } else if (sec === 'chorus') { // she's coming to the rescue: big tune, brass a third below, four on the floor
+        for (const [, b, m, d] of pick(CHORUS, 16)) {
+          voice(ctx, dest, m, at(b), d * B * 0.95, 0.065, INST.lead);
+          voice(ctx, dest, third(m), at(b), d * B * 0.95, 0.03, INST.brass);
+        }
+        for (let i = 0; i < 16; i++) { const vs = BV2[ch(i / 4)]; voice(ctx, dest, vs[[0, 2, 1, 2][i % 4]] + 12, at(i / 4), B * 0.22, i % 4 === 0 ? 0.024 : 0.015, INST.arp); }
+        for (let i = 0; i < 8; i++) voice(ctx, dest, BR2[ch(i / 2)] + (i % 2 ? 12 : 0), at(i / 2), B * 0.45, 0.085, INST.saw);
+        for (let b = 0; b < 4; b++) D('kick', b);
+        D('snare', 1); D('snare', 3); D('clap', 1, 0.8); D('clap', 3, 0.8);
+        for (let i = 0; i < 4; i++) { D('ohat', i + 0.5, 0.8); D('hat', i, 0.6); }
+        if (bar === 16 || bar === 20) D('crash', 0);
+      } else { // breakdown: half-time, the cake gloats on a glockenspiel, then a fill back into the riff
+        for (const [, b, m, d] of pick(TAUNT, 24)) voice(ctx, dest, m, at(b), d * B, 0.14, INST.glock);
+        voice(ctx, dest, BR2[ch(0)], at(0), B * 3.6, 0.1, INST.saw);
+        for (let i = 0; i < 8; i++) voice(ctx, dest, BR2[ch(0)] + 12, at(i / 2), B * 0.3, 0.025, INST.saw);
+        D('kick', 0); D('snare', 2); D('hat', 1, 0.6); D('hat', 3, 0.6);
+        if (bar === 27) { for (let i = 0; i < 4; i++) D('snare', 3 + i / 4, 0.5 + i * 0.12); D('tom', 3.5, 0.8); D('tom', 3.75, 0.9); }
+      }
+    },
+  };
 
   // ---------------- "Happy Birthday", jazz waltz ----------------
   const BV = { // rootless voicings

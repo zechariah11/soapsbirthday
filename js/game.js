@@ -220,6 +220,7 @@
       blip: () => play((t) => tone(rand(860, 980), t, 0.025, 0.045)),
       rise: (r) => play((t) => tone(320 + r * 520, t, 0.05, 0.03, 'triangle')),
       squish: () => play((t) => noise(t, 0.05, 0.05, 900, 'lowpass')),
+      pip: (k) => play((t) => { tone(660 + k * 520, t, 0.05, 0.05, 'triangle'); tone(990 + k * 780, t + 0.04, 0.06, 0.04, 'sine'); }),
       tick: () => play((t) => tone(1500, t, 0.012, 0.012, 'sine')), // the letter's typewriter: barely there, so the music carries
     };
   })();
@@ -1182,131 +1183,163 @@
   }
 
   /* =====================================================================
-     STAGE 4: icing on top (spread the cream, then pile on the strawberries)
+     STAGE 4: icing on top. A top-down close-up of the cake: trace around the edge to pipe
+     little cream swirls, then tap inside the ring to place the strawberries wherever she likes.
      ===================================================================== */
-  const BERRIES = 10;
-  const IC = { sub: 'idle', cov: null, shown: null, drops: [], landed: 0, hud: null, lx: 0, ly: 0, t: 0, side: 0 };
+  const BERRIES = 12;
+  const IC = { sub: 'idle', spots: [], berries: [], hud: null, t: 0, sq: 0, u: 0, fade: 0, piped: 0 };
   const tipLift = () => (coarse ? 10 : 0); // on phones the nozzle sits a little above the finger, so you can see it
-  function icingGeo() {
-    const sp = bakeSpot(), Gc = CAKE.geo;
-    return { ...sp, top: sp.cy + 1 + Gc.MH, x0: sp.cx + 1, x1: sp.cx + 1 + Gc.FW };
+  function icingView() { // the zoomed-in cake top, in game pixels, clear of the HUD at the top and the text box at the bottom
+    const T = Math.ceil(84 / S) + 4, Bm = Math.ceil(100 / S) + 4, avail = Math.max(30, ih - T - Bm);
+    let w = Math.min(iw * 0.78, 120), h = w * 0.8;
+    if (h > avail * 0.8) { h = avail * 0.8; w = h / 0.8; }
+    w = Math.round(w); h = Math.round(h);
+    const x0 = Math.round(iw / 2 - w / 2), y0 = Math.round(T + avail / 2 - h / 2);
+    const ins = Math.max(4, Math.round(w * 0.065));
+    return { x0, y0, w, h, x1: x0 + w, y1: y0 + h, ins };
+  }
+  function edgePos(V, u) { // a point on the piping ring, u = 0…1 clockwise from the top-left corner
+    const L = V.x0 + V.ins, R = V.x1 - V.ins, T = V.y0 + V.ins, B = V.y1 - V.ins, per = 2 * (R - L + B - T);
+    let d = (((u % 1) + 1) % 1) * per;
+    if (d < R - L) return { x: L + d, y: T };
+    if ((d -= R - L) < B - T) return { x: R, y: T + d };
+    if ((d -= B - T) < R - L) return { x: R - d, y: B };
+    return { x: L, y: B - (d - (R - L)) };
   }
   function icingReset() {
-    const Gc = CAKE.geo;
-    Object.assign(IC, { sub: 'idle', cov: new Float32Array(Gc.FW), shown: new Array(BERRIES).fill(0), drops: [], landed: 0, t: 0, side: 0 });
+    const V = icingView(), per = 2 * (V.w + V.h - 4 * V.ins), n = clamp(Math.round(per / 12), 14, 28);
+    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0 })), berries: [], t: 0, sq: 0, u: 0, fade: 0, piped: 0 });
     if (ZE.mode !== 'walk') { zechReset(); Object.assign(ZE, { mode: 'walk', x: bakeSpot().him, y: groundY(), tx: bakeSpot().him, face: 'happy' }); }
     kid.x = bakeSpot().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
-    const I = icingGeo(); ptr.x = I.x0 - 6; ptr.y = I.top + tipLift(); IC.lx = ptr.x; IC.ly = I.top;
+    const p0 = edgePos(V, 0); ptr.x = p0.x - 10; ptr.y = p0.y + tipLift();
   }
   function icingBegin() {
-    IC.hud = stageHud(`STAGE ${stageIdx + 1} · ICING ON TOP`, [{ key: 'c', tag: 'CREAM', cls: 'her' }, { key: 'b', tag: '🍓', cls: 'berry', num: true }]);
-    setBar(IC.hud.c, 0); setBar(IC.hud.b, 0, `0/${BERRIES}`);
+    IC.hud = stageHud(`STAGE ${stageIdx + 1} · ICING ON TOP`, [{ key: 'c', tag: 'CREAM', cls: 'her', num: true }, { key: 'b', tag: '🍓', cls: 'berry', num: true }]);
+    setBar(IC.hud.c, 0, `0/${IC.spots.length}`); setBar(IC.hud.b, 0, `0/${BERRIES}`);
     document.body.classList.add('hud-stage');
     IC.sub = 'intro';
     say([
-      'Time for the icing on top!',
-      coarse ? 'Drag the piping bag back and forth across the top of the cake to spread the cream.' : 'Move the piping bag back and forth across the top of the cake to spread the cream.',
-    ], () => { IC.sub = 'frost'; lockT = 0.2; document.body.classList.add('follow'); showCallout(coarse ? 'DRAG TO SPREAD!' : 'MOVE TO SPREAD!'); });
+      'Time to decorate the top!',
+      coarse ? 'Trace the piping bag all the way around the edge to pipe little cream swirls.' : 'Move the piping bag all the way around the edge to pipe little cream swirls.',
+    ], () => { IC.sub = 'pipe'; lockT = 0.2; document.body.classList.add('follow', 'closeup'); showCallout('PIPE AROUND THE EDGE!'); });
   }
   const icingTip = () => ({ x: ptr.x, y: ptr.y - tipLift() });
-  function icingTap() { // drop a strawberry onto the nearest bare spot on top
-    if (IC.sub !== 'berries') return;
-    const I = icingGeo(), w = CAKE.w / BERRIES, x = clamp(ptr.x, I.cx, I.cx + CAKE.w);
-    let best = -1, bd = 1e9;
-    for (let i = 0; i < BERRIES; i++) if (!IC.shown[i]) { const d = Math.abs(I.cx + (i + 0.5) * w - x); if (d < bd) { bd = d; best = i; } }
-    if (best < 0) return;
-    IC.shown[best] = 1; // (reserved until it lands)
-    IC.drops.push({ i: best, x: I.cx + (best + 0.5) * w, y: Math.max(-8, I.cy - 60), vy: 0 });
+  function icingTap() { // a strawberry, placed where she tapped (inside the ring of cream)
+    if (IC.sub !== 'berries' || IC.berries.length >= BERRIES) return;
+    const V = icingView(), mx = (V.ins + 9) / V.w, my = (V.ins + 9) / V.h;
+    let fx = (ptr.x - V.x0) / V.w, fy = (ptr.y - V.y0) / V.h;
+    if (fx < -0.1 || fx > 1.1 || fy < -0.1 || fy > 1.1) { fx = rand(mx, 1 - mx); fy = rand(my, 1 - my); } // (space bar / taps off the cake)
+    IC.berries.push({ fx: clamp(fx, mx, 1 - mx), fy: clamp(fy, my, 1 - my), t: 0 });
+    setBar(IC.hud.b, IC.berries.length / BERRIES, `${IC.berries.length}/${BERRIES}`);
     sfx.whoosh();
   }
   function icingUpdate(dt) {
     IC.t += dt;
-    const I = icingGeo(), Gc = CAKE.geo;
-    if (ZE.mode === 'walk') ZE.tx = I.him;
-    if (IC.sub === 'frost') {
-      if (keys.left || keys.right) { ptr.x = clamp(ptr.x + ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 70 * dt, I.x0 - 8, I.x1 + 8); ptr.y = I.top + tipLift(); }
-      const tip = icingTip(), moved = Math.min(4, Math.hypot(tip.x - IC.lx, tip.y - IC.ly));
-      IC.lx = tip.x; IC.ly = tip.y;
-      if (Math.abs(tip.y - I.top) <= 9) {
-        let painting = false;
-        for (let i = 0; i < Gc.FW; i++) {
-          const d = Math.abs(I.x0 + i - tip.x);
-          if (d > 5) continue;
-          const f = 1 - d / 6;
-          IC.cov[i] = Math.min(1.2, IC.cov[i] + (moved * 0.05 + dt * 0.5) * f);
-          painting = painting || moved > 0.3;
+    const V = icingView();
+    if (ZE.mode === 'walk') ZE.tx = bakeSpot().him;
+    if (IC.sub === 'pipe') {
+      if (keys.left || keys.right) { // arrow keys walk the bag around the ring
+        IC.u += ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 0.11 * dt;
+        const p = edgePos(V, IC.u); ptr.x = p.x; ptr.y = p.y + tipLift();
+      }
+      const tip = icingTip();
+      let squeezing = false;
+      for (const sp of IC.spots) {
+        if (sp.g >= 1) continue;
+        const p = edgePos(V, sp.u);
+        if (Math.hypot(p.x - tip.x, p.y - tip.y) > 6) continue;
+        sp.g = Math.min(1, sp.g + dt * 6); squeezing = true;
+        if (sp.g >= 1) {
+          IC.piped++;
+          setBar(IC.hud.c, IC.piped / IC.spots.length, `${IC.piped}/${IC.spots.length}`);
+          sfx.pip(IC.piped / IC.spots.length);
+          for (let i = 0; i < 3; i++) parts.push({ x: p.x, y: p.y, vx: rand(-20, 20), vy: rand(-24, -6), g: 40, life: 0.35, col: pick(['#ffffff', '#ffd84a']), size: 1, ground: 1e9, over: true });
         }
-        if (painting && Math.random() < dt * 20) parts.push({ x: tip.x + rand(-2, 2), y: tip.y, vx: rand(-6, 6), vy: rand(-10, 4), g: 60, life: 0.4, col: '#ffffff', size: 1, ground: 1e9 });
-        if (painting && (IC.side -= dt) <= 0) { IC.side = 0.12; sfx.squish(); }
       }
-      let sum = 0; for (let i = 0; i < Gc.FW; i++) sum += Math.min(1, IC.cov[i]);
-      const p = sum / Gc.FW;
-      setBar(IC.hud.c, p);
-      if (p >= 0.95) { // done: smooth out the last little gaps
-        IC.cov.fill(1); setBar(IC.hud.c, 1);
-        IC.sub = 'frosted'; hideCallout(); document.body.classList.remove('follow');
+      if (squeezing && (IC.sq -= dt) <= 0) { IC.sq = 0.1; sfx.squish(); }
+      if (IC.piped >= IC.spots.length) {
+        IC.sub = 'piped'; hideCallout(); document.body.classList.remove('follow');
         sfx.gold(); kid.happyT = 1; ZE.cheerT = 1;
-        popWord(iw / 2, I.top - 16, 'SO SMOOTH!', false, '#ffffff');
-        popWord(ZE.x, ZE.y - 36, 'Ooh, fancy!', false, '#d6f5c4');
-        for (let i = 0; i < 10; i++) parts.push({ x: rand(I.x0, I.x1), y: I.top - 2, vx: rand(-20, 20), vy: rand(-40, -15), g: 60, life: 0.8, col: pick(['#ffffff', '#ffd84a', '#bfe0ff']), size: 1, ground: 1e9 });
-        later(1100, () => { if (IC.sub === 'frosted') { IC.sub = 'berries'; showCallout(coarse ? 'TAP TO ADD STRAWBERRIES!' : 'CLICK TO ADD STRAWBERRIES!'); } });
+        popWord(iw / 2, V.y0 - 6, 'BEAUTIFUL!', false, '#ffffff');
+        later(1000, () => { if (IC.sub === 'piped') { IC.sub = 'berries'; showCallout(coarse ? 'TAP TO ADD STRAWBERRIES!' : 'CLICK TO ADD STRAWBERRIES!'); } });
       }
     }
-    for (let j = IC.drops.length - 1; j >= 0; j--) { // strawberries falling onto the cake
-      const d = IC.drops[j];
-      d.vy += 420 * dt; d.y += d.vy * dt;
-      if (d.y >= I.cy + 6) {
-        IC.drops.splice(j, 1); IC.shown[d.i] = 2; IC.landed++;
-        setBar(IC.hud.b, IC.landed / BERRIES, `${IC.landed}/${BERRIES}`);
-        sfx.catch(); kid.happyT = 0.3;
-        for (let i = 0; i < 5; i++) parts.push({ x: d.x, y: I.cy + 6, vx: rand(-25, 25), vy: rand(-45, -15), g: 220, life: 0.5, col: pick(['#e8405a', '#fffaf1']), size: 1, ground: I.top + 2 });
-        if (IC.landed >= BERRIES && IC.sub === 'berries') { IC.sub = 'done'; hideCallout(); kid.happyT = 2; ZE.cheerT = 1.5; stageClear(); }
+    for (const b of IC.berries) if (b.t < 1) {
+      b.t = Math.min(1, b.t + dt / 0.28);
+      if (b.t >= 1) {
+        sfx.catch();
+        for (let i = 0; i < 4; i++) parts.push({ x: V.x0 + b.fx * V.w, y: V.y0 + b.fy * V.h, vx: rand(-25, 25), vy: rand(-25, 25), g: 0, life: 0.3, col: '#ffffff', size: 1, ground: 1e9, over: true });
       }
     }
-  }
-  function drawIcedCake(x, y) { // the cake on its counter: body, bare or iced top, and the strawberries that have landed
-    const Gc = CAKE.geo, top = y + 1 + Gc.MH, cut = 1 + Gc.MH;
-    g.drawImage(CAKE.img, 0, cut, CAKE.w, CAKE.h - cut, x, y + cut, CAKE.w, CAKE.h - cut);
-    for (let i = 0; i < Gc.FW; i++) {
-      const c = Math.min(1, IC.cov ? IC.cov[i] : 1), X = x + 1 + i;
-      if (c < 0.5) { // bare sponge where there's no cream yet
-        g.fillStyle = '#fde5a6'; g.fillRect(X, top, 1, 1);
-        g.fillStyle = (i * 7) % 5 === 0 ? '#e7b35d' : '#f7cf7d'; g.fillRect(X, top + 1, 1, 2);
-      }
-      if (c > 0.15) { // cream, piled a little higher the more it's spread, with the odd drip down the front
-        const dome = c >= 0.95 ? 2 : c > 0.6 ? 1 : 0;
-        g.fillStyle = '#fffaf1'; g.fillRect(X, top - dome, 1, 3 + dome);
-        g.fillStyle = A.OUT; g.fillRect(X, top - dome - 1, 1, 1);
-        g.fillStyle = (i + Math.floor(i / 3)) % 4 === 0 ? '#ffffff' : '#fffaf1'; g.fillRect(X, top - dome, 1, 1);
-        if (c >= 0.95 && (i * 37) % 11 < 2) { g.fillStyle = '#fffaf1'; g.fillRect(X, top + 3, 1, 1 + ((i * 13) % 3)); }
-      }
+    if (IC.sub === 'berries' && IC.berries.length >= BERRIES && IC.berries.every((b) => b.t >= 1)) {
+      IC.sub = 'done'; hideCallout(); kid.happyT = 2; ZE.cheerT = 1.5;
+      popWord(iw / 2, V.y0 - 6, 'PERFECT CAKE!', false, '#ffd84a');
+      popWord(ZE.x, ZE.y - 36, 'Ooh, fancy!', false, '#d6f5c4');
+      stageClear();
     }
-    // the right-hand side of the box: bare until the whole top is done
-    const done = !IC.cov || IC.cov.every((v) => v >= 0.95);
-    for (let s = 0; s < Gc.SW; s++) {
-      const X = x + 1 + Gc.FW + s, sy = top - Math.floor((s + 1) / 2);
-      g.fillStyle = done ? '#e9e1d6' : '#e2b360'; g.fillRect(X, sy, 1, 3);
-      if (done) { g.fillStyle = A.OUT; g.fillRect(X, sy - 1, 1, 1); }
-    }
-    // the strawberry mountain, a slice at a time as each strawberry lands
-    const w = CAKE.w / BERRIES;
-    if (IC.shown) for (let i = 0; i < BERRIES; i++) if (IC.shown[i] === 2) {
-      const sx = Math.floor(i * w), ex = Math.floor((i + 1) * w);
-      g.drawImage(CAKE.img, sx, 0, ex - sx, cut, x + sx, y, ex - sx, cut);
-    }
+    if (IC.sub === 'done') IC.fade = Math.min(1, IC.fade + dt / 1.2);
   }
   function icingRender() {
-    const I = icingGeo();
-    g.fillStyle = 'rgba(43,39,69,.2)'; g.fillRect(Math.round(iw / 2 - I.table.width / 2) - 1, I.base + 1, I.table.width + 2, 2);
-    g.drawImage(I.table, Math.round(iw / 2 - I.table.width / 2), I.base - I.table.height + 2);
-    drawIcedCake(I.cx, I.cy);
-    drawZech();
-    drawGirl();
-    for (const d of IC.drops) g.drawImage(A.STRAW_O, Math.round(d.x - A.STRAW_O.width / 2), Math.round(d.y - A.STRAW_O.height / 2));
-    if (IC.sub === 'frost' || IC.sub === 'intro') { // the piping bag, nozzle down at the tip
-      const tip = icingTip(), P = A.PIPING, wob = IC.sub === 'frost' ? Math.round(Math.sin(IC.t * 9)) : 0;
-      g.drawImage(P, Math.round(tip.x) - 5 + wob, Math.round(tip.y) - P.height + 1);
+    // behind the close-up: the cake on its counter (finished once she's done), Zech and Sophia
+    const sp = bakeSpot(), cut = CAKE.layerCuts[CAKE.layerCuts.length - 2];
+    g.fillStyle = 'rgba(43,39,69,.2)'; g.fillRect(Math.round(iw / 2 - sp.table.width / 2) - 1, sp.base + 1, sp.table.width + 2, 2);
+    g.drawImage(sp.table, Math.round(iw / 2 - sp.table.width / 2), sp.base - sp.table.height + 2);
+    if (IC.sub === 'done') g.drawImage(CAKE.img, sp.cx, sp.cy);
+    else g.drawImage(CAKE.img, 0, cut, CAKE.w, CAKE.h - cut, sp.cx, sp.cy + cut, CAKE.w, CAKE.h - cut);
+    drawZech(); drawGirl();
+    // the close-up, looking straight down at the top of the cake (it fades away when she's done)
+    const a = 1 - IC.fade;
+    if (a <= 0) return;
+    g.globalAlpha = a;
+    const V = icingView(), O = A.OUT;
+    g.fillStyle = 'rgba(19,32,74,.5)'; g.fillRect(0, 0, iw, ih);
+    const R = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    // tablecloth, cake board, cake top
+    const tx = V.x0 - 14, ty = V.y0 - 11, tw = V.w + 28, th = V.h + 22;
+    R('#8aa6d4', tx - 1, ty, tw + 2, th); R('#8aa6d4', tx, ty - 1, tw, th + 2);
+    for (let y = ty; y < ty + th; y++) for (let x = tx; x < tx + tw; x += 1) {
+      const a1 = ((x - tx) >> 2) % 2, b1 = ((y - ty) >> 2) % 2;
+      if (x === tx || x === tx + tw - 1 || y === ty || y === ty + th - 1) continue;
+      g.fillStyle = a1 && b1 ? '#b9d3fb' : a1 || b1 ? '#dde9fd' : '#ffffff'; g.fillRect(x, y, 1, 1);
     }
+    R('rgba(43,39,69,.25)', V.x0 - 2, V.y0 - 1, V.w + 9, V.h + 9);       // shadow
+    R(O, V.x0 - 5, V.y0 - 5, V.w + 10, V.h + 10); R('#3d7bff', V.x0 - 4, V.y0 - 4, V.w + 8, V.h + 8); R('#7fb2ff', V.x0 - 4, V.y0 - 4, V.w + 8, 1); R('#2a5bd0', V.x0 - 4, V.y1 + 3, V.w + 8, 1);
+    R(O, V.x0 - 1, V.y0 - 1, V.w + 2, V.h + 2);
+    R('#fbf1de', V.x0, V.y0, V.w, V.h);
+    R('#fff8ec', V.x0, V.y0, V.w, 1); R('#fff8ec', V.x0, V.y0, 1, V.h);
+    R('#eadcc3', V.x0, V.y1 - 2, V.w, 2); R('#f1e5cf', V.x1 - 1, V.y0, 1, V.h);
+    for (const [cx0, cy0] of [[0, 0], [V.w - 1, 0], [0, V.h - 1], [V.w - 1, V.h - 1]]) R(O, V.x0 + cx0, V.y0 + cy0, 1, 1); // rounded corners
+    for (let i = 0; i < 14; i++) { // palette-knife marks in the smooth cream
+      const hx = (i * 2654435761) >>> 0, x = V.x0 + 6 + (hx % Math.max(1, V.w - 18)), y = V.y0 + 6 + ((hx >>> 9) % Math.max(1, V.h - 14));
+      R('#f1e4cc', x, y, 5 + (hx % 4), 1); R('#fff8ec', x + 1, y - 1, 3, 1);
+    }
+    // the ring: dotted targets, and swirls where she's piped
+    for (const s of IC.spots) {
+      const p = edgePos(V, s.u), x = Math.round(p.x), y = Math.round(p.y);
+      if (s.g <= 0) {
+        if (Math.floor(IC.t * 3 + s.u * 6) % 2) g.fillStyle = '#9fbbe3'; else g.fillStyle = '#c9d6ea';
+        for (const [ox, oy] of [[-3, 0], [3, 0], [0, -3], [0, 3], [-2, -2], [2, -2], [-2, 2], [2, 2]]) g.fillRect(x + ox, y + oy, 1, 1);
+      } else {
+        const img = A.ROSETTE[s.g < 0.4 ? 0 : s.g < 1 ? 1 : 2], ix = x - Math.floor(img.width / 2), iy = y - Math.floor(img.height / 2);
+        R('rgba(120,90,50,.18)', ix + 1, iy + 2, img.width - 1, img.height - 1); // a soft shadow so the white swirls stand out
+        g.drawImage(img, ix, iy);
+      }
+    }
+    // strawberries (dropping in, then sitting where she put them)
+    const bs = IC.berries.slice().sort((p, q) => p.fy - q.fy), S0 = A.TOP_STRAW;
+    for (const b of bs) {
+      const x = V.x0 + b.fx * V.w, y = V.y0 + b.fy * V.h, e = 1 - Math.pow(1 - b.t, 3), k = 1 + (1 - e) * 1.2;
+      R('rgba(43,39,69,.2)', Math.round(x - 3), Math.round(y + 3), 7, 2);
+      const w = Math.round(S0.width * k), h = Math.round(S0.height * k);
+      g.drawImage(S0, Math.round(x - w / 2), Math.round(y - h / 2 - (1 - e) * 8), w, h);
+    }
+    // the piping bag
+    if (IC.sub === 'pipe' || IC.sub === 'intro') {
+      const tip = icingTip(), P = A.PIPING;
+      g.drawImage(P, Math.round(tip.x) - 5, Math.round(tip.y) - P.height + 1);
+    }
+    for (const p of parts) if (p.over) drawParticle(p);
+    g.globalAlpha = 1;
   }
 
   /* =====================================================================
@@ -1410,13 +1443,13 @@
     { key: 'catch', title: 'Strawberry Catch', how: () => (coarse ? 'Drag left & right to catch!' : 'Move left & right to catch!'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
     { key: 'sponge', title: 'Fluffy Sponge', how: () => (coarse ? 'Press and hold to bake, let go at the line!' : 'Hold to bake, let go at the line!'), reset: spongeReset, begin: spongeBegin, update: spongeUpdate, tap: spongeTap, release: spongeRelease },
     { key: 'whip', title: 'Whipped Cream Showdown', how: () => (coarse ? 'Tap as fast as you can!' : 'Click as fast as you can!'), reset: whipReset, begin: whipBegin, update: whipUpdate, tap: whipTap },
-    { key: 'icing', title: 'Icing on Top', how: () => (coarse ? 'Drag to spread the cream, then tap to add strawberries!' : 'Move to spread the cream, then click to add strawberries!'), reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap },
+    { key: 'icing', title: 'Icing on Top', how: () => (coarse ? 'Trace around the edge to pipe cream, then tap to add strawberries!' : 'Move around the edge to pipe cream, then click to add strawberries!'), reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap },
     { key: 'boss', title: 'Piñata Cake Monster', how: () => `${coarse ? 'Tap' : 'Click'} to jump & swing your baguette and rescue ${C.opponentName}!`, reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
   ];
   const stageIndex = (key) => STAGES.findIndex((st) => st.key === key);
   function clearStageUi() {
     resetText(); hideCallout();
-    document.body.classList.remove('hud-stage', 'boss', 'follow');
+    document.body.classList.remove('hud-stage', 'boss', 'follow', 'closeup');
   }
   function showCard(i, keepCake) {
     clearStageUi();
@@ -1788,7 +1821,7 @@
 
     if (inStage('boss') || ending()) drawCake();
     if (phase === 'bake') bakeRender();
-    for (const p of parts) if (!p.confetti) drawParticle(p);
+    for (const p of parts) if (!p.confetti && !p.over) drawParticle(p);
 
     if (phase !== 'loading' && phase !== 'title') {
       if (inStage('whip')) whipRender();
@@ -1827,8 +1860,12 @@
       get sub() { return phase === 'bake' ? K.sub : { catch: CT.sub, sponge: SP.sub, whip: W.sub, icing: IC.sub, boss: B.sub }[STAGE().key]; },
       get sponge() { return { sub: SP.sub, r: SP.r, n: SP.n, tol: SP.tol, target: SP_TARGET }; },
       get icing() {
-        const I = icingGeo(), cov = IC.cov ? [...IC.cov].reduce((a, v) => a + Math.min(1, v), 0) / IC.cov.length : 0;
-        return { sub: IC.sub, cov, landed: IC.landed, x0: I.x0 * S, x1: I.x1 * S, y: (I.top + tipLift()) * S, cakeX: I.cx * S, cakeW: CAKE.w * S };
+        const V = icingView(), lift = tipLift();
+        return {
+          sub: IC.sub, piped: IC.piped, n: IC.spots.length, berries: IC.berries.length, landed: IC.berries.filter((b) => b.t >= 1).length,
+          ring: IC.spots.map((sp) => { const p = edgePos(V, sp.u); return { x: p.x * S, y: (p.y + lift) * S, done: sp.g >= 1 }; }),
+          inner: { x0: (V.x0 + V.ins + 10) * S, y0: (V.y0 + V.ins + 10) * S, x1: (V.x1 - V.ins - 10) * S, y1: (V.y1 - V.ins - 10) * S },
+        };
       },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
       get letterStep() { return letterStep; },
