@@ -395,22 +395,10 @@ window.Art = (() => {
     zech: outline(spr(WHISK_ROWS, { h: '#5a6b45', w: '#dfe4ee' }), '#5b6380'),
   };
   const STRAW_O = outline(STRAW);
-  // a freshly baked sponge (they stack up on top of the oven) and the icing stage's piping bag
-  // top-down icing close-up: cream swirls (as they're piped: small, medium, done) and a strawberry seen from above
-  const ROSETTE_PAL = { w: '#ffffff', W: '#ffffff', s: '#dfe4ee', c: '#c9d1e3' };
-  const ROSETTE = [
-    outline(spr(['wW', 'sw'], ROSETTE_PAL), '#9aa6c0'),
-    outline(spr(['.wW.', 'wWsw', 'wsWw', '.sw.'], ROSETTE_PAL), '#9aa6c0'),
-    outline(spr(['..wWw..', '.wWsWw.', 'wWsWwWw', 'WsWcWsW', 'wWwWsWw', '.wsWwW.', '..wWw..'], ROSETTE_PAL), '#8a96b2'),
-  ];
-  const TOP_STRAW = outline(spr(['..rrrrr..', '.rRRrrrr.', 'rRhrsrrsr', 'rRrrrrrrr', 'rsrrsrrsr', 'rrrrrrrrd', 'rrsrrsrrd', '.rrrrrrd.', '..gdgdg..'],
-    { r: '#e8405a', R: '#ff6b7f', h: '#ffd6dc', s: '#ffd84a', d: '#b8253f', g: '#3d9a52' }));
+  // a freshly baked sponge (they stack up on top of the oven)
   const SPONGE = outline(spr([
     '..cccccccccccccccc..', '.cCCCCCCCCCCCCCCCCc.', 'cyyyyyyyyyyyyyyyyyyc', 'cyyhyyyyhyyyyyhyyyyc', 'cyyyyyhyyyyyyyyyhyyc', 'cyyyyyyyyyyhyyyyyyyc', '.cccccccccccccccccc.',
   ], { c: '#c98a3e', C: '#e7b35d', y: '#f7cf7d', h: '#e2b360' }));
-  const PIPING = outline(spr([
-    'BBBBBBBBB', 'bbbbbbbbb', 'whwwwwwww', 'whwwwwwww', '.hwwwwww.', '.wwwwwww.', '..wwwww..', '..wwwww..', '...www...', '...sss...', '....s....',
-  ], { B: '#5b8fe0', b: '#7fb2ff', w: '#ffffff', h: '#e4eefc', s: '#c9d1e3' }));
   const GOLD_STRAW = outline(spr(['..gGg..', '.YgYgY.', 'YhYYYYY', 'YYwYYwY', 'YwYYYYY', '.YYYwY.', '..YYY..'],
     { Y: '#ffcf3a', h: '#fff4b8', w: '#fffbe6', g: '#3d9a52', G: '#7ad37a' }), '#9a6a1a');
   const TOAST = outline(spr(['.dddddd.', 'dTTTTTTd', 'dTkTTkTd', 'dTTkkTTd', 'dTkTTTTd', 'dTTTTkTd', '.dddddd.'],
@@ -727,8 +715,8 @@ window.Art = (() => {
       for (let j = 0; j < 22; j++) for (let i = 0; i < bw0; i++) R(((i >> 2) + (j >> 2)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
       for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 23);
       R('#7e9f6a', bx0 - 1, sTop + 1, 1, 22); R('#7e9f6a', bx0 + bw0, sTop + 1, 1, 22);
-      const pl = sx0 + 13 + bw0 + 4;                                                                  // a fluffy pillow
-      box(pl, sTop + 6, 15, 11, '#a3aabb', '#6b7389'); R('#b3bac9', pl + 1, sTop + 7, 13, 1); // a plain grey cushion
+      const pl = sx0 + 13 + bw0 + 4;                                                                  // a square grey cushion
+      box(pl, sTop + 3, 14, 14, '#8f9298', '#585b63'); R('#a5a8ae', pl + 1, sTop + 4, 12, 1); R('#7f8288', pl + 1, sTop + 15, 12, 1);
     } else {
       const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
       const sBottom = feet - 3, sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
@@ -744,7 +732,7 @@ window.Art = (() => {
       const bx0 = sx0 + 9, bw0 = Math.min(22, sW - 30);                                // checkered blanket over the back
       for (let j = 0; j < 15; j++) for (let i = 0; i < bw0; i++) R(((i / 3 | 0) + (j / 3 | 0)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
       for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 16);
-      if (sW - 30 - bw0 > 14) { box(sx1 - 22, sTop + 4, 11, 8, '#eef0f5', '#7d8599'); R('#ffffff', sx1 - 21, sTop + 5, 3, 1); } // pillow
+      if (sW - 30 - bw0 > 14) { box(sx1 - 21, sTop + 2, 10, 10, '#8f9298', '#585b63'); R('#a5a8ae', sx1 - 20, sTop + 3, 8, 1); R('#7f8288', sx1 - 20, sTop + 10, 8, 1); } // a square grey cushion
     }
 
     // balloons are drawn every frame so they can bob (sx/sy: where the string starts on the sprite)
@@ -958,6 +946,6 @@ window.Art = (() => {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
     STRAW, HEART, STAR, CREAM_HAND,
-    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, PIPING, ROSETTE, TOP_STRAW, CU,
+    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, CU,
   };
 })();

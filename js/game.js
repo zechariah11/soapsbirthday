@@ -767,9 +767,8 @@
     if (ZE.mode === 'off') return;
     const face = ZE.panicT > 0 ? 'tired' : ZE.cheerT > 0 || ZE.hug ? 'happy' : ZE.face;
     let img = A.zech[face];
-    if (ZE.wriggle && Math.floor(time * 9) % 2) img = zechFlipped[face] || (zechFlipped[face] = A.flip(img)); // kicking and wriggling
+    if (ZE.wriggle && Math.floor(time * 6) % 2) img = zechFlipped[face] || (zechFlipped[face] = A.flip(img)); // kicking and wriggling
     let x = Math.round(ZE.x - img.width / 2), y = Math.round(ZE.y) - img.height + 1;
-    if (ZE.wriggle) x += Math.floor(time * 13) % 2;
     if (ZE.run) y -= Math.floor(time * 16) % 2;
     if (ZE.mode === 'walk' && Math.abs(ZE.tx - ZE.x) > 1) y += Math.floor(ZE.t * 10) % 2 ? -1 : 0;
     if (ZE.hug) y += Math.floor(time * 2.5) % 2 ? -1 : 0;
@@ -783,109 +782,155 @@
     }
   }
 
-  /* the kidnapping: he spots the cake coming alive, tries to run, a whipped-cream arm shoots out
-     of it, grabs him round the middle, hoists him up wriggling and plops him into the strawberries */
-  const KN = { t: -1, x0: 0, base: 0, gx: 0, gy: 0, hx: 0, hy: 0, holding: false, dripT: 0 };
-  const KT = { flee: 0.45, reach: 0.6, grab: 1.0, lift: 1.25, hover: 2.05, drop: 2.5, land: 2.72, end: 3.15 };
-  const WAIST = 11; // his middle, measured up from his feet
+  /* the kidnapping: he spots the cake coming alive and tries to run; the cake's side swells, and a jelly-soft
+     whipped-cream arm uncoils out of it, swoops down on him, wraps round his middle, swings him up and over
+     and drops him into the strawberries, then slurps back in. Everything moves on smooth curves: the hand
+     follows one continuous path (no sudden turns or stops), the arm is a chain of springy segments that
+     trail behind it, and he swings a little under the hand as he's carried. */
+  const KN = { t: -1, x0: 0, base: 0, holding: false, dripT: 0, tip: { x: 0, y: 0 }, nodes: [], zx: 0, zy: 0, zvx: 0, zvy: 0, wrap: 0, falling: false, fvy: 0, rel: null };
+  const KT = { bulge: 0.12, flee: 0.45, reach: 0.5, grab: 1.05, wrapped: 1.2, lift: 1.3, apex: 1.8, hover: 2.25, release: 2.65, retract: 2.9, end: 3.5 };
+  const WAIST = 11, ARM_N = 12; // his middle, measured up from his feet; segments in the arm
   const easeIO = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
   const easeOut = (u) => 1 - (1 - u) * (1 - u);
+  const easeBack = (u) => 1 + 2.7 * Math.pow(u - 1, 3) + 1.7 * Math.pow(u - 1, 2);
+  const hermite = (p0, v0, p1, v1, u, d) => { // a smooth step from p0 to p1, leaving and arriving at the given speeds
+    const u2 = u * u, u3 = u2 * u, a = 2 * u3 - 3 * u2 + 1, b = u3 - 2 * u2 + u, c = -2 * u3 + 3 * u2, e = u3 - u2;
+    return { x: a * p0.x + b * d * v0.x + c * p1.x + e * d * v1.x, y: a * p0.y + b * d * v0.y + c * p1.y + e * d * v1.y };
+  };
+  const bez = (p0, p1, p2, p3, u) => { const v = 1 - u; return { x: v * v * v * p0.x + 3 * v * v * u * p1.x + 3 * v * u * u * p2.x + u * u * u * p3.x, y: v * v * v * p0.y + 3 * v * v * u * p1.y + 3 * v * u * u * p2.y + u * u * u * p3.y }; };
+  const armCtl = (B, T, curl = 1) => { // the arm's resting shape: out of the cake and up, then down onto the hand from above
+    const L = Math.hypot(T.x - B.x, T.y - B.y);
+    return [{ x: B.x + 8 + L * 0.12, y: B.y - (L * 0.45 + 5) * curl }, { x: T.x + (B.x - T.x) * 0.1, y: T.y - (L * 0.35 + 7) * curl }];
+  };
   function armBase() { const c = cakePosNow(); return { x: c.x + CAKE.w - 6, y: c.y + Math.round(CAKE.h * 0.55) }; }
-  function hoverPt() { const o = zechOnTop(); return { x: o.x, y: o.y - WAIST - 14 }; }
+  function hoverPt() { const o = zechOnTop(); return { x: o.x, y: o.y - WAIST - 14 }; } // (his middle, while he dangles over the cake)
+  const grabPt = () => ({ x: KN.x0 + Math.max(0, Math.min(16, iw - 12 - KN.x0)), y: KN.base - WAIST }); // where he'll have run to
   function startKidnap() {
     Object.assign(ZE, { mode: 'yank', t: 0, face: 'tired', run: false, wriggle: false, panicT: 0 });
-    Object.assign(KN, { t: 0, x0: ZE.x, base: groundY(), holding: false, dripT: 0 });
+    const B = armBase();
+    Object.assign(KN, { t: 0, x0: ZE.x, base: groundY(), holding: false, dripT: 0, wrap: 0, falling: false, fvy: 0, rel: null, zvx: 0, zvy: 0,
+      tip: { ...B }, nodes: Array.from({ length: ARM_N + 1 }, () => ({ x: B.x, y: B.y, vx: 0, vy: 0 })) });
     K.shakeT = 0.6; sfx.thud();
   }
+  function kidnapTip(t, B) { // where the hand is at time t: one smooth path from the cake, onto him, up and over, and back
+    const G = grabPt(), H = hoverPt(), Tg = { x: G.x, y: G.y - 1 }, Th = { x: H.x, y: H.y - 1 };
+    const seg = (a, b, pa, va, pb, vb) => hermite(pa, va, pb, vb, clamp((t - a) / (b - a), 0, 1), b - a);
+    if (t < KT.reach) return { ...B };
+    if (t < KT.grab) return seg(KT.reach, KT.grab, B, { x: 60, y: -150 }, Tg, { x: 0, y: 70 });       // up out of the cake, swooping down on him
+    if (t < KT.lift) return seg(KT.grab, KT.lift, Tg, { x: 0, y: 70 }, { x: Tg.x, y: Tg.y + 1 }, { x: 0, y: -10 }); // squeeze (it gives a little)
+    const apex = { x: Tg.x + (Th.x - Tg.x) * 0.4, y: Math.min(Tg.y, Th.y) - 7 }, av = { x: ((Th.x - Tg.x) / (KT.hover - KT.lift)) * 1.3, y: -12 };
+    if (t < KT.apex) return seg(KT.lift, KT.apex, { x: Tg.x, y: Tg.y + 1 }, { x: 0, y: -10 }, apex, av); // up…
+    if (t < KT.hover) return seg(KT.apex, KT.hover, apex, av, Th, { x: 0, y: 0 });                      // …and over the cake
+    if (t < KT.release) { // dangling him there, a gentle sway
+      const u = (t - KT.hover) / (KT.release - KT.hover), s = Math.sin(Math.PI * u);
+      return { x: Th.x + 2.5 * Math.sin(2 * Math.PI * u) * s, y: Th.y + 0.8 * Math.sin(4 * Math.PI * u) * s };
+    }
+    const R = { x: Th.x + 5, y: Th.y - 8 };
+    if (t < KT.retract) return seg(KT.release, KT.retract, Th, { x: 0, y: 0 }, R, { x: 0, y: 0 });       // lets go and lifts away
+    return seg(KT.retract, KT.end - 0.08, R, { x: 0, y: 0 }, B, { x: -25, y: 70 });                     // and slurps back into the cake
+  }
   function kidnapUpdate(dt) {
-    const prev = KN.t, t = (KN.t += dt), A0 = armBase();
+    const prev = KN.t, t = (KN.t += dt), B = armBase();
     const at = (k) => prev < KT[k] && t >= KT[k]; // true on the frame a beat starts
+    // the hand, and the arm's springy segments trailing after it (stiff near the cake, softer towards the hand)
+    const T = kidnapTip(t, B); KN.tip = T;
+    const [c1, c2] = armCtl(B, T, 1 - 0.8 * easeIO(clamp((t - KT.release) / 0.45, 0, 1))), N = KN.nodes; // (it relaxes as it reels back in)
+    N[0].x = B.x; N[0].y = B.y; N[ARM_N].x = T.x; N[ARM_N].y = T.y;
+    for (let i = 1; i < ARM_N; i++) {
+      const n = N[i], r = bez(B, c1, c2, T, i / ARM_N), k = 300 - 140 * (i / ARM_N), c = 2 * Math.sqrt(k) * 0.62;
+      n.vx += (k * (r.x - n.x) - c * n.vx) * dt; n.vy += (k * (r.y - n.y) - c * n.vy) * dt;
+      n.x += n.vx * dt; n.y += n.vy * dt;
+    }
     if (ZE.mode === 'yank') {
       if (t < KT.flee) { // a startled hop…
-        ZE.x = KN.x0; ZE.y = KN.base - Math.round(Math.sin((t / KT.flee) * Math.PI) * 5);
+        ZE.x = KN.x0; ZE.y = KN.base - Math.sin((t / KT.flee) * Math.PI) * 5;
       } else if (t < KT.grab) { // …and he tries to run for it
         ZE.run = true; ZE.y = KN.base;
-        ZE.x = KN.x0 + Math.max(0, Math.min(16, iw - 12 - KN.x0)) * easeOut((t - KT.flee) / (KT.grab - KT.flee));
+        ZE.x = KN.x0 + (grabPt().x - KN.x0) * easeOut((t - KT.flee) / (KT.grab - KT.flee));
         if (Math.floor(t * 12) !== Math.floor(prev * 12)) parts.push({ x: ZE.x - 5, y: KN.base - 1, vx: rand(-14, -6), vy: rand(-8, -2), g: 0, life: 0.35, col: '#ffffff', size: 1, ground: 1e9 });
       }
       if (at('reach')) sfx.whoosh();
-      if (t >= KT.reach && t < KT.grab) { // the arm shoots out at him
-        const u = easeOut((t - KT.reach) / (KT.grab - KT.reach));
-        KN.hx = A0.x + (ZE.x - A0.x) * u; KN.hy = A0.y + (ZE.y - WAIST - A0.y) * u;
-      }
       if (at('grab')) {
         Object.assign(ZE, { run: false, wriggle: true, face: 'lose' });
-        KN.holding = true; KN.gx = ZE.x; KN.gy = ZE.y - WAIST;
-        shakeT = 0.18; shakeA = 1; sfx.hit();
+        KN.holding = true; KN.zx = ZE.x; KN.zy = ZE.y - WAIST; KN.zvx = KN.zvy = 0;
+        shakeT = 0.12; shakeA = 1; sfx.hit();
         popWord(ZE.x, ZE.y - 36, 'GOTCHA!', false, '#ffffff');
+        for (let i = 0; i < 8; i++) parts.push({ x: ZE.x + rand(-7, 7), y: ZE.y - WAIST + rand(-2, 2), vx: rand(-40, 40), vy: rand(-50, -10), g: 200, life: 0.5, col: pick(['#fffaf1', '#ffffff', '#ffb3cf']), size: 1, ground: groundY() });
       }
-      if (t >= KT.grab && t < KT.drop) {
-        const H = hoverPt();
-        if (t < KT.lift) { KN.hx = KN.gx; KN.hy = KN.gy + (Math.floor(t * 20) % 2); }    // squeeze
-        else if (t < KT.hover) {                                                              // up and over the cake
-          const u = easeIO((t - KT.lift) / (KT.hover - KT.lift)), cx = KN.gx, cy = Math.min(KN.gy, H.y) - 10;
-          KN.hx = (1 - u) * (1 - u) * KN.gx + 2 * (1 - u) * u * cx + u * u * H.x;
-          KN.hy = (1 - u) * (1 - u) * KN.gy + 2 * (1 - u) * u * cy + u * u * H.y;
-        } else { KN.hx = H.x + Math.round(Math.sin(t * 16) * 2); KN.hy = H.y; }               // dangles him over it
-        ZE.x = KN.hx; ZE.y = KN.hy + WAIST;
-        if ((KN.dripT -= dt) <= 0) { // whipped cream dripping off the hand
+      if (KN.holding) {
+        KN.wrap = clamp((t - KT.grab) / (KT.wrapped - KT.grab), 0, 1);
+        // he hangs from the hand on a soft spring: lags a touch behind when it moves, swings, settles
+        const k = 340, c = 2 * Math.sqrt(k) * 0.68;
+        KN.zvx += (k * (T.x - KN.zx) - c * KN.zvx) * dt; KN.zvy += (k * (T.y + 1 - KN.zy) - c * KN.zvy) * dt;
+        KN.zx += KN.zvx * dt; KN.zy += KN.zvy * dt;
+        ZE.x = KN.zx; ZE.y = KN.zy + WAIST;
+        if ((KN.dripT -= dt) <= 0) { // whipped cream dripping off him
           KN.dripT = 0.14;
-          parts.push({ x: KN.hx + rand(-6, 6), y: KN.hy + 4, vx: 0, vy: 6, g: 220, life: 0.9, col: pick(['#fffaf1', '#fffaf1', '#ffb3cf']), size: 1, ground: groundY() });
+          parts.push({ x: ZE.x + rand(-6, 6), y: ZE.y - WAIST + 3, vx: 0, vy: 6, g: 220, life: 0.9, col: pick(['#fffaf1', '#fffaf1', '#ffb3cf']), size: 1, ground: groundY() });
         }
         if (Math.random() < dt * 3) parts.push({ x: ZE.x + (Math.random() < 0.5 ? -7 : 6), y: ZE.y - 28, vx: rand(-20, 20), vy: rand(-26, -14), g: 90, life: 0.5, col: '#8ec5ff', size: 1, ground: 1e9 }); // panic sweat
       }
       if (at('lift')) sfx.whoosh();
-      if (t >= KT.drop) { // let go: he drops into the strawberries
-        if (at('drop')) { KN.holding = false; Object.assign(ZE, { wriggle: false, face: 'tired' }); }
-        const H = hoverPt(), o = zechOnTop(), u = clamp((t - KT.drop) / (KT.land - KT.drop), 0, 1);
-        KN.hx = H.x + 4 * u; KN.hy = H.y - 6 * u; // the hand springs open and away
-        ZE.x = o.x; ZE.y = H.y + WAIST + (o.y - H.y - WAIST) * u * u;
-        if (t >= KT.land) {
+      if (at('release')) { KN.holding = false; KN.falling = true; KN.fvy = KN.zvy * 0.3; Object.assign(ZE, { wriggle: false, face: 'tired' }); sfx.squish(); }
+      if (KN.falling) { // the cream unwinds and he drops into the strawberries
+        KN.wrap = clamp(1 - (t - KT.release) / 0.12, 0, 1);
+        const o = zechOnTop();
+        KN.fvy += 420 * dt; ZE.y += KN.fvy * dt; ZE.x += (o.x - ZE.x) * Math.min(1, dt * 12);
+        if (ZE.y >= o.y) {
+          KN.falling = false; KN.wrap = 0;
           ZE.mode = 'ontop'; ZE.x = o.x; ZE.y = o.y;
           K.shakeT = 0.3; sfx.splat(); sfx.thud();
           popWord(o.x, o.y - 30, 'PLOP!', false, '#ffc2d6');
           for (let i = 0; i < 14; i++) parts.push({ x: o.x + rand(-6, 6), y: o.y - 4, vx: rand(-55, 55), vy: rand(-90, -40), g: 300, life: rand(0.5, 0.9), col: pick(['#e8405a', '#ff6b98', '#fffaf1', '#fffaf1']), size: pick([1, 1, 2]), ground: groundY() });
         }
       }
-    } else if (t < KT.end) { // the arm slinks back into the cake
-      const H = hoverPt(), u = easeIO(clamp((t - KT.land) / (KT.end - KT.land), 0, 1));
-      KN.hx = H.x + 4 + (A0.x - H.x - 4) * u; KN.hy = H.y - 6 + (A0.y - H.y + 6) * u;
     }
+    if (at('retract')) sfx.squish();
     if (t >= KT.end && ZE.mode !== 'yank') KN.t = -1;
   }
   function disc(cx, cy, r, col) {
     g.fillStyle = col; cx = Math.round(cx); cy = Math.round(cy);
     for (let dy = -r; dy <= r; dy++) { const hw = Math.round(Math.sqrt(r * r - dy * dy)); g.fillRect(cx - hw, cy + dy, hw * 2 + 1, 1); }
   }
-  function drawCreamArm(ax, ay, hx, hy) { // a bendy tube of whipped cream with a strawberry-sauce swirl
-    const len = Math.hypot(hx - ax, hy - ay);
-    if (len < 3) return;
-    const mx = (ax + hx) / 2 + (hx < ax ? 0 : 2), my = Math.min(ay, hy) - 6 - len * 0.12;
-    const n = Math.max(6, Math.ceil(len / 1.5)), pts = [];
-    for (let i = 0; i <= n; i++) {
-      const u = i / n, v = 1 - u;
-      pts.push([v * v * ax + 2 * v * u * mx + u * u * hx, v * v * ay + 2 * v * u * my + u * u * hy + Math.sin(u * 9 - time * 10) * 0.6 * u, Math.round(3 - u)]);
+  function drawCreamArm() { // a tapering tube of whipped cream through the arm's segments, with a strawberry-sauce swirl running down it
+    const N = KN.nodes, pts = [];
+    if (Math.hypot(KN.tip.x - N[0].x, KN.tip.y - N[0].y) < 2) return;
+    const P = (i) => N[clamp(i, 0, ARM_N)];
+    for (let i = 0; i < ARM_N; i++) { // a Catmull-Rom curve through the segments, sampled finely so it's smooth
+      const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2), m = Math.max(2, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 0.7));
+      for (let j = 0; j < m; j++) {
+        const u = j / m, u2 = u * u, u3 = u2 * u;
+        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3);
+        pts.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) });
+      }
     }
-    for (const [x, y, r] of pts) disc(x, y, r + 1, A.OUT);
-    for (const [x, y, r] of pts) disc(x, y, r, '#fffaf1');
-    g.fillStyle = '#ffffff';
-    for (const [x, y, r] of pts) g.fillRect(Math.round(x), Math.round(y) - r + 1, 1, 1);
-    g.fillStyle = '#ffb3cf';
-    pts.forEach(([x, y], i) => { if (i % 4 === 0) g.fillRect(Math.round(x) - 1, Math.round(y) + ((i >> 2) % 2 ? 1 : -1), 2, 1); });
-    disc(ax, ay, 4, A.OUT); disc(ax, ay, 3, '#fffaf1'); g.fillStyle = '#ffb3cf'; g.fillRect(Math.round(ax) - 1, Math.round(ay), 2, 1); // where it bursts out of the cake
+    pts.push({ x: N[ARM_N].x, y: N[ARM_N].y });
+    let s = 0;
+    pts.forEach((p, i) => { if (i) s += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y); p.s = s; p.r = i / pts.length < 0.5 ? 3 : 2; });
+    for (const p of pts) disc(p.x, p.y, p.r + 1, A.OUT);
+    for (const p of pts) disc(p.x, p.y, p.r, '#fffaf1');
+    g.fillStyle = '#ffffff'; for (const p of pts) g.fillRect(Math.round(p.x), Math.round(p.y) - p.r + 1, 1, 1);
+    g.fillStyle = '#ffb3cf'; const flow = KN.t * 14;
+    for (const p of pts) g.fillRect(Math.round(p.x), Math.round(p.y + Math.sin((p.s - flow) * 0.5) * (p.r - 1)), 1, 1);
   }
-  function drawGrip(cx, cy, side) { // the palm on the arm's side, three fingers curled round his front
-    cx = Math.round(cx); cy = Math.round(cy);
-    const px = cx + side * 7;
-    for (const [dy, len] of [[-3, 10], [0, 12], [3, 9]]) {
-      const X = side < 0 ? px : px - len, Y = cy + dy;
-      g.fillStyle = A.OUT; g.fillRect(X, Y - 1, len + 1, 4); g.fillRect(side < 0 ? X + len + 1 : X - 1, Y, 1, 2);
-      g.fillStyle = '#fffaf1'; g.fillRect(X + (side < 0 ? 0 : 1), Y, len, 2);
-      g.fillStyle = '#ffffff'; g.fillRect(X + (side < 0 ? 1 : 3), Y, len - 4, 1);
-    }
-    disc(px, cy, 4, A.OUT); disc(px, cy, 3, '#fffaf1');
-    g.fillStyle = '#ffffff'; g.fillRect(px - 1, cy - 2, 2, 1);
-    g.fillStyle = '#ffb3cf'; g.fillRect(px + side, cy + 1, 2, 1);
+  function drawArmBase() { // the cream bulging out of the side of the cake where the arm comes from
+    const t = KN.t, B = armBase();
+    const r = t < KT.bulge ? 0 : t < KT.reach ? 4 * easeBack(clamp((t - KT.bulge) / (KT.reach - KT.bulge), 0, 1)) : t > KT.end - 0.15 ? 4 * clamp((KT.end - t) / 0.15, 0, 1) : 4;
+    const R = Math.round(r + (t > KT.bulge && t < KT.reach ? Math.sin(t * 40) * 0.6 : 0));
+    if (R < 1) return;
+    disc(B.x, B.y, R + 1, A.OUT); disc(B.x, B.y, R, '#fffaf1');
+    g.fillStyle = '#ffffff'; g.fillRect(Math.round(B.x) - 1, Math.round(B.y) - R + 1, 2, 1);
+    g.fillStyle = '#ffb3cf'; g.fillRect(Math.round(B.x) - 1, Math.round(B.y) + 1, 2, 1);
+  }
+  function drawWrap(front) { // the end of the arm coiled round his middle: the back of the loop behind him, the front over him
+    if (KN.wrap <= 0) return;
+    const cx = ZE.x, cy = ZE.y - WAIST, rx = 7, ry = 2.5, a0 = -Math.PI / 2, sweep = 3 * Math.PI * KN.wrap, pts = [];
+    for (let a = a0; a <= a0 + sweep; a += 0.12) if ((Math.sin(a) > 0) === front) pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry, a });
+    for (const p of pts) disc(p.x, p.y, 2, A.OUT);
+    for (const p of pts) disc(p.x, p.y, 1, '#fffaf1');
+    g.fillStyle = '#ffb3cf'; for (const p of pts) if (Math.round(p.a * 3) % 4 === 0) g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+    const e = a0 + sweep;
+    if (front && Math.sin(e) > 0) { disc(cx + Math.cos(e) * rx, cy + Math.sin(e) * ry, 3, A.OUT); disc(cx + Math.cos(e) * rx, cy + Math.sin(e) * ry, 2, '#fffaf1'); g.fillStyle = '#ffffff'; g.fillRect(Math.round(cx + Math.cos(e) * rx) - 1, Math.round(cy + Math.sin(e) * ry) - 1, 1, 1); } // fingertips on his tummy
   }
   function drawAlert(x, y) { // a little "!" speech bubble
     x = Math.round(x); y = Math.round(y) - (Math.floor(time * 8) % 2);
@@ -893,15 +938,17 @@
     g.fillStyle = '#ffffff'; g.fillRect(x - 3, y - 10, 7, 7); g.fillRect(x, y - 3, 1, 1);
     g.fillStyle = '#e8405a'; g.fillRect(x, y - 9, 1, 3); g.fillRect(x, y - 5, 1, 1);
   }
+  const zechInCake = () => KN.falling; // (once he's let go, he drops in behind the strawberries on top)
   function kidnapRender() { // drawn in front of the cake
-    const t = KN.t, armOn = t >= KT.reach && t < KT.end, A0 = armBase(), reaching = t < KT.grab;
-    const hand = () => g.drawImage(A.CREAM_HAND, Math.round(KN.hx) - 6, Math.round(KN.hy) - 6);
-    const side = A0.x < KN.hx - 4 ? -1 : 1; // which side of him the arm comes from
-    if (armOn) drawCreamArm(A0.x, A0.y, KN.holding ? KN.hx + side * 7 : KN.hx, KN.hy);
-    if (armOn && !KN.holding && !reaching) hand();             // letting go: the open hand is behind him
-    if (ZE.mode === 'yank') drawZech();
-    if (armOn && KN.holding) drawGrip(KN.hx, KN.hy, side);
-    if (armOn && reaching) hand();
+    const t = KN.t, armOn = t >= KT.reach && t < KT.end;
+    drawArmBase();
+    if (armOn) drawCreamArm();
+    if (ZE.mode === 'yank') {
+      drawWrap(false);
+      if (!zechInCake()) drawZech();
+      drawWrap(true);
+    }
+    if (armOn && t < KT.grab) g.drawImage(A.CREAM_HAND, Math.round(KN.tip.x) - 6, Math.round(KN.tip.y) - 6); // the open hand, reaching
     if (ZE.mode === 'yank' && t < KT.grab) drawAlert(ZE.x, ZE.y - A.ZECH_H + 1);
   }
 
@@ -1210,7 +1257,7 @@
     let x0, y0, bx, by;
     if (side) { const tot = Wt + 14 + R * 2; x0 = Math.round(mid - tot / 2); y0 = Math.round(T + (ah - Ht - Hf) / 2); bx = x0 + Wt + 14 + R; by = y0 + Math.round((Ht + Hf) * 0.55); }
     else { const tot = Ht + Hf + 12 + R * 2; x0 = Math.round(mid - Wt / 2); y0 = Math.round(T + (ah - tot) / 2); bx = Math.round(mid + Wt * 0.2); by = y0 + Ht + Hf + 12 + R; }
-    const r = clamp(Math.round(Wt * 0.042), 4, 10), sr = clamp(Math.round(Wt * 0.048), 4, 11);
+    const r = clamp(Math.round(Wt * 0.052), 4, 12), sr = clamp(Math.round(Wt * 0.048), 4, 11);
     const ins = r + 4, ring = { L: x0 + ins, R: x0 + Wt - ins, T: y0 + Math.round(ins * 0.85), B: y0 + Ht - Math.round(ins * 0.85) };
     const inner = { x0: ring.L + r + sr * 0.6, x1: ring.R - r - sr * 0.6, y0: ring.T + r * 0.8 + sr * 0.4, y1: ring.B - r * 0.8 - sr * 0.3 };
     const fR = Math.round(sr * 1.6), bagH = clamp(Math.round(Wt * 0.34), 22, 64);
@@ -1241,8 +1288,8 @@
 
   function icingReset() {
     IC.hudB = 110; IC.hudR = 340;
-    const V = cuLayout(), { L, R, T, B } = V.ring, n = clamp(Math.round((2 * (R - L + B - T)) / (V.r * 2 + 4)), 14, 30);
-    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0 })), piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, seq: 0 });
+    const V = cuLayout(), { L, R, T, B } = V.ring, n = clamp(Math.round((2 * (R - L + B - T)) / (V.r * 2 + 4)), 12, 24);
+    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0, done: false, ready: false })), cur: null, kl: false, kr: false, piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, seq: 0 });
     showCloseup(false);
     if (ZE.mode !== 'walk') { zechReset(); Object.assign(ZE, { mode: 'walk', x: bakeSpot().him, y: groundY(), tx: bakeSpot().him, face: 'happy' }); }
     kid.x = bakeSpot().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
@@ -1261,13 +1308,14 @@
     IC.sub = 'intro';
     say([
       'Time to decorate the top!',
-      coarse ? 'Press and hold to squeeze the piping bag, and trace it around the edge to pipe little cream swirls.'
-        : 'Hold the mouse button (or space) to squeeze the piping bag, and trace it around the edge to pipe little cream swirls.',
-    ], () => { IC.sub = 'pipe'; lockT = 0.2; document.body.classList.add('follow'); showCallout(coarse ? 'HOLD & TRACE THE EDGE!' : 'HOLD & TRACE THE EDGE!'); });
+      coarse ? 'Put the nozzle on a dot, then press and hold to squeeze out a cream swirl. Let go when it sparkles!'
+        : 'Put the nozzle on a dot, then hold the mouse button (or space) to squeeze out a cream swirl. Let go when it sparkles!',
+      'One swirl at a time, all the way around the edge.',
+    ], () => { IC.sub = 'pipe'; lockT = 0.2; document.body.classList.add('follow'); showCallout(coarse ? 'HOLD ON A DOT TO SQUEEZE!' : 'HOLD ON EACH DOT TO SQUEEZE A SWIRL!'); });
   }
   function icingTap() {
     const V = cuLayout(), p = cuPtr(V);
-    if (IC.sub === 'pipe') IC.squeeze = true;
+    if (IC.sub === 'pipe') { IC.squeeze = true; IC.cur = pipeSpot(V, { x: p.x, y: p.y - V.lift }); }
     else if (IC.sub === 'berries') {
       if (IC.used >= BERRIES || IC.held) return;
       if (inBowl(V, p)) { IC.held = nextBerry(); IC.used++; sfx.blip(); }            // pick one up…
@@ -1278,13 +1326,29 @@
     } else if (IC.sub === 'sugar') IC.puff += 16;
   }
   function icingRelease() {
-    if (IC.sub === 'pipe') IC.squeeze = false;
+    if (IC.sub === 'pipe') { IC.squeeze = false; if (IC.cur) finishSwirl(cuLayout(), IC.cur); }
     if (IC.held) {
       const V = cuLayout(), p = cuPtr(V), q = { x: p.x, y: p.y - V.lift * 0.5 };
       if (inInner(V, q)) placeBerry(V, { ...IC.held, fx: (q.x - V.x0) / V.Wt, fy: (q.y - V.y0) / V.Ht });
       else { IC.used--; sfx.splat(); } // dropped off the cake: back into the bowl it goes
       IC.held = null;
     }
+  }
+  function pipeSpot(V, tip) { // the empty (or half-piped) dot under the nozzle, if any
+    let best = null, bd = V.r + 6;
+    for (const s of IC.spots) { if (s.done) continue; const q = ringPos(V, s.u), d = Math.hypot(q.x - tip.x, q.y - tip.y); if (d < bd) { bd = d; best = s; } }
+    if (best) IC.u = best.u;
+    return best;
+  }
+  function finishSwirl(V, s) { // she lets go: the nozzle lifts off with a little peak (too small and it waits for a top-up)
+    IC.cur = null;
+    if (s.g < 0.6) return;
+    s.done = true; IC.piped++;
+    setBar(IC.hud.c, IC.piped / IC.spots.length, `${IC.piped}/${IC.spots.length}`);
+    const q = ringPos(V, s.u), perfect = s.g >= 0.85 && s.g <= 1.15;
+    s.perfect = perfect;
+    sfx.pip(perfect ? 1 : 0.4); buzz(perfect ? 14 : 8);
+    for (let i = 0; i < (perfect ? 8 : 3); i++) IC.fx.push({ x: q.x, y: q.y - V.r * 0.6, vx: rand(-35, 35), vy: rand(-45, -10), g: 50, life: 0.45, col: pick(perfect ? ['#ffffff', '#ffe9a0', '#ffd84a'] : ['#ffffff', '#fff3e0']) });
   }
   function placeBerry(V, b) {
     for (const o of IC.placed) { // don't land exactly on top of another one
@@ -1309,24 +1373,29 @@
     if (!IC.shown) return;
     const V = cuLayout(), p = cuPtr(V);
     if (IC.sub === 'pipe') {
-      const auto = keys.left || keys.right;
-      if (auto) { IC.u += ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 0.08 * dt; const q = ringPos(V, IC.u); setCuPtr(V, q.x, q.y + V.lift); }
-      const tip = { x: p.x, y: p.y - V.lift };
-      if (IC.squeeze || auto) {
-        let best = null, bd = V.r + 5;
-        for (const s of IC.spots) { if (s.g >= 1) continue; const q = ringPos(V, s.u), d = Math.hypot(q.x - tip.x, q.y - tip.y); if (d < bd) { bd = d; best = s; } }
-        if (best) {
-          best.g = Math.min(1, best.g + dt * 4);
-          if (best.g >= 1) {
-            IC.piped++;
-            setBar(IC.hud.c, IC.piped / IC.spots.length, `${IC.piped}/${IC.spots.length}`);
-            sfx.pip(IC.piped / IC.spots.length); buzz(8);
-            const q = ringPos(V, best.u);
-            for (let i = 0; i < 5; i++) IC.fx.push({ x: q.x, y: q.y - V.r * 0.6, vx: rand(-35, 35), vy: rand(-45, -10), g: 50, life: 0.45, col: pick(['#ffffff', '#ffe9a0', '#ffd84a']) });
-          }
+      // (keyboard: the arrows hop the nozzle to the next empty dot, space squeezes)
+      for (const [k, dir] of [['kl', -1], ['kr', 1]]) {
+        const down = dir < 0 ? keys.left : keys.right;
+        if (down && !IC[k] && !IC.cur) {
+          const n = IC.spots.length, here = Math.round((((IC.u % 1) + 1) % 1) * n) % n, h0 = ringPos(V, IC.spots[here].u);
+          const onIt = Math.hypot(h0.x - p.x, h0.y + V.lift - p.y) < 2;
+          for (let j = onIt || IC.spots[here].done ? 1 : 0; j <= n; j++) { const s = IC.spots[(((here + dir * j) % n) + n) % n]; if (!s.done) { IC.u = s.u; const q = ringPos(V, s.u); setCuPtr(V, q.x, q.y + V.lift); sfx.blip(); break; } }
         }
-        if ((IC.sq -= dt) <= 0) { IC.sq = 0.07; sfx.squish(); }
-        if (Math.random() < dt * 30) IC.fx.push({ x: tip.x + rand(-1, 1), y: tip.y, vx: rand(-6, 6), vy: rand(4, 14), g: 40, life: 0.25, col: '#ffffff' });
+        IC[k] = down;
+      }
+      const tip = { x: p.x, y: p.y - V.lift }, c = IC.cur;
+      if (c) {
+        const q = ringPos(V, c.u);
+        if (Math.hypot(q.x - tip.x, q.y - tip.y) > V.r * 2.4) finishSwirl(V, c); // slid off the dot: the nozzle lifts
+        else {
+          c.g = Math.min(1.4, c.g + dt / 0.55); // the swirl builds up while she squeezes
+          if (!c.ready && c.g >= 0.85) { // just right: it sparkles
+            c.ready = true; sfx.blip();
+            for (let i = 0; i < 4; i++) IC.fx.push({ x: q.x + rand(-V.r, V.r), y: q.y - V.r * 0.4 + rand(-3, 1), vx: rand(-12, 12), vy: rand(-22, -8), g: 20, life: 0.4, col: pick(['#ffe9a0', '#ffd84a', '#ffffff']) });
+          }
+          if ((IC.sq -= dt) <= 0) { IC.sq = 0.08; sfx.squish(); }
+          if (Math.random() < dt * 24) IC.fx.push({ x: q.x + rand(-2, 2), y: q.y - 1, vx: rand(-10, 10), vy: rand(-8, 4), g: 40, life: 0.2, col: '#ffffff' });
+        }
       }
       if (IC.piped >= IC.spots.length) {
         IC.sub = 'piped'; IC.squeeze = false; hideCallout(); document.body.classList.remove('follow');
@@ -1470,14 +1539,20 @@
     for (const { s, q } of spots) {
       const X = Math.round(q.x), Y = Math.round(q.y);
       if (s.g <= 0) {
-        const near = IC.sub === 'pipe' && Math.hypot(q.x - tip.x, q.y - tip.y) < V.r + 5, rx = V.r * 0.8, ry = V.r * 0.66;
+        const near = IC.sub === 'pipe' && !IC.cur && Math.hypot(q.x - tip.x, q.y - tip.y) < V.r + 6, rx = V.r * 0.8, ry = V.r * 0.66;
         x.fillStyle = near ? '#ffcf4a' : Math.floor(IC.t * 2 + s.u * 8) % 2 ? '#e3cfb3' : '#eddcc5';
         for (let a = 0; a < 6.28; a += 0.62) x.fillRect(Math.round(X + Math.cos(a) * rx), Math.round(Y + Math.sin(a) * ry), 1, 1);
         continue;
       }
-      const st = Math.max(1, Math.ceil(s.g * 5)), img = CU.rosette(V.r, st);
+      const big = s.g > 1.15 ? 1 : s.g < 0.85 && s.done ? -1 : 0; // (overfilled ones are a bit bigger, early ones a bit smaller)
+      const img = CU.rosette(V.r + big, s.done ? 5 : s.g >= 0.85 ? 4 : clamp(Math.ceil((s.g / 0.85) * 4), 1, 4));
       shade(X + 1, Y + img.height * 0.32, img.width * 0.42, 2, '150,110,60');
       x.drawImage(img, X - Math.floor(img.width / 2), Y - Math.floor(img.height / 2));
+      if (!s.done && s.g < 0.6 && IC.cur !== s) { x.fillStyle = Math.floor(IC.t * 3) % 2 ? '#ffcf4a' : '#eddcc5'; x.fillRect(X, Y - Math.floor(img.height / 2) - 2, 1, 1); } // (needs a top-up)
+      if ((s.ready && !s.done && s.g <= 1.15) || (s.perfect && Math.floor(IC.t * 2 + s.u * 13) % 7 === 0)) { // a twinkle on the just-right ones
+        const gx = X + Math.round(V.r * 0.45), gy = Y - Math.round(V.r * 0.5);
+        x.fillStyle = '#ffffff'; x.fillRect(gx, gy - 1, 1, 3); x.fillRect(gx - 1, gy, 3, 1); x.fillStyle = '#ffe9a0'; x.fillRect(gx, gy, 1, 1);
+      }
     }
     // strawberries on the cake (with a little squash as they land), frosting over as the sugar falls on them
     for (const b of IC.placed.slice().sort((a, c) => a.fy - c.fy)) {
@@ -1534,8 +1609,10 @@
     const ghost = IC.shown && (tip.y - (IC.sub === 'pipe' ? V.bagH : V.fR * 2)) * V.P < IC.hudB && (tip.x - V.bagH * 0.4) * V.P < IC.hudR;
     if (ghost !== IC.ghost) { IC.ghost = ghost; $('#stageBox').classList.toggle('ghost', ghost); }
     if (IC.sub === 'pipe' || IC.sub === 'intro') {
-      const squeezing = IC.sub === 'pipe' && (IC.squeeze || keys.left || keys.right), bag = CU.pipingBag(V.bagH, squeezing);
-      x.drawImage(bag, Math.round(tip.x - bag.width / 2 + 2), Math.round(tip.y - bag.height + 1));
+      const squeezing = IC.sub === 'pipe' && IC.squeeze, bag = CU.pipingBag(V.bagH, squeezing);
+      let bx = tip.x, by = tip.y;
+      if (IC.cur) { const q = ringPos(V, IC.cur.u); bx = q.x; by = q.y - V.r * (0.35 + 0.45 * Math.min(1, IC.cur.g)); } // on the dot, rising as the swirl builds
+      x.drawImage(bag, Math.round(bx - bag.width / 2 + 2), Math.round(by - bag.height + 1));
     } else if (IC.held) {
       const img = CU.berry(V.sr, IC.held.kind, IC.held.ang), Y = p.y - V.lift * 0.5;
       shade(p.x + 4, Y + V.sr * 0.9, V.sr * 0.8, Math.max(2, V.sr * 0.28));
@@ -1634,7 +1711,7 @@
       g.fillStyle = '#3d7bff'; pixLine(iw / 2, 0, iw / 2 + (endX - iw / 2) * reach, endY);
       g.fillStyle = '#a9d0ff'; pixLine(iw / 2 + 1, 0, iw / 2 + 1 + (endX - iw / 2) * reach, endY);
     }
-    if (ZE.mode === 'ontop') drawZech(); // the cake covers his legs
+    if (ZE.mode === 'ontop' || (ZE.mode === 'yank' && zechInCake())) drawZech(); // the cake covers his legs
     const n = K.layers;
     if (n > 0) {
       const cut = CAKE.layerCuts[n - 1], prevCut = n > 1 ? CAKE.layerCuts[n - 2] : CAKE.h;
@@ -1656,14 +1733,14 @@
     { key: 'catch', title: 'Strawberry Catch', how: () => (coarse ? 'Drag left & right to catch!' : 'Move left & right to catch!'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
     { key: 'sponge', title: 'Fluffy Sponge', how: () => (coarse ? 'Press and hold to bake, let go at the line!' : 'Hold to bake, let go at the line!'), reset: spongeReset, begin: spongeBegin, update: spongeUpdate, tap: spongeTap, release: spongeRelease },
     { key: 'whip', title: 'Whipped Cream Showdown', how: () => (coarse ? 'Tap as fast as you can!' : 'Click as fast as you can!'), reset: whipReset, begin: whipBegin, update: whipUpdate, tap: whipTap },
-    { key: 'icing', title: 'Icing on Top', how: () => 'Pipe cream swirls, add strawberries, then dust with sugar!', reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap, release: icingRelease },
+    { key: 'icing', title: 'Icing on Top', how: () => 'Squeeze cream swirls one by one, add strawberries, then dust with sugar!', reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap, release: icingRelease },
     { key: 'boss', title: 'Piñata Cake Monster', how: () => `${coarse ? 'Tap' : 'Click'} to jump & swing your baguette and rescue ${C.opponentName}!`, reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
   ];
   const stageIndex = (key) => STAGES.findIndex((st) => st.key === key);
   function clearStageUi() {
     resetText(); hideCallout();
     document.body.classList.remove('hud-stage', 'boss', 'follow', 'closeup');
-    cuCv.classList.remove('on'); IC.shown = false; IC.held = null; IC.squeeze = false;
+    cuCv.classList.remove('on'); IC.shown = false; IC.held = null; IC.squeeze = false; IC.cur = null;
     if (IC.ghost) { IC.ghost = false; $('#stageBox').classList.remove('ghost'); }
   }
   function showCard(i, keepCake) {
@@ -2080,7 +2157,7 @@
         let on = 0; for (const s of IC.specks) if (s.on) on++;
         return {
           sub: IC.sub, piped: IC.piped, n: IC.spots.length, placed: IC.placed.length, used: IC.used, held: !!IC.held, sugar: on / SUGAR_GOAL, shown: IC.shown, lift: V.lift * k,
-          ring: IC.spots.map((s) => { const q = ringPos(V, s.u); return { ...sp(q.x, q.y + V.lift), done: s.g >= 1 }; }),
+          ring: IC.spots.map((s) => { const q = ringPos(V, s.u); return { ...sp(q.x, q.y + V.lift), done: s.done, g: s.g, perfect: !!s.perfect }; }),
           bowl: sp(V.bx, V.by), cake: { x0: V.x0 * k, y0: V.y0 * k, x1: V.x1 * k, y1: V.y1 * k },
           inner: { x0: V.inner.x0 * k, y0: V.inner.y0 * k, x1: V.inner.x1 * k, y1: V.inner.y1 * k },
         };
