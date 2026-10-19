@@ -2717,7 +2717,10 @@
     body.innerHTML = '';
     dialog.classList.remove('done');
     const ps = C.letter.map(() => { const p = document.createElement('p'); body.appendChild(p); return p; });
-    let pi = 0, ci = 0, tick = 0;
+    let pi = 0, ci = 0, tick = 0, follow = true;
+    letter.scrollTop = 0;
+    const stop = () => { follow = false; }; // (once she scrolls herself, the letter stops following the typing)
+    for (const ev of ['wheel', 'touchstart']) letter.addEventListener(ev, stop, { once: true, passive: true });
     const finish = () => {
       clearInterval(typer); typer = null;
       ps.forEach((p, i) => { p.textContent = C.letter[i]; p.classList.remove('typing'); });
@@ -2730,6 +2733,7 @@
       p.classList.add('typing');
       ci = Math.min(full.length, ci + 2);
       p.textContent = full.slice(0, ci);
+      if (follow) { const over = p.getBoundingClientRect().bottom - (innerHeight - 28); if (over > 0) letter.scrollTop += Math.min(over, 6); } // (long letters: keep the line being typed on screen)
       if (tick++ % 3 === 0) sfx.tick();
       if (ci >= full.length) { p.classList.remove('typing'); pi++; ci = 0; if (pi >= ps.length) finish(); }
     }, 35);
