@@ -6,7 +6,7 @@
     opponentName: 'Zech',
     whipTaps: 40,
     strawberriesToCatch: 15,
-    hitsToBreak: 5,
+    hitsToBreak: 8,
     bossName: 'Giant Strawberry Cake',
     startScreen: "I couldn't be there today, so little you is baking a giant 성심당딸기시루케이크: catch the strawberries, bake the sponges, beat me at whipping the cream, then stack it up and ice it (and deal with whatever happens next).",
     greeting: 'Dear {name},',
@@ -56,7 +56,7 @@
     c.opponentName = String(c.opponentName ?? '').trim() || DEFAULTS.opponentName;
     const age = parseInt(c.age, 10);
     c.age = Number.isFinite(age) && age > 0 ? age : null;
-    c.hitsToBreak = int(c.hitsToBreak, 1, 50, 5);
+    c.hitsToBreak = int(c.hitsToBreak, 1, 50, 8);
     c.whipTaps = int(c.whipTaps, 10, 200, 40);
     c.strawberriesToCatch = int(c.strawberriesToCatch, 3, 60, 15);
     const fill = (s) => String(s ?? '')
@@ -220,6 +220,7 @@
       blip: () => play((t) => tone(rand(860, 980), t, 0.025, 0.045)),
       rise: (r) => play((t) => tone(320 + r * 520, t, 0.05, 0.03, 'triangle')),
       squish: () => play((t) => noise(t, 0.05, 0.05, 900, 'lowpass')),
+      tvOn: () => play((t) => { tone(1800, t, 0.03, 0.04, 'square'); noise(t + 0.05, 0.6, 0.05, 3000, 'highpass'); tone(15000, t + 0.05, 0.4, 0.01, 'sine'); }),
       ding: () => play((t) => { tone(1568, t, 0.5, 0.07, 'sine'); tone(2093, t + 0.01, 0.6, 0.04, 'sine'); tone(3136, t, 0.15, 0.02, 'sine'); }),
       sift: () => play((t) => noise(t, 0.04, 0.03, 5000, 'highpass')),
       pip: (k) => play((t) => { tone(660 + k * 520, t, 0.05, 0.05, 'triangle'); tone(990 + k * 780, t + 0.04, 0.06, 0.04, 'sine'); }),
@@ -228,7 +229,9 @@
   })();
 
   /* ================= layout: a low-res canvas scaled up with crisp pixels ================= */
-  let S = 4, iw = 0, ih = 0, room = null, floorY = 0, balloons = [], tinsel = null, ropeTarget = 30;
+  let S = 4, iw = 0, ih = 0, room = null, roomTin = null, floorY = 0, balloons = [], tinsel = null, letters = [], tv = null, tvPic = null, ropeTarget = 30;
+  // the birthday decorations: the TV is off and there's no HAPPY BIRTHDAY banner until the monster's beaten (deco = seconds since then)
+  let deco = -1;
   const ptr = { x: 0, y: 0 };
   const kid = { x: 0, y: 0, vx: 0, vy: 0, face: 1, walkT: 0, happyT: 0, dustT: 0, hopT: 0, hug: false, jy: 0, jv: 0 }; // jy/jv: jump height/speed
   const parts = [];
@@ -241,8 +244,10 @@
     iw = Math.ceil(W / S); ih = Math.ceil(H / S);
     cv.width = iw; cv.height = ih;
     cv.style.width = iw * S + 'px'; cv.style.height = ih * S + 'px';
-    const r = A.buildRoom(iw, ih, { age: C.age, top: Math.ceil(80 / S) }); // the HUD boxes cover roughly the top 80px
-    room = r.canvas; floorY = r.floorY; balloons = r.balloons; tinsel = r.tinsel;
+    const ro = { age: C.age, top: Math.ceil(80 / S), letters: false, tvOn: false }; // (the HUD boxes cover roughly the top 80px)
+    const r = A.buildRoom(iw, ih, ro); // the room with the tinsel curtain (it unrolls down the wall when the banner comes)…
+    room = A.buildRoom(iw, ih, { ...ro, tinsel: false }).canvas; // …and without it
+    roomTin = r.canvas; floorY = r.floorY; balloons = r.balloons; tinsel = r.tinsel; letters = r.letters; tv = r.tv; tvPic = r.tvPic;
     ropeTarget = Math.max(4, groundY() - 38 - CAKE.h); // the piñata hangs just above her crown: jump to whack it
     document.documentElement.style.setProperty('--env-w', 34 * Math.max(4, S) + 'px');
     if (oldW > 0 && oldH > 0) {
@@ -383,7 +388,7 @@
     if (phase === 'bake') return { x: bakeSpot().her, y: groundY() - A.GIRL_H / 2 + 1 };
     // otherwise she runs left/right after the pointer (or the arrow keys), feet always on the floor
     if (keys.left || keys.right) ptr.x = clamp(ptr.x + ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 2.2, 0, iw);
-    return { x: inStage('catch') && CT.dizzyT > 0 ? kid.x : ptr.x, y: groundY() - A.GIRL_H / 2 + 1 };
+    return { x: (inStage('catch') && CT.dizzyT > 0) || (inStage('boss') && B.stunT > 0) ? kid.x : ptr.x, y: groundY() - A.GIRL_H / 2 + 1 };
   }
   function updateKid(dt) {
     const t = kidTarget();
@@ -799,12 +804,19 @@
         if (k === 0) { for (let Y2 = spy; Y2 < Sf.cy; Y2++) R(Y2 % 3 ? '#fff6e4' : '#ffffff', spx + Math.sin(Y2 * 0.4 + t * 20) * 0.6, Y2, 2, 1); ell(spx, Sf.cy, 4, 1.5, '#ffffff'); }
       }
     }
-    // ---- her hand on the whisk handle, coming in from the bottom right
-    const hdx = cx + rx * 0.95 + Math.cos(wa) * 3 * (1 - lifted), hdy = V.h - 4 + Math.sin(wa) * 2 - lifted * rx * 0.5;
-    cuLine(x, hub.x, hub.y, hdx, hdy, 5, A.OUT); cuLine(x, hub.x, hub.y, hdx, hdy, 3, '#ff9ec4'); cuLine(x, hub.x + 1, hub.y - 1, hdx + 1, hdy - 1, 1, '#ffd0e2');
-    R(A.OUT, hdx - 6, hdy - 5, 13, 11); R('#ffe2c4', hdx - 5, hdy - 4, 11, 9); R('#f5c9a6', hdx - 5, hdy + 2, 11, 3); R('#ffffff', hdx - 3, hdy - 3, 3, 1);
-    for (let k = 0; k < 3; k++) R('#e8b48f', hdx - 4 + k * 3, hdy - 4, 1, 4);
-    R(A.OUT, hdx + 3, hdy + 1, 14, 12); R('#cfe2ff', hdx + 4, hdy + 2, 12, 10); R('#ffffff', hdx + 4, hdy + 2, 12, 2); // her sleeve
+    // ---- a short, chunky whisk handle in her fist, and her arm coming in from the bottom right
+    const shX = cx + rx * 1.15 + Math.cos(wa) * 2 * (1 - lifted), shY = V.h + 14 - lifted * rx * 0.4; // (where her arm comes from, off screen)
+    const dl = Math.hypot(shX - hub.x, shY - hub.y) || 1, ux = (shX - hub.x) / dl, uy = (shY - hub.y) / dl, hl = Math.max(10, Math.round(whL * 0.55));
+    const ex = hub.x + ux * hl, ey = hub.y + uy * hl, fx = ex + ux * 5, fy = ey + uy * 5; // handle end, her fist
+    const hw = Math.max(5, Math.round(rx * 0.065));
+    cuLine(x, fx, fy, shX, shY, hw * 2 + 6, A.OUT); cuLine(x, fx, fy, shX, shY, hw * 2 + 3, '#cfe2ff'); cuLine(x, fx + ux * 6 - 1, fy + uy * 6 - 1, shX - 1, shY - 1, 2, '#e8f2ff'); // her sleeve
+    cuLine(x, fx + ux * 3, fy + uy * 3, fx + ux * 6, fy + uy * 6, hw * 2 + 5, A.OUT); cuLine(x, fx + ux * 3, fy + uy * 3, fx + ux * 6, fy + uy * 6, hw * 2 + 3, '#ffffff'); // a frilly white cuff
+    cuLine(x, hub.x, hub.y, ex + ux * 4, ey + uy * 4, hw + 3, A.OUT); cuLine(x, hub.x, hub.y, ex + ux * 4, ey + uy * 4, hw + 1, '#ff9ec4'); // the handle…
+    cuLine(x, hub.x - uy, hub.y + ux, ex - uy, ey + ux, 1, '#ffd0e2');
+    for (const f of [0.3, 0.55]) { const gx = hub.x + ux * hl * f, gy = hub.y + uy * hl * f; cuLine(x, gx - uy * hw * 0.6, gy + ux * hw * 0.6, gx + uy * hw * 0.6, gy - ux * hw * 0.6, 1, '#e8709f'); } // (grip rings)
+    R(A.OUT, fx - hw - 2, fy - hw - 2, hw * 2 + 5, hw * 2 + 4); R('#ffe2c4', fx - hw - 1, fy - hw - 1, hw * 2 + 3, hw * 2 + 2); // …in her fist
+    R('#f5c9a6', fx - hw - 1, fy + hw - 1, hw * 2 + 3, 2); R('#ffffff', fx - hw, fy - hw, 3, 1);
+    for (let k = 0; k < 3; k++) R('#e8b48f', fx - hw + 1 + k * Math.max(2, Math.round(hw * 0.7)), fy - hw - 1, 1, hw + 1); // (her fingers)
     // ---- splashes, sugar, drips
     for (const f of WV.fx) { if (f.life < 0.1 && Math.floor(f.life * 50) % 2) continue; R(f.col, f.x, f.y, f.size || 1, f.size || 1); }
     // ---- which one next: a bouncing arrow over it
@@ -1229,14 +1241,14 @@
      STAGE 5: the giant strawberry cake boss (the piñata cake monster)
      ===================================================================== */
   const cake = { show: false, alive: false, hp: 5, rope: -80, ropeV: 0, theta: 0, omega: 0, landed: false, flashT: 0, blinkT: 0, shakeT: 0, hurtT: 0, faintT: 0 };
-  const B = { sub: 'idle', hits: 0, hitCD: 0, swingCD: 0, swingT: 0, swingIn: 0 };
+  const B = { sub: 'idle', hits: 0, hitCD: 0, swingCD: 0, swingT: 0, swingIn: 0, ph: 0, atkT: 0, warnT: 0, blobs: [], stunT: 0, yank: 0, yankT: 0, yankCD: 0, armorT: 0, armored: false, tipT: 0, puddles: [] };
   const cakeX = () => Math.round(iw / 2 + cake.rope * Math.sin(cake.theta) - CAKE.ropeX);
   const cakeY = () => Math.round(cake.rope * Math.cos(cake.theta));
   const ropeK = () => clamp(45 / Math.max(1, ropeTarget), 0.3, 1); // same sideways swing whatever the rope length
   const inCake = (px, py) => { const x0 = cakeX(), y0 = cakeY(); return px >= x0 + 1 && px <= x0 + CAKE.w - 2 && py >= y0 + 3 && py <= y0 + CAKE.h - 2; };
 
   function bossReset(keepCake) {
-    Object.assign(B, { sub: 'idle', hits: 0, hitCD: 0, swingCD: 0, swingT: 0, swingIn: 0 });
+    Object.assign(B, { sub: 'idle', hits: 0, hitCD: 0, swingCD: 0, swingT: 0, swingIn: 0, ph: 0, atkT: 3.5, warnT: 0, blobs: [], stunT: 0, yank: 0, yankT: 0, yankCD: 7, armorT: 0, armored: false, tipT: 6, puddles: [] });
     Object.assign(cake, { hp: C.hitsToBreak, flashT: 0, blinkT: 0, shakeT: 0, hurtT: 0, faintT: 0 });
     if (keepCake) Object.assign(cake, { show: true, alive: true, rope: ropeTarget, ropeV: 0, theta: 0, omega: 0, landed: true });
     else Object.assign(cake, { show: false, alive: false, rope: -CAKE.h - 12, ropeV: 0, theta: rand(-0.2, 0.2), omega: 0, landed: false });
@@ -1252,13 +1264,13 @@
     flashEl.classList.remove('go'); retrigger(flashEl, 'twice');
     sfx.battle();
     const intro = cake.landed ? `The ${BOSS()} is holding ${OPP()} hostage!` : `A wild ${BOSS()} appeared… and it kidnapped ${OPP()}!`;
-    later(800, () => say([intro, `Go, ${NAME()}! Whack it with your baguette and rescue ${OPP()}!`], () => {
+    later(800, () => say([intro, `Go, ${NAME()}! Whack it with your baguette and rescue ${OPP()}!`, 'Careful: it swings about on its rope, and it spits whipped cream!'], () => {
       B.sub = 'battle';
       hint(coarse ? 'DRAG TO MOVE · TAP TO JUMP + SWING' : 'MOVE TO WALK · CLICK TO JUMP + SWING');
     }));
   }
   function bossTap() {
-    if (B.sub !== 'battle' || B.swingCD > 0) return;
+    if (B.sub !== 'battle' || B.swingCD > 0 || B.stunT > 0) return; // (no swinging while she's covered in cream)
     B.swingCD = 0.3;
     if (kid.jy === 0 && kid.jv === 0) { kid.jv = -167; B.swingIn = 0.1; sfx.blip(); } // jump (about 20px up)…
     else B.swingIn = 0.001;                                                           // (already in the air: just swing)
@@ -1271,18 +1283,26 @@
   }
   function updateCake(dt) {
     if (!cake.show) return;
-    const target = cake.alive ? ropeTarget : -CAKE.h - 12;
+    const fighting = cake.alive && inStage('boss') && B.sub === 'battle';
+    const target = cake.alive ? ropeTarget - B.yank * Math.min(26, ropeTarget * 0.45) : -CAKE.h - 12;
     cake.ropeV += ((target - cake.rope) * (cake.alive ? 70 : 12) - cake.ropeV * (cake.alive ? 7 : 5)) * dt;
     cake.rope += cake.ropeV * dt;
     if (cake.alive && !cake.landed && cake.rope >= ropeTarget) { cake.landed = true; shakeT = 0.25; shakeA = 1; sfx.thud(); }
-    const low = cake.alive && cake.hp / C.hitsToBreak <= 0.4;
-    cake.omega += (-7 * Math.sin(cake.theta) - 0.5 * cake.omega + (low ? rand(-6, 6) * ropeK() : 0)) * dt;
+    if (fighting) { // it swings itself from side to side: wider and faster the more it's been hurt
+      const hurt = 1 - cake.hp / C.hitsToBreak, reach = Math.max(10, iw / 2 - CAKE.w / 2 - 6);
+      B.ph += dt * (1.3 + 1.1 * hurt) * (1 + 0.3 * Math.sin(time * 0.6));
+      const amp = Math.asin(clamp(Math.min(reach, 16 + 26 * hurt) / Math.max(20, cake.rope), 0, 0.95));
+      cake.omega += ((amp * Math.sin(B.ph) - cake.theta) * 22 - cake.omega * 3.2) * dt;
+    } else cake.omega += (-7 * Math.sin(cake.theta) - 0.5 * cake.omega) * dt;
     cake.theta = clamp(cake.theta + cake.omega * dt, -1, 1);
     for (const k of ['flashT', 'blinkT', 'shakeT', 'hurtT']) cake[k] -= dt;
     if (cake.faintT > 0 && (cake.faintT -= dt) <= 0) burst();
   }
   function bossUpdate(dt) {
     B.swingCD -= dt; B.swingT -= dt; B.hitCD -= dt;
+    if (B.stunT > 0) B.stunT -= dt;
+    if (B.sub === 'battle' && cake.alive) bossAttacks(dt);
+    updateBlobs(dt);
     if (B.swingIn > 0 && (B.swingIn -= dt) <= 0) { B.swingIn = 0; if (B.sub === 'battle') bossSwing(); }
     updateCake(dt);
     if (B.sub === 'battle' && cake.alive && B.swingT > 0 && B.hitCD <= 0) {
@@ -1313,6 +1333,12 @@
     playerExp.style.width = (Math.min(B.hits, C.hitsToBreak) / C.hitsToBreak) * 100 + '%';
   }
   function onHit(x, y) {
+    if (B.armorT > 0) { // cream armour: the baguette just bounces off
+      B.hitCD = 0.25; cake.shakeT = 0.15; bag.w *= -0.6; sfx.thud();
+      popWord(x, y, 'BLOCKED!', false, '#c9d1e3');
+      for (let i = 0; i < 5; i++) parts.push({ x, y, vx: rand(-40, 40), vy: rand(-50, -10), g: 200, life: 0.5, col: '#ffffff', size: 1, ground: floorY + 4 });
+      return;
+    }
     B.hits++;
     cake.hp = Math.max(0, C.hitsToBreak - B.hits);
     B.hitCD = 0.25; stopT = 0.07; shakeT = 0.2; shakeA = 1;
@@ -1326,7 +1352,82 @@
     updateBossBars(); retrigger(bossBox, 'hurt');
     if (B.hits === 1) hideHint();
     if (navigator.vibrate) navigator.vibrate(30);
-    if (last) { B.sub = 'win'; cake.faintT = 1.1; stopT = 0.25; sfx.faint(); }
+    if (last) { B.sub = 'win'; cake.faintT = 1.1; stopT = 0.25; sfx.faint(); B.blobs.length = 0; B.yank = 0; B.armorT = 0; B.warnT = 0; }
+    else if (!B.armored && cake.hp / C.hitsToBreak <= 0.5) later(450, () => { // half way: it covers itself in whipped cream armour for a bit
+      if (B.sub !== 'battle' || !cake.alive) return;
+      B.armored = true; B.armorT = 4.5; sfx.squish(); cake.shakeT = 0.4;
+      popWord(cakeX() + CAKE.w / 2, cakeY() - 6, 'CREAM ARMOR!', false, '#ffffff');
+    });
+  }
+  // the monster fights back: it spits whipped cream at her (a warning "!" first), and now and then it yanks
+  // itself up out of reach and slams back down (which knocks her back if she's right underneath)
+  function bossAttacks(dt) {
+    const hurt = 1 - cake.hp / C.hitsToBreak, cx = cakeX() + CAKE.faceX + 15, cy = cakeY() + CAKE.faceY + 8; // (it spits them out of its mouth)
+    if (B.armorT > 0 && (B.armorT -= dt) <= 0) { // the armour melts away
+      sfx.splat(); popWord(cx, cakeY() - 6, 'ARMOR MELTED!', false, '#ffd84a');
+      for (let i = 0; i < 16; i++) parts.push({ x: cx + rand(-CAKE.w / 2, CAKE.w / 2), y: cy + rand(-10, 6), vx: rand(-30, 30), vy: rand(-20, 10), g: 260, life: 1.2, col: pick(['#ffffff', '#fffaf1']), size: pick([1, 2]), ground: floorY + rand(2, 8) });
+    }
+    if (B.warnT > 0) {
+      if ((B.warnT -= dt) <= 0) { // ptoo! one to three blobs of cream, aimed where she is
+        const n = hurt > 0.6 ? 3 : hurt > 0.25 ? 2 : 1;
+        for (let i = 0; i < n; i++) {
+          const tx = clamp(kid.x + (i - (n - 1) / 2) * 16 + kid.vx * 0.35, 8, iw - 8), T = 0.85 + i * 0.08, gy = 220;
+          B.blobs.push({ x: cx, y: cy, vx: (tx - cx) / T, vy: (groundY() - 6 - cy - 0.5 * gy * T * T) / T, g: gy, t: 0 });
+        }
+        sfx.whoosh();
+      }
+    } else if (B.yankT <= 0 && (B.atkT -= dt) <= 0) { B.atkT = rand(2.4, 3.6) - 1.0 * hurt; B.warnT = 0.55; }
+    // yanking itself up out of reach, then the slam
+    if (B.yankT > 0) {
+      B.yankT -= dt; B.yank = Math.min(1, B.yank + dt * 4);
+      if (B.yankT <= 0) { B.yank = 0; later(260, () => { if (B.sub !== 'battle' || !cake.alive) return; // it comes crashing back down
+        shakeT = 0.3; shakeA = 2; sfx.thud();
+        if (Math.abs(kid.x - (cakeX() + CAKE.w / 2)) < CAKE.w * 0.45 && B.stunT <= 0) { B.stunT = 0.6; kid.vx = Math.sign(kid.x - (cakeX() + CAKE.w / 2) || 1) * 160; ptr.x = kid.x + Math.sign(kid.vx) * 30; kid.jv = -90; popWord(kid.x, kid.y - 24, 'OOF!', false, '#ffffff'); }
+      }); }
+    } else if (B.hits > 0 && (B.yankCD -= dt) <= 0 && B.warnT <= 0) {
+      B.yankCD = rand(6, 9) - 2 * hurt; B.yankT = 1.3;
+      popWord(cx, cakeY() - 6, pick(['HA! TOO SLOW!', 'NOPE!', 'CAN\'T REACH ME!']), false, '#ffc2d6'); sfx.whoosh();
+    }
+    if ((B.tipT -= dt) <= 0) { // Zech shouts tips from the top of the cake
+      B.tipT = rand(5, 7);
+      if (ZE.mode === 'ontop') popWord(ZE.x, ZE.y - 26, pick(['Hit it when it swings over you!', 'Dodge the cream!', 'Wait for it to come down!', `GO ${NAME()}!`]), false, '#d6f5c4');
+    }
+  }
+  function updateBlobs(dt) {
+    for (let i = B.blobs.length - 1; i >= 0; i--) {
+      const b = B.blobs[i]; b.t += dt; b.vy += b.g * dt; b.x += b.vx * dt; b.y += b.vy * dt;
+      const hx = kid.x, hy = kid.y + kid.jy - 4;
+      if (B.sub === 'battle' && B.stunT <= 0 && Math.abs(b.x - hx) < 8 && Math.abs(b.y - hy) < 14) { // splat! right on her
+        B.blobs.splice(i, 1); B.stunT = 1.0; sfx.splat(); kid.jv = Math.min(kid.jv, 0);
+        popWord(kid.x, kid.y - 26, 'SPLAT!', false, '#ffffff');
+        for (let k = 0; k < 10; k++) parts.push({ x: b.x, y: b.y, vx: rand(-50, 50), vy: rand(-60, -10), g: 260, life: 0.8, col: pick(['#ffffff', '#fffaf1', '#ffb3cf']), size: pick([1, 2]), ground: groundY() + rand(0, 3) });
+        continue;
+      }
+      if (b.y >= groundY() - 2) { // missed: it splats on the floor and leaves a puddle for a while
+        B.blobs.splice(i, 1); sfx.splat();
+        B.puddles.push({ x: b.x, t: 4 });
+        for (let k = 0; k < 6; k++) parts.push({ x: b.x, y: groundY() - 2, vx: rand(-40, 40), vy: rand(-40, -10), g: 260, life: 0.6, col: pick(['#ffffff', '#fffaf1']), size: 1, ground: groundY() + rand(0, 3) });
+      }
+    }
+    for (let i = B.puddles.length - 1; i >= 0; i--) if ((B.puddles[i].t -= dt) <= 0) B.puddles.splice(i, 1);
+  }
+  function drawBossExtras() { // cream puddles, flying blobs, the warning, the armour, cream on her
+    if (!inStage('boss')) return;
+    const R = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); };
+    for (const p of B.puddles) { const a = Math.min(1, p.t); g.globalAlpha = a; R('#e6dccd', p.x - 6, groundY() + 1, 12, 2); R('#ffffff', p.x - 5, groundY() + 1, 10, 1); R('#fffaf1', p.x - 3, groundY(), 6, 1); g.globalAlpha = 1; }
+    for (const b of B.blobs) { // a dollop of whipped cream with a swirl of strawberry sauce, dripping as it flies
+      const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
+      for (let k = 1; k <= 3; k++) R(k < 3 ? '#ffffff' : '#fffaf1', b.x - ux * k * 3, b.y - uy * k * 3, 2, 2);
+      disc(b.x, b.y, 5, A.OUT); disc(b.x, b.y, 4, '#ffffff'); disc(b.x + 1, b.y + 1, 2, '#f4ece0');
+      R('#ffb3cf', b.x - 2, b.y - 1, 3, 1); R('#ff8fb0', b.x, b.y, 2, 1); R('#ffffff', b.x - 2, b.y - 3, 2, 1);
+    }
+    if (B.warnT > 0 && cake.alive) { const x = cakeX() + CAKE.w / 2, y = cakeY() - 4 - (Math.floor(time * 10) % 2); R(A.OUT, x - 3, y - 11, 7, 10); R('#ff6b6b', x - 2, y - 10, 5, 8); R('#ffffff', x, y - 9, 1, 4); R('#ffffff', x, y - 4, 1, 1); }
+    if (B.armorT > 0 && cake.alive && Math.floor(time * 8) % 3) { g.globalAlpha = 0.45; g.drawImage(CAKE.white, cakeX(), cakeY() + (Math.floor(time * 2) % 2)); g.globalAlpha = 1; }
+    if (B.stunT > 0) { // covered in whipped cream (and seeing stars)
+      const hx = Math.round(kid.x), hy = Math.round(kid.y + kid.jy - A.GIRL_H / 2);
+      R('#ffffff', hx - 5, hy + 1, 10, 3); R('#ffffff', hx - 3, hy - 1, 6, 2); R('#fffaf1', hx + 2, hy + 4, 2, 3); R('#ffffff', hx - 4, hy + 8, 2, 2);
+      g.fillStyle = '#ffd84a'; for (let k = 0; k < 3; k++) { const a = time * 7 + k * 2.1; g.fillRect(Math.round(hx + Math.cos(a) * 9), Math.round(hy - 3 + Math.sin(a) * 2), 2, 2); }
+    }
   }
   function burst() {
     cake.alive = false;
@@ -1349,6 +1450,7 @@
         col: pick(['#3d7bff', '#8ec5ff', '#ffffff', '#ff6b98', '#ffe27a', '#7ad37a']), ground: rand(floorY + 2, ih - 2) });
     }
     popWord(mx, my, 'HAPPY BIRTHDAY!', true);
+    later(1100, () => { if (deco < 0) { deco = 0; sfx.tvOn(); } }); // and the room lights up for her birthday
     // he tumbles out of the strawberries and lands on the floor
     if (ZE.mode === 'ontop' || ZE.mode === 'yank') { ZE.mode = 'fall'; ZE.vx = (hugX() + 8 - ZE.x) * 0.9; ZE.vy = -110; ZE.face = 'tired'; }
     later(900, () => {
@@ -1502,9 +1604,10 @@
     R('rgba(255,255,255,.35)', -10, -24, 1, 4); R('rgba(255,255,255,.35)', -9, -24, 1, 2); // glass glint
     // baked sponges piled on top of the oven
     const S = A.SPONGE;
-    for (let i = 0; i < SP.n; i++) g.drawImage(S, -Math.round(S.width / 2) + (i % 2 ? 1 : -1), -39 - (i + 1) * (S.height - 2));
+    const pileY = (i) => -39 - (S.height - 3) - i * 4; // (each layer sits on the one below)
+    for (let i = 0; i < SP.n; i++) g.drawImage(S, -Math.round(S.width / 2) + (i % 2 ? 1 : -1), pileY(i));
     if (SP.flyT >= 0) { // one in mid-air, hopping out of the door up onto the pile
-      const t = SP.flyT, fy = -16 + (-39 - (SP.n + 1) * (S.height - 2) + 16) * t - Math.sin(t * Math.PI) * 18;
+      const t = SP.flyT, fy = -16 + (pileY(SP.n) + 16) * t - Math.sin(t * Math.PI) * 18;
       g.drawImage(S, -Math.round(S.width / 2) + Math.round(Math.sin(t * Math.PI) * 10), Math.round(fy));
     }
     g.restore();
@@ -1529,7 +1632,7 @@
     const Hp = Math.round(Wo * 0.17), dT = y0 + Hp + 3, dB = y1 - 3;                 // control panel, door
     const wx0 = x0 + Math.round(Wo * 0.11), wx1 = x1 - Math.round(Wo * 0.11), wy0 = dT + Math.round(Wo * 0.14), wy1 = dB - Math.round(Wo * 0.07); // window
     const ww = wx1 - wx0, wh = wy1 - wy0, cv = { x0: x0 + Math.round(Wo * 0.05), x1: x1 - Math.round(Wo * 0.05), y0: dT + 2, y1: dB - 1 }; // (the cavity behind the door)
-    const rackY = wy0 + Math.round(wh * 0.8), pr = Math.round(ww * 0.27), ph = Math.round(wh * 0.25), pcx = Math.round((wx0 + wx1) / 2);
+    const rackY = wy0 + Math.round(wh * 0.74), pr = Math.round(ww * 0.31), ph = Math.max(8, Math.round(wh * 0.15)), pcx = Math.round((wx0 + wx1) / 2);
     const Rk = Math.max(4, Math.round(Wo * 0.055)), kY = y0 + Math.round(Hp / 2) + 1;
     const dw = Math.round(Wo * 0.3), dh = Math.max(9, Math.round(Hp * 0.5)), disp = { x: Math.round((x0 + x1) / 2 - dw / 2), y: kY - Math.round(dh / 2), w: dw, h: dh };
     return { P, w, h, side, Wo, Ho, x0, y0, x1, y1, yc, Dc, rw, rx, ry, Hp, dT, dB, wx0, wx1, wy0, wy1, ww, wh, cv, rackY, pr, pe: 0.3, ph, pcx,
@@ -1538,8 +1641,8 @@
   }
   // the batter: how high it stands in the pan, how domed and how brown it is, at rise r (0…1)
   const batter = (V, r) => {
-    const ys = V.pb - V.ph * (0.42 + 1.25 * r), above = Math.max(0, V.rimY - ys);
-    const bulge = Math.min(above, V.ph * 0.24) * 0.9, brown = clamp((r - 0.25) / 0.75, 0, 1);
+    const ys = V.pb - V.ph * (0.4 + 1.05 * r), above = Math.max(0, V.rimY - ys);
+    const bulge = Math.min(above, V.ph * 0.3) * 0.8, brown = clamp((r - 0.25) / 0.75, 0, 1);
     return { ys, above, bulge, brown, top: above > 0 ? ys - bulge - V.pr * V.pe : ys - (V.pr - 1) * V.pe };
   };
   function showOven(on) { const G = spongeGeo(); zoomCloseup('sponge', on, G.oven, G.base - 20 * G.k); OV.shown = on; }
@@ -1686,10 +1789,9 @@
           if (on) R('#fff6dc', pcx + Math.cos(a) * rr * (pr - 3), B.ys + Math.sin(a) * rr * (pr - 3) * pe);
         }
       }
-      const tubeTop = rimY - 2, tb = empty ? pb - 2 : B.ys;
-      R('#59607c', pcx - tr - 1, tubeTop, tr * 2 + 3, tb - tubeTop + 1); R('#aeb7cb', pcx - tr, tubeTop, tr * 2 + 1, tb - tubeTop); R('#e3e8f2', pcx - tr, tubeTop, 1, tb - tubeTop);
-      ell(pcx, tubeTop, tr, Math.max(1, tr * pe), '#c9d1e3'); ell(pcx, tubeTop, Math.max(1, tr - 1), Math.max(0.6, (tr - 1) * pe), '#2a1d24');
-    } else { // risen over the rim: golden sides, a domed top that cracks, the hole of the tube in the middle
+      if (empty) ell(pcx, pb - 1, pr - 2, (pr - 2) * pe, '#a9b1c3'); // (the pan's bottom, with a little parchment circle)
+      if (empty) ell(pcx, pb - 1, pr - 5, (pr - 5) * pe, '#f6f1e6');
+    } else { // risen over the rim: golden sides and a gently domed top that cracks as it bakes
       const Rc = pr - 1, cy = B.ys - B.bulge * 0.4, ry = Rc * pe + B.bulge * 0.6;
       for (let X = -Rc; X <= Rc; X++) {
         const dx = X / Rc, lit = 0.62 - 0.45 * dx - 0.25 * dx * dx;
@@ -1701,12 +1803,12 @@
         if (rho > 1) continue;
         let col = crust(B.brown, 0.85 - 0.3 * dx - 0.3 * dy);
         const rr = Math.sqrt(rho);
-        if (B.brown > 0.35 && Math.abs(rr - 0.62) < 0.05 + 0.03 * B.brown && hsh(X + 31, j + 17) % 4) col = '#a86a32';           // the crack ring
-        else if (B.brown > 0.35 && Math.abs(rr - 0.62) < 0.1 && dy < 0 && hsh(X, j) % 3 === 0) col = '#fde9b8';
+        const crk = dy * 0.9 - 0.12 * Math.sin(dx * 9) - 0.05; // (a jagged split across the dome, as a sponge cracks when it rises)
+        if (B.brown > 0.3 && rr < 0.82 && Math.abs(crk) < 0.07 + 0.05 * B.brown && hsh(X + 31, j + 17) % 5) col = '#a86a32';
+        else if (B.brown > 0.3 && rr < 0.82 && crk > 0.07 && crk < 0.2 && hsh(X, j) % 3 === 0) col = '#fde9b8';
         else if (hsh(X + 9, j + 40) % 13 === 0) col = crust(Math.min(1, B.brown + 0.3), 0.3);
         x.fillStyle = col; x.fillRect(pcx + X, Math.round(cy + j), 1, 1);
       }
-      ell(pcx, cy, tr + 1, (tr + 1) * pe + 0.5, crust(B.brown, 0.4)); ell(pcx, cy, tr, Math.max(1, tr * pe), '#c9d1e3'); ell(pcx, cy, Math.max(1, tr - 1), Math.max(0.6, (tr - 1) * pe), '#2a1d24');
     }
     // the pan's front wall and rim (brushed aluminium)
     const MET = ['#4a5068', '#6b7389', '#8a92a5', '#aeb7cb', '#d5dbe7', '#f4f6fb'];
@@ -2406,7 +2508,7 @@
     newRun(startAt);
   }
   function newRun(at) {
-    flowId++;
+    flowId++; deco = -1;
     envWrap.classList.remove('show'); drawEnv(false);
     // wipe every stage's leftovers from the previous run up front
     Object.assign(W, { sub: 'idle', p: 0, z: 0, taps: 0, zFace: 'normal', said: {} });
@@ -2600,6 +2702,10 @@
   /* ================= update ================= */
   function update(dt) {
     shakeT -= dt; lockT -= dt;
+    if (deco >= 0) {
+      const d0 = deco; deco += dt;
+      for (const [k, at] of letters.map((L, i) => [i, 1.7 + i * 0.4 + 0.385])) if (d0 < at && deco >= at) { k ? sfx.gold() : sfx.catch(); }
+    }
     if (phase === 'card') { cardMin -= dt; if ((cardT -= dt) <= 0) endCard(); }
     if (phase !== 'loading' && phase !== 'title') { updateKid(dt); updateZech(dt); }
     if (phase === 'stage' || phase === 'card') STAGE().update(dt);
@@ -2691,6 +2797,33 @@
     bag.ghosts = [bag.a - bag.w * 0.03, bag.a - bag.w * 0.015];
     return pose;
   }
+  function drawDeco() { // the TV flickers on to show her age, then the HAPPY BIRTHDAY banner comes down the wall
+    const t = deco;
+    if (tv && tvPic) {
+      const R = (col, X, Y, w, h) => { g.fillStyle = col; g.fillRect(X, Y, w, h); };
+      if (t < 0.18) { const hh = Math.max(1, Math.round(tv.h * (t / 0.18) * 0.3)); R('#262a40', tv.x, tv.y, tv.w, tv.h); R('#e8fff0', tv.x, tv.y + Math.round(tv.h / 2 - hh / 2), tv.w, hh); } // the picture tube warming up: a line…
+      else if (t < 1.25) { // …then it flickers, with static, until the picture holds
+        const f = Math.floor(t * 22), on = (hash(f * 7 + 3) % 10) < 3 + Math.round(((t - 0.18) / 1.07) * 7);
+        if (on) { g.drawImage(tvPic, tv.x, tv.y); if (hash(f) % 3 === 0) R('rgba(255,255,255,.35)', tv.x, tv.y, tv.w, tv.h); }
+        else { R('#3a4060', tv.x, tv.y, tv.w, tv.h); for (let i = 0; i < tv.w * tv.h * 0.35; i++) { const v = hash(f * 977 + i); R(v % 3 ? '#8a90a8' : '#e3e8f2', tv.x + (v % tv.w), tv.y + ((v >>> 8) % tv.h), 1, 1); } }
+        const roll = tv.y + Math.round(((t * 1.7) % 1) * tv.h); R('rgba(255,255,255,.25)', tv.x, roll, tv.w, 2);
+      } else g.drawImage(tvPic, tv.x, tv.y);
+    }
+    if (tinsel && roomTin) { // the tinsel curtain unrolls down from the ceiling…
+      const u = clamp((t - 1.0) / 1.1, 0, 1), e = 1 - (1 - u) * (1 - u);
+      const x0 = Math.max(0, tinsel.x0 - 3), y0 = Math.max(0, tinsel.y0 - 3), w = Math.min(iw, tinsel.x1 + 4) - x0, h = Math.round((tinsel.y1 + 2 - y0) * e);
+      if (h > 0 && w > 0) {
+        g.drawImage(roomTin, x0, y0, w, h, x0, y0, w, h);
+        if (u < 1) { g.fillStyle = '#ffffff'; g.fillRect(x0 + 2, y0 + h - 1, w - 4, 1); g.fillStyle = 'rgba(43,39,69,.15)'; g.fillRect(x0 + 2, y0 + h, w - 4, 1); } // (its rolled-up edge)
+      }
+    }
+    letters.forEach((L, i) => { // …and the HAPPY BIRTHDAY letters drop in on it, with a bounce
+      const u = clamp((t - 1.7 - i * 0.4) / 0.55, 0, 1);
+      if (u <= 0) return;
+      const b = u < 0.7 ? (u / 0.7) ** 2 : 1 - Math.sin(((u - 0.7) / 0.3) * Math.PI) * 0.08;
+      g.drawImage(L.img, L.x, Math.round(L.y - (1 - b) * (L.y + L.img.height + 2)));
+    });
+  }
   function render() {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.imageSmoothingEnabled = false;
@@ -2698,8 +2831,9 @@
     const sh = shakeT > 0 ? shakeA : 0;
     g.translate(sh ? Math.round(rand(-sh, sh)) : 0, sh ? Math.round(rand(-sh, sh)) : 0);
     if (room) g.drawImage(room, 0, 0);
+    if (deco >= 0) drawDeco();
 
-    if (tinsel) { // twinkles on the tinsel curtain
+    if (tinsel && deco > 2.6) { // twinkles on the tinsel curtain
       const k = Math.floor(time * 6), w = Math.max(1, tinsel.x1 - tinsel.x0), h = Math.max(1, tinsel.y1 - tinsel.y0);
       g.fillStyle = '#ffffff';
       for (let i = 0; i < 12; i++) { const v = hash(k * 131 + i); g.fillRect(tinsel.x0 + (v % w), tinsel.y0 + ((v >>> 8) % h), 1, 1); }
@@ -2712,6 +2846,7 @@
     }
 
     if (inStage('boss') || ending()) drawCake();
+    if (inStage('boss')) drawBossExtras();
     if (phase === 'bake') bakeRender();
     for (const p of parts) if (!p.confetti && !p.over) drawParticle(p);
 
@@ -2766,11 +2901,12 @@
         };
       },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
-      get letterStep() { return letterStep; },
+      get letterStep() { return letterStep; }, get deco() { return deco; },
       get zech() { return { mode: ZE.mode, x: ZE.x * S, y: ZE.y * S, hug: ZE.hug, face: ZE.face, kidnapT: KN.t, holding: KN.holding }; },
       get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps, ing: WV.ing, om: WV.om, shown: WV.shown, sub: W.sub }; },
       get catch() { return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S })) }; },
       get kid() { return { x: kid.x * S, y: kid.y * S }; }, get cakeHp() { return cake.hp; },
+      get boss() { return { hp: cake.hp, x: (cakeX() + CAKE.w / 2) * S, y: (cakeY() + CAKE.h) * S, armor: B.armorT > 0, stun: B.stunT > 0, yank: B.yank, blobs: B.blobs.length, sub: B.sub }; },
       get music() { return { kind: music.kind, uri: music.uri, playing: music.playing, want: music.want, shown: !songBox.hidden }; }, get tune() { return sfx.songOn(); }, get track() { return sfx.bgmName(); },
     };
   }

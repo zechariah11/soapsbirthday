@@ -285,6 +285,9 @@ window.Art = (() => {
   const MINI_GOLD = { R: '#ffcf3a', r: '#c98a1a', h: '#fff4b8', y: '#fffbe6', g: '#3d9a52', G: '#7ad37a' };
   const MINI_ROWS = [['.gG.', 'RhRR', 'RyRr', '.Rr.'], ['..gG', '.hRR', 'RRyr', '.Rr.'], ['Gg..', 'RhRR', 'yRRr', '.rr.'], ['.Gg.', 'hRRR', 'RRyr', '.rR.']];
   const MINI_STRAWS = MINI_ROWS.map((r) => spr(r, MINI_PAL)), MINI_GOLDS = MINI_ROWS.map((r) => spr(r, MINI_GOLD));
+  const MIFFY_PAL = { W: '#ffffff', w: '#e3e6ee', E: '#2b2745', x: '#2b2745' };
+  const MIFFY = outline(spr(['.WW...WW.', '.WW...WW.', '.WW...WW.', '.WWWWWWW.', 'WWWWWWWWW', 'WWEWWWEWW', 'WWWxWxWWw', '.WWWxWWw.', '.WWWWWWw.', '.WW...Ww.'], MIFFY_PAL), '#8a90a8'); // (long upright ears, dot eyes, the little x mouth)
+  const MIFFY_S = outline(spr(['.W...W.', '.W...W.', '.W...W.', '.WWWWW.', 'WEWWWEW', 'WWxWxWw', '.WWxWw.', '.W...w.'], MIFFY_PAL), '#8a90a8');
   const HALF_PAL = { R: '#e8405a', r: '#b8253f', p: '#ff8fa3', P: '#ffd3da', W: '#fff2f4' };
   const HALF = spr(['.RRR.', 'RpPpR', 'RpWpR', '.RpR.', '..R..'], HALF_PAL);
   const HALVES = [HALF, spr(['RRR', 'pPp', 'pWp', 'RpR', '.R.'], HALF_PAL), spr(['RR', 'pr', 'pr', 'Rr', '.r'], HALF_PAL)]; // face on, turning away, nearly edge-on
@@ -433,9 +436,21 @@ window.Art = (() => {
   };
   const STRAW_O = outline(STRAW);
   // a freshly baked sponge (they stack up on top of the oven)
-  const SPONGE = outline(spr([
-    '..cccccccccccccccc..', '.cCCCCCCCCCCCCCCCCc.', 'cyyyyyyyyyyyyyyyyyyc', 'cyyhyyyyhyyyyyhyyyyc', 'cyyyyyhyyyyyyyyyhyyc', 'cyyyyyyyyyyhyyyyyyyc', '.cccccccccccccccccc.',
-  ], { c: '#c98a3e', C: '#e7b35d', y: '#f7cf7d', h: '#e2b360' }));
+  const SPONGE = (() => { // a round sponge layer, a little from above: an oval golden top with a crack across it, a thin crusty side
+    const W = 20, rx = 10, ry = 3.2, side = 3, H = Math.ceil(ry * 2) + side + 1, c = mk(W, H), x = ctxOf(c), cx = W / 2 - 0.5, cy = ry;
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      const dx = (i - cx) / rx, dy = (j - cy) / ry;
+      if (Math.abs(dx) > 1) continue;
+      const arc = Math.sqrt(1 - dx * dx) * ry;
+      let col = null;
+      if (dx * dx + dy * dy <= 1) {
+        const b = 0.7 - 0.35 * dx - 0.4 * dy, crk = Math.abs(dy * 0.9 - 0.25 * Math.sin(dx * 8));
+        col = crk < 0.18 && Math.abs(dx) < 0.75 ? '#a86a32' : b > 0.85 ? '#fbe3a6' : b > 0.55 ? '#f2c46c' : '#e2a85a';
+      } else if (j > cy && j <= cy + arc + side) col = j > cy + arc + side - 1 ? '#a96d31' : dx < -0.4 ? '#e9ae60' : dx > 0.5 ? '#c4843e' : '#d99a4c';
+      if (col) { x.fillStyle = col; x.fillRect(i, j, 1, 1); }
+    }
+    return outline(c, '#6e4322');
+  })();
   const GOLD_STRAW = outline(spr(['..gGg..', '.YgYgY.', 'YhYYYYY', 'YYwYYwY', 'YwYYYYY', '.YYYwY.', '..YYY..'],
     { Y: '#ffcf3a', h: '#fff4b8', w: '#fffbe6', g: '#3d9a52', G: '#7ad37a' }), '#9a6a1a');
   const TOAST = outline(spr(['.dddddd.', 'dTTTTTTd', 'dTkTTkTd', 'dTTkkTTd', 'dTkTTTTd', 'dTTTTkTd', '.dddddd.'],
@@ -613,13 +628,17 @@ window.Art = (() => {
     R('#7a5232', cx0 + 2, cy + 13, 2, 3); R('#7a5232', cx0 + cw - 4, cy + 13, 2, 3);
     const tw = plan ? TVW : 38, th = plan ? TVH : 24, tx0 = tvCx - tw / 2, ty0 = cy - th - 5;
     box(tx0, ty0, tw, th, '#2e3352', OUT);
-    R('#bfe8a0', tx0 + 2, ty0 + 2, tw - 4, th - 4);
-    for (let j = ty0 + 3; j < ty0 + th - 2; j += 2) R('#b3e192', tx0 + 2, j, tw - 4, 1);
+    // the picture on the screen (the birthday number), kept separately so the TV can switch on later
+    const tvPic = mk(tw - 4, th - 4), tp = ctxOf(tvPic);
+    tp.fillStyle = '#bfe8a0'; tp.fillRect(0, 0, tw - 4, th - 4);
+    tp.fillStyle = '#b3e192'; for (let j = 1; j < th - 4; j += 2) tp.fillRect(0, j, tw - 4, 1);
     if (opt.age != null && opt.age !== '') {
       const num = foil(String(opt.age).slice(0, 4), plan && String(opt.age).length <= 2 ? 3 : 2);
-      put(num, tvCx - Math.floor(num.width / 2), ty0 + Math.floor((th - num.height) / 2));
-    } else put(HEART, tvCx - 4, ty0 + Math.round(th / 2) - 4);
-    R('#e8ffd6', tx0 + 3, ty0 + 3, 4, 1); R('#e8ffd6', tx0 + 3, ty0 + 4, 1, 2);
+      tp.drawImage(num, Math.round(tvCx - Math.floor(num.width / 2) - tx0 - 2), Math.round(Math.floor((th - num.height) / 2) - 2));
+    } else tp.drawImage(HEART, Math.round(tvCx - 4 - tx0 - 2), Math.round(th / 2) - 6);
+    tp.fillStyle = '#e8ffd6'; tp.fillRect(1, 1, 4, 1); tp.fillRect(1, 2, 1, 2);
+    if (opt.tvOn !== false) put(tvPic, tx0 + 2, ty0 + 2);
+    else { R('#262a40', tx0 + 2, ty0 + 2, tw - 4, th - 4); R('#3a4060', tx0 + 3, ty0 + 3, 5, 1); R('#3a4060', tx0 + 3, ty0 + 4, 1, 3); R('#343a58', tx0 + tw - 9, ty0 + th - 6, 4, 1); } // (switched off)
     R('#fff4c8', cx0 + cw - 9, cy - 6, 5, 6); R('#ffffff', cx0 + cw - 8, cy - 5, 1, 2); R('#fffbe8', cx0 + cw - 10, cy - 5, 1, 4); R('#fffbe8', cx0 + cw - 4, cy - 5, 1, 4);
     put(PLANT, cx0 - 15, floorY - PLANT.height + 4);
 
@@ -635,30 +654,31 @@ window.Art = (() => {
     const ban = plan ? { x0: 4, x1: iw - 5, y0: plan.y0, y1: plan.y1 }
       : portrait ? { x0: 8, x1: iw - 8, y0: 14, y1: Math.round(ih * 0.21) }
       : { x0: Math.round(iw * 0.6), x1: iw - 8, y0: 16, y1: floorY - 3 };
-    const TIN = ['#ffd1e8', '#d9ccff', '#c3e6ff', '#c8f5e1', '#ffffff', '#ffe9c2'];
-    for (let X = ban.x0; X <= ban.x1; X++) {
+    const TIN = ['#ffd1e8', '#d9ccff', '#c3e6ff', '#c8f5e1', '#ffffff', '#ffe9c2'], letters = [];
+    if (opt.tinsel !== false) for (let X = ban.x0; X <= ban.x1; X++) {
       const bottom = ban.y1 - Math.floor(rnd() * 4);
       R(TIN[(X * 7 + (X >> 2)) % TIN.length], X, ban.y0, 1, bottom - ban.y0);
       for (let y = ban.y0 + ((X * 5) % 13); y < bottom; y += 13) R('#ffffff', X, y);
     }
     const RAINBOW = ['#ff9a9a', '#ffc78a', '#fff08a', '#9ee6a8', '#8ec5ff', '#c9a6ff'];
-    for (let X = ban.x0 - 2, i = 0; X <= ban.x1; X += 3, i++) {
+    if (opt.tinsel !== false) for (let X = ban.x0 - 2, i = 0; X <= ban.x1; X += 3, i++) {
       const Y = ban.y0 - 2 + Math.round(Math.sin(((X - ban.x0) / (ban.x1 - ban.x0)) * Math.PI) * 3);
       const col = RAINBOW[i % 6];
       R(col, X, Y, 3, 1); R(col, X, Y + 2, 3, 1); R(col, X, Y + 1); R(col, X + 2, Y + 1);
     }
-    for (const sx of [ban.x0 + 1, ban.x1 - 2]) for (let Y = ban.y0, i = 0; Y < ban.y1 - 4; Y += 3, i++) {
+    if (opt.tinsel !== false) for (const sx of [ban.x0 + 1, ban.x1 - 2]) for (let Y = ban.y0, i = 0; Y < ban.y1 - 4; Y += 3, i++) {
       const col = RAINBOW[i % 6]; R(col, sx, Y, 1, 3); R(col, sx + 2, Y, 1, 3); R(col, sx + 1, Y); R(col, sx + 1, Y + 2);
     }
     if (plan) {
-      put(plan.a, (ban.x0 + ban.x1) / 2 - plan.a.width / 2, plan.ly);
-      put(plan.b, (ban.x0 + ban.x1) / 2 - plan.b.width / 2, plan.ly + plan.a.height + 3);
+      letters.push({ img: plan.a, x: Math.round((ban.x0 + ban.x1) / 2 - plan.a.width / 2), y: Math.round(plan.ly) });
+      letters.push({ img: plan.b, x: Math.round((ban.x0 + ban.x1) / 2 - plan.b.width / 2), y: Math.round(plan.ly + plan.a.height + 3) });
     } else {
       const l1 = banner('HAPPY'), l2 = banner('BIRTHDAY');
       const ly0 = ban.y0 + Math.max(4, Math.round((Math.min(ban.y1, ban.y0 + 44) - ban.y0 - l1.height - l2.height - 4) / 2));
-      put(l1, (ban.x0 + ban.x1) / 2 - l1.width / 2, ly0);
-      put(l2, (ban.x0 + ban.x1) / 2 - l2.width / 2, ly0 + l1.height + 3);
+      letters.push({ img: l1, x: Math.round((ban.x0 + ban.x1) / 2 - l1.width / 2), y: Math.round(ly0) });
+      letters.push({ img: l2, x: Math.round((ban.x0 + ban.x1) / 2 - l2.width / 2), y: Math.round(ly0 + l1.height + 3) });
     }
+    if (opt.letters !== false) for (const L of letters) put(L.img, L.x, L.y); // (HAPPY BIRTHDAY in foil balloon letters)
 
     // bunting + a paper chain swag across the ceiling
     const FLAG = ['#ff9ec4', '#7fb2ff', '#ffe27a', '#8fe3c4', '#c8aaff', '#ffffff'];
@@ -754,6 +774,8 @@ window.Art = (() => {
       R('#7e9f6a', bx0 - 1, sTop + 1, 1, 22); R('#7e9f6a', bx0 + bw0, sTop + 1, 1, 22);
       const pl = sx0 + 13 + bw0 + 4;                                                                  // a square grey cushion
       box(pl, sTop + 3, 14, 14, '#8f9298', '#585b63'); R('#a5a8ae', pl + 1, sTop + 4, 12, 1); R('#7f8288', pl + 1, sTop + 15, 12, 1);
+      const mx = pl + 16 + MIFFY.width < Math.min(sx1 - 9, iw - 2) ? pl + 16 : pl - MIFFY.width + 1; // a little white Miffy next to it (on the other side if the sofa runs off the screen)
+      put(MIFFY, mx, sTop + 17 - MIFFY.height + 1);
     } else {
       const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
       const sBottom = feet - 3, sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
@@ -770,6 +792,7 @@ window.Art = (() => {
       for (let j = 0; j < 15; j++) for (let i = 0; i < bw0; i++) R(((i / 3 | 0) + (j / 3 | 0)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
       for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 16);
       if (sW - 30 - bw0 > 14) { box(sx1 - 21, sTop + 2, 10, 10, '#8f9298', '#585b63'); R('#a5a8ae', sx1 - 20, sTop + 3, 8, 1); R('#7f8288', sx1 - 20, sTop + 10, 8, 1); } // a square grey cushion
+      if (sW - 30 - bw0 > 14 && sx1 - 23 - MIFFY_S.width > bx0 + bw0 + 1) put(MIFFY_S, sx1 - 23 - MIFFY_S.width, sTop + 12 - MIFFY_S.height + 1); // and a little white Miffy next to it
     }
 
     // balloons are drawn every frame so they can bob (sx/sy: where the string starts on the sprite)
@@ -790,7 +813,7 @@ window.Art = (() => {
       });
     }
     balloons.sort((p, q) => p.y - q.y);
-    return { canvas: c, floorY, balloons, tinsel: ban, tv: { x: tx0 + 2, y: ty0 + 2, w: tw - 4, h: th - 4 } };
+    return { canvas: c, floorY, balloons, tinsel: ban, letters, tvPic, tv: { x: tx0 + 2, y: ty0 + 2, w: tw - 4, h: th - 4 } };
   }
 
   /* ---------------- envelope ---------------- */
@@ -976,26 +999,28 @@ window.Art = (() => {
         return c;
       });
     }
-    // a baked chiffon cake out of its tube pan (3/4 view): golden sides, a cracked top, the hole down the middle
+    // a baked chiffon layer out of its pan (3/4 view): a golden, gently domed top with a crack across it, crusty sides
     function chiffon(W) {
       return memo(`chif${W}`, () => {
-        const R = W / 2, ry = Math.max(2, Math.round(R * 0.3)), Hs = Math.round(W * 0.5), cw = W + 2, ch = Hs + ry * 2 + 3;
-        const c = mk(cw, ch), x = ctxOf(c), cx = cw / 2 - 0.5, ty = ry + 1, hsh = (a, b) => (((a * 73856093) ^ (b * 19349663)) >>> 0) % 97;
+        const R = W / 2, ry = Math.max(2, Math.round(R * 0.3)), Hs = Math.max(4, Math.round(W * 0.2)), dome = Math.max(1, Math.round(W * 0.05));
+        const cw = W + 2, ch = Hs + ry * 2 + dome + 3, c = mk(cw, ch), x = ctxOf(c), cx = cw / 2 - 0.5, ty = ry + dome + 1, hsh = (a, b) => (((a * 73856093) ^ (b * 19349663)) >>> 0) % 97;
         for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
           const dx = (i - cx) / R;
           if (Math.abs(dx) > 1) continue;
-          const arc = Math.sqrt(1 - dx * dx) * ry, dy = (j - ty) / ry, rho = Math.hypot(dx, dy);
+          const arc = Math.sqrt(1 - dx * dx), dy = (j - ty + dome * (1 - dx * dx)) / ry, rho = Math.hypot(dx, dy);
           let col = null;
-          if (rho <= 1) { // the top
-            if (rho < 0.2) col = '#3a2418';
-            else if (rho < 0.3) col = dy < 0 ? '#a8692f' : '#e9b469';
-            else if (Math.abs(rho - 0.64) < 0.07 && hsh(i, j) % 3) col = '#a86a32';
-            else { const b = 0.75 - 0.3 * dx - 0.35 * dy; col = b > 0.85 ? '#f6cf86' : b > 0.6 ? '#ecb96c' : '#dda257'; if (hsh(i + 7, j) % 11 === 0) col = '#c98a43'; }
-          } else if (j > ty && j <= ty + Hs + arc) { // the sides
-            const b = 0.6 - 0.45 * dx - 0.25 * dx * dx;
+          if (rho <= 1 && j <= ty + arc * ry) { // the top: golden crust, darker at the edge, a split across it
+            const crk = dy * 0.9 - 0.12 * Math.sin(dx * 9) - 0.05, b = 0.75 - 0.3 * dx - 0.35 * dy - 0.25 * rho * rho;
+            col = b > 0.75 ? '#f6cf86' : b > 0.5 ? '#ecb96c' : b > 0.25 ? '#dda257' : '#c98a43';
+            if (rho < 0.8 && Math.abs(crk) < 0.09) col = hsh(i, j) % 4 ? '#a86a32' : '#c98a43';
+            else if (rho < 0.8 && crk > 0.09 && crk < 0.2 && hsh(i, j) % 2) col = '#fde9b8';
+            else if (hsh(i + 7, j) % 13 === 0) col = '#c98a43';
+          } else if (j > ty && j <= ty + Hs + arc * ry) { // the sides: crust, lit from the left, a paler line where it rose
+            const b = 0.6 - 0.45 * dx - 0.25 * dx * dx, d = j - ty - arc * ry;
             col = b > 0.72 ? '#eab066' : b > 0.5 ? '#d99a4c' : b > 0.3 ? '#c4843e' : '#a96d31';
-            if (hsh(i, j >> 2) % 7 === 0) col = '#f0c27a';
-            if (j > ty + Hs + arc - 2) col = '#9c612c';
+            if (d > 0 && d < 2 && b > 0.3) col = '#f2c27a';
+            if (hsh(i, j >> 1) % 9 === 0) col = '#f0c27a';
+            if (j > ty + Hs + arc * ry - 1.5) col = '#8e5a28';
           }
           if (col) { x.fillStyle = col; x.fillRect(i, j, 1, 1); }
         }

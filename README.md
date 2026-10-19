@@ -22,7 +22,11 @@ Sophia bakes a giant Sungsimdang strawberry cake:
    arm uncoils out of the cake, wraps round him, swings him up and drops him into the strawberries,
    and the cake gets hoisted up as a piñata.
 5. **Piñata Cake Monster**: run under the hanging cake and tap to jump and whack it with a baguette
-   (Zech yells for help from the top) until its HP bar is empty. Zech tumbles out, they run to each other and hug, she levels
+   (Zech yells tips from the top) until its HP bar is empty. It fights back: it swings about on its
+   rope (wider and faster as it gets hurt), spits whipped cream at her (get hit and she's splattered
+   and stunned for a moment), yanks itself up out of reach and slams back down, and at half HP it
+   hides behind cream armour for a few seconds. There's still no way to lose. Once it bursts, the TV
+   flickers on to show her age and the HAPPY BIRTHDAY banner comes down the wall. Zech tumbles out, they run to each other and hug, she levels
    up, and he hands her a letter… the wrong one (his whipping rematch request). Then the wrong one
    again (his denied leave request to come a week early). Then, finally, the real letter, with your
    song (see `song` below) or a little jazz-waltz "Happy Birthday".
@@ -47,7 +51,7 @@ click the ✏️ pencil, then **Commit changes**). The live site updates a minut
 | `opponentName` | your name in the whipping battle |
 | `strawberriesToCatch` | how many strawberries fill the bowl in stage 1 (default 15) |
 | `whipTaps`     | how many taps it takes her to whip the cream in stage 2 (default 40) |
-| `hitsToBreak`  | how many baguette hits the cake boss can take (default 5) |
+| `hitsToBreak`  | how many baguette hits the cake boss can take (default 8) |
 | `bossName`     | the boss's name in the HP box |
 | `startScreen`  | the message on the title card |
 | `greeting`     | first line of the letter |
