@@ -132,9 +132,26 @@
           nbuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
           const d = nbuf.getChannelData(0); let v = 0;
           for (let i = 0; i < d.length; i++) { if (i % 6 === 0) v = Math.random() * 2 - 1; d[i] = v; }
+          ac.onstatechange = () => { if (ac && ac.state === 'running') document.body.classList.remove('music-asleep'); };
         }
-        if (ac.state === 'suspended') ac.resume();
+        if (ac.state !== 'running' && !document.hidden) { // ('suspended', or 'interrupted' on iPhones after switching apps)
+          const p = ac.resume(); if (p && p.catch) p.catch(() => {});
+          const was = ac, tap = kicked;
+          setTimeout(() => { // still not running after a real tap: the phone has given up on it, so start a fresh one
+            if (tap && ac === was && ac.state !== 'running' && !document.hidden) {
+              try { ac.close(); } catch (e) { /* ignore */ }
+              ac = null; bgm = null; init();
+            }
+          }, 400);
+        }
       } catch (e) { ac = null; }
+    }
+    let kicked = false; // (set while handling a tap, when the browser lets sound start)
+    const kick = () => { kicked = true; init(); kicked = false; };
+    function wake() { // back in the tab: try to carry on with the music (a phone may want a tap first)
+      if (!ac || document.hidden) return;
+      try { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
+      setTimeout(() => { if (ac && ac.state !== 'running' && !document.hidden) document.body.classList.add('music-asleep'); }, 900);
     }
     const ok = () => ac && !muted;
     function tone(f, t, dur, vol, type = 'square', to, dest = out) {
@@ -147,6 +164,7 @@
     // background music: one looping track at a time (js/music.js), crossfaded, scheduled ~1 s ahead
     function bgmTick() {
       if (!ac || ac.state !== 'running' || !musicOut || !window.Music) return;
+      if (document.body.classList.contains('music-asleep')) document.body.classList.remove('music-asleep');
       if ((bgm ? bgm.name : null) !== bgmWant) {
         const now = ac.currentTime, fade = bgmWant === 'boss' ? 0.3 : 0.9;
         if (bgm) {
@@ -172,11 +190,13 @@
       }
     }
     setInterval(bgmTick, 100);
-    // no music in a hidden tab (and no catching up when she comes back)
+    // no music in a hidden tab (and no catching up when she comes back); it starts again when she's back
     document.addEventListener('visibilitychange', () => {
       if (!ac) return;
-      try { if (document.hidden) ac.suspend(); else ac.resume(); } catch (e) { /* ignore */ }
+      if (document.hidden) { try { ac.suspend(); } catch (e) { /* ignore */ } } else wake();
     });
+    addEventListener('pageshow', wake); addEventListener('focus', wake);
+    for (const ev of ['touchend', 'click', 'keydown']) addEventListener(ev, () => { if (ac && ac.state !== 'running') kick(); }, { passive: true }); // (any tap brings it back)
     function noise(t, dur, vol, freq, type = 'bandpass') {
       const s = ac.createBufferSource(), f = ac.createBiquadFilter(), gn = ac.createGain();
       s.buffer = nbuf; f.type = type; f.frequency.value = freq;
@@ -186,13 +206,14 @@
     const play = (fn) => { if (!ok()) return; try { fn(ac.currentTime); } catch (e) { /* never let sound break the game */ } };
     const seq = (notes, t0, len, vol, type) => notes.forEach((f, i) => tone(f, t0 + i * len, len * 0.9, vol, type));
     return {
-      init,
+      init: kick,
       toggle: () => {
         muted = !muted;
         if (musicOut) { const g = musicOut.gain, now = ac.currentTime; g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(muted ? 0 : 1, now + 0.15); }
         return muted;
       },
       isMuted: () => muted,
+      state: () => (ac ? ac.state : 'none'),
       songOn: () => !!bgm && bgm.name === 'birthday',
       bgm: (name) => { bgmWant = name || null; },
       bgmName: () => (bgm ? bgm.name : null),
@@ -408,7 +429,8 @@
     }
 
     let want = kid.face;
-    if (inStage('boss') && cake.alive) { const cx = cakeX() + CAKE.w / 2; if (Math.abs(cx - kid.x) > 6) want = Math.sign(cx - kid.x); }
+    if (kid.twirlT > 0) { kid.twirlT -= dt; want = Math.floor(kid.twirlT * 10) % 2 ? -1 : 1; } // (a happy twirl)
+    else if (inStage('boss') && cake.alive) { const cx = cakeX() + CAKE.w / 2; if (Math.abs(cx - kid.x) > 6) want = Math.sign(cx - kid.x); }
     else if (ending() || (inStage('boss') && B.sub === 'rescue') || ((inStage('whip') || inStage('sponge') || inStage('icing') || phase === 'bake') && speed < 20)) want = 1;
     else if (Math.abs(kid.vx) > 25) want = Math.sign(kid.vx);
     if (want !== kid.face) { kid.face = want; bag.a = -bag.a; bag.w = -bag.w; }
@@ -711,22 +733,23 @@
     x.fillStyle = col; const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 1.5));
     for (let i = 0; i <= n; i++) { const t = i / n; x.fillRect(Math.round(x0 + (x1 - x0) * t - wd / 2), Math.round(y0 + (y1 - y0) * t - wd / 2), wd, wd); }
   }
-  function drawWhiskHead(x, hx, hy, L, Wd, spin, sunk, wet) { // a balloon whisk, its tip at (hx, hy), seen from above and behind
-    const top = hy - L, wires = [], du = 0.7 / Math.max(L, Wd);
+  function drawWhiskHead(x, tx, ty, ax, ay, L, Wd, spin, sunk, wet) { // a balloon whisk's wires: tip at (tx, ty), running back along (ax, ay) to the handle
+    const px = -ay, py = ax, wires = [], ds = 0.6 / Math.max(L, Wd);
     for (let k = 0; k < 4; k++) {
       const a = spin + (k * Math.PI) / 4, cs = Math.cos(a), sn = Math.sin(a);
-      for (let u = 0; u <= Math.PI + 0.001; u += du) {
-        const rr = Math.sin(u) * Wd, z = ((1 - Math.cos(u)) / 2) * L;
-        if (z > L * (1 - sunk)) continue; // (under the cream)
-        wires.push({ x: Math.round(hx + rr * cs), y: Math.round(top + z + rr * sn * 0.35), back: sn < 0, z });
+      for (let s2 = 0; s2 <= 1.0001; s2 += ds) { // s2: 0 at the handle, 1 at the tip
+        if (s2 > 1 - sunk) continue; // (under the cream)
+        const r = Wd * Math.sin(Math.PI * Math.pow(s2, 1.5)), along = L * (1 - s2) + r * sn * 0.3; // (widest towards the tip, like a balloon)
+        wires.push({ x: Math.round(tx + ax * along + px * r * cs), y: Math.round(ty + ay * along + py * r * cs), back: sn < 0, s2 });
       }
     }
     for (const pass of [true, false]) {
       x.fillStyle = '#4a5068'; for (const q of wires) if (q.back === pass) { x.fillRect(q.x - 1, q.y, 3, 1); x.fillRect(q.x, q.y - 1, 1, 3); }
-      for (const q of wires) if (q.back === pass) { x.fillStyle = pass ? '#9aa2b5' : q.z > L * (1 - sunk) - 2 && wet ? '#fff6e4' : q.x < hx ? '#ffffff' : '#d5dbe7'; x.fillRect(q.x, q.y, 1, 1); }
+      for (const q of wires) if (q.back === pass) { x.fillStyle = pass ? '#9aa2b5' : q.s2 > 1 - sunk - 0.08 && wet ? '#fff6e4' : q.x < tx ? '#ffffff' : '#d5dbe7'; x.fillRect(q.x, q.y, 1, 1); }
     }
-    x.fillStyle = '#4a5068'; x.fillRect(Math.round(hx) - 3, Math.round(top) - 3, 7, 5); x.fillStyle = '#d5dbe7'; x.fillRect(Math.round(hx) - 2, Math.round(top) - 2, 5, 3); x.fillStyle = '#ffffff'; x.fillRect(Math.round(hx) - 2, Math.round(top) - 2, 2, 1);
-    return { x: hx, y: top - 2 };
+    const fx = tx + ax * L, fy = ty + ay * L; // the metal collar where the wires go into the handle
+    cuLine(x, fx - ax * 2, fy - ay * 2, fx + ax * 3, fy + ay * 3, 6, '#4a5068'); cuLine(x, fx - ax * 2, fy - ay * 2, fx + ax * 3, fy + ay * 3, 4, '#d5dbe7'); cuLine(x, fx - ax * 2 - px, fy - ay * 2 - py, fx + ax * 3 - px, fy + ay * 3 - py, 1, '#ffffff');
+    return { x: fx + ax * 3, y: fy + ay * 3 };
   }
   function renderWhip() {
     if (cuOwner !== 'whip' || (!WV.shown && !cuCv.classList.contains('on'))) return;
@@ -775,13 +798,16 @@
     }
     const lifted = W.sub === 'done' ? WV.lift : 0, whR = Math.max(4, Math.round(rx * 0.19)), whL = Math.round(rx * 0.55);
     const wa = WV.ang, tipX = Sf.cx + Math.cos(wa) * Sf.rx * 0.42, tipY = Sf.cy + Math.sin(wa) * Sf.ry * 0.42 - lifted * rx * 0.9;
+    const fistX = cx + rx * 0.48 + Math.cos(wa) * 3 * (1 - lifted), fistY = rimY + ry * 0.95 + Math.sin(wa) * 2 * (1 - lifted) - lifted * rx * 0.55; // (her hand circles a little as she stirs)
+    const wlen = Math.hypot(fistX - tipX, fistY - tipY) || 1, wax = (fistX - tipX) / wlen, way = (fistY - tipY) / wlen, cageL = Math.min(whL, wlen * 0.62);
     const sunk = lifted > 0.5 ? 0 : Sf.vol > 0.05 ? 0.28 - 0.08 * p : 0, wet = Sf.vol > 0.05;
     if (Math.abs(WV.om) > 14 && lifted < 0.3) for (let k = 1; k <= 7; k++) { // a blur of speed behind the whisk
-      const a = wa - k * 0.16 * Math.sign(WV.om); R(k < 4 ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.3)', Sf.cx + Math.cos(a) * Sf.rx * 0.42, Sf.cy + Math.sin(a) * Sf.ry * 0.42 - whL * 0.7, 2, Math.round(whL * 0.5));
+      const a = wa - k * 0.16 * Math.sign(WV.om); R(k < 4 ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.3)', Sf.cx + Math.cos(a) * Sf.rx * 0.42 - 1, Sf.cy + Math.sin(a) * Sf.ry * 0.42 - Math.round(whL * 0.35), 2, Math.round(whL * 0.35));
     }
-    const hub = drawWhiskHead(x, tipX, tipY, whL, whR, wa * 1.6, sunk, wet);
-    if (wet && lifted < 0.5) { ell(tipX, tipY - whL * sunk + 1, whR * 0.9, Math.max(1, whR * 0.32), p > 0.3 ? '#ffffff' : '#fff6e4'); R('#f1e5ce', tipX - whR * 0.6, tipY - whL * sunk + 2, whR * 1.2, 1); } // a collar of cream round it
-    if (lifted > 0.3) { ell(tipX, tipY - whL * 0.25, whR * 0.9, whR * 0.7, '#ffffff'); R('#e4e6ee', tipX - 1, tipY - whL * 0.25 + whR * 0.5, whR, 1); R('#ffffff', tipX, tipY - whL * 0.25 - whR - 3, 2, 4); R('#ffffff', tipX + 1, tipY - whL * 0.25 - whR - 5, 1, 2); } // a stiff peak on the whisk
+    const hub = drawWhiskHead(x, tipX, tipY, wax, way, cageL, whR, wa * 1.6, sunk, wet);
+    const wlX = tipX + wax * cageL * sunk, wlY = tipY + way * cageL * sunk; // (where the whisk goes into the cream)
+    if (wet && lifted < 0.5) { ell(wlX, wlY + 1, whR * 0.9, Math.max(1, whR * 0.32), p > 0.3 ? '#ffffff' : '#fff6e4'); R('#f1e5ce', wlX - whR * 0.6, wlY + 2, whR * 1.2, 1); } // a collar of cream round it
+    if (lifted > 0.3) { const bx = tipX + wax * cageL * 0.25, by = tipY + way * cageL * 0.25; ell(bx, by, whR * 0.9, whR * 0.7, '#ffffff'); R('#e4e6ee', bx - 1, by + whR * 0.5, whR, 1); R('#ffffff', bx - 1, by + whR * 0.6, 2, 4); R('#ffffff', bx, by + whR * 0.6 + 4, 1, 2); } // cream clinging to the whisk, with a stiff peak
     for (let X = -rx - 1; X <= rx + 1; X++) { // the front of the bowl
       const dx = X / (rx + 1), arc = ry * Math.sqrt(Math.max(0, 1 - dx * dx)), lit = 0.65 - 0.5 * dx - 0.3 * dx * dx;
       const top = Math.round(rimY + arc), hw = rx + 1;
@@ -804,19 +830,24 @@
         if (k === 0) { for (let Y2 = spy; Y2 < Sf.cy; Y2++) R(Y2 % 3 ? '#fff6e4' : '#ffffff', spx + Math.sin(Y2 * 0.4 + t * 20) * 0.6, Y2, 2, 1); ell(spx, Sf.cy, 4, 1.5, '#ffffff'); }
       }
     }
-    // ---- a short, chunky whisk handle in her fist, and her arm coming in from the bottom right
-    const shX = cx + rx * 1.15 + Math.cos(wa) * 2 * (1 - lifted), shY = V.h + 14 - lifted * rx * 0.4; // (where her arm comes from, off screen)
-    const dl = Math.hypot(shX - hub.x, shY - hub.y) || 1, ux = (shX - hub.x) / dl, uy = (shY - hub.y) / dl, hl = Math.max(10, Math.round(whL * 0.55));
-    const ex = hub.x + ux * hl, ey = hub.y + uy * hl, fx = ex + ux * 5, fy = ey + uy * 5; // handle end, her fist
-    const hw = Math.max(5, Math.round(rx * 0.065));
-    cuLine(x, fx, fy, shX, shY, hw * 2 + 6, A.OUT); cuLine(x, fx, fy, shX, shY, hw * 2 + 3, '#cfe2ff'); cuLine(x, fx + ux * 6 - 1, fy + uy * 6 - 1, shX - 1, shY - 1, 2, '#e8f2ff'); // her sleeve
-    cuLine(x, fx + ux * 3, fy + uy * 3, fx + ux * 6, fy + uy * 6, hw * 2 + 5, A.OUT); cuLine(x, fx + ux * 3, fy + uy * 3, fx + ux * 6, fy + uy * 6, hw * 2 + 3, '#ffffff'); // a frilly white cuff
-    cuLine(x, hub.x, hub.y, ex + ux * 4, ey + uy * 4, hw + 3, A.OUT); cuLine(x, hub.x, hub.y, ex + ux * 4, ey + uy * 4, hw + 1, '#ff9ec4'); // the handle…
-    cuLine(x, hub.x - uy, hub.y + ux, ex - uy, ey + ux, 1, '#ffd0e2');
-    for (const f of [0.3, 0.55]) { const gx = hub.x + ux * hl * f, gy = hub.y + uy * hl * f; cuLine(x, gx - uy * hw * 0.6, gy + ux * hw * 0.6, gx + uy * hw * 0.6, gy - ux * hw * 0.6, 1, '#e8709f'); } // (grip rings)
-    R(A.OUT, fx - hw - 2, fy - hw - 2, hw * 2 + 5, hw * 2 + 4); R('#ffe2c4', fx - hw - 1, fy - hw - 1, hw * 2 + 3, hw * 2 + 2); // …in her fist
-    R('#f5c9a6', fx - hw - 1, fy + hw - 1, hw * 2 + 3, 2); R('#ffffff', fx - hw, fy - hw, 3, 1);
-    for (let k = 0; k < 3; k++) R('#e8b48f', fx - hw + 1 + k * Math.max(2, Math.round(hw * 0.7)), fy - hw - 1, 1, hw + 1); // (her fingers)
+    // ---- the whisk's handle in her fist, carrying straight on from the wires, and her arm bent at the elbow
+    const hw = Math.max(5, Math.round(rx * 0.065)), endX = fistX + wax * (hw + 4), endY = fistY + way * (hw + 4);
+    cuLine(x, hub.x, hub.y, endX, endY, hw + 3, A.OUT); cuLine(x, hub.x, hub.y, endX, endY, hw + 1, '#ff9ec4'); cuLine(x, hub.x + way, hub.y - wax, endX + way, endY - wax, 1, '#ffd0e2'); // the handle
+    for (const f of [0.35, 0.6]) { const gx = hub.x + (fistX - hub.x) * f, gy = hub.y + (fistY - hub.y) * f; cuLine(x, gx + way * hw * 0.6, gy - wax * hw * 0.6, gx - way * hw * 0.6, gy + wax * hw * 0.6, 1, '#e8709f'); } // (grip rings)
+    const shX = cx + rx * 1.5, shY = V.h + 28 - lifted * rx * 0.3; // her shoulder, off screen to the bottom right
+    const wrX = fistX + wax * (hw + 2), wrY = fistY + way * (hw + 2), dd = Math.hypot(shX - wrX, shY - wrY) || 1, seg = dd * 0.62; // upper arm and forearm
+    const aa = dd / 2, hh = Math.sqrt(Math.max(0, seg * seg - aa * aa)), mx = (shX + wrX) / 2, my = (shY + wrY) / 2, nx = -(wrY - shY) / dd, ny = (wrX - shX) / dd;
+    const e1 = { x: mx + nx * hh, y: my + ny * hh }, e2 = { x: mx - nx * hh, y: my - ny * hh }, inS = (e) => e.x < V.w - 6 && e.y < V.h - 4;
+    const el = inS(e1) && inS(e2) ? (e1.x > e2.x ? e1 : e2) : inS(e1) ? e1 : inS(e2) ? e2 : (e1.x < e2.x ? e1 : e2); // (the elbow bends out to the side, wherever it stays on screen)
+    const elX = el.x, elY = el.y;
+    const aw = hw * 2 + 4;
+    cuLine(x, shX, shY, elX, elY, aw + 4, A.OUT); cuLine(x, elX, elY, wrX, wrY, aw + 2, A.OUT);
+    cuLine(x, shX, shY, elX, elY, aw + 1, '#cfe2ff'); cuLine(x, elX, elY, wrX, wrY, aw - 1, '#cfe2ff'); disc(elX, elY, Math.round(aw / 2), '#cfe2ff'); // (her puffy blue sleeve)
+    cuLine(x, shX - 2, shY - 2, elX - 2, elY - 2, 2, '#e8f2ff'); cuLine(x, elX - 1, elY - 2, wrX - 1, wrY - 2, 2, '#e8f2ff');
+    const cfX = wrX - wax * 1, cfY = wrY - way * 1; cuLine(x, cfX, cfY, cfX + wax * 3, cfY + way * 3, aw + 1, A.OUT); cuLine(x, cfX, cfY, cfX + wax * 3, cfY + way * 3, aw - 1, '#ffffff'); // a white cuff
+    disc(fistX, fistY, hw + 3, A.OUT); disc(fistX, fistY, hw + 2, '#ffe2c4'); disc(fistX - 1, fistY - 1, hw, '#ffe9d2'); // her fist round the handle…
+    for (let k = -1; k <= 1; k++) { const ox = fistX + wax * k * (hw * 0.55), oy = fistY + way * k * (hw * 0.55); cuLine(x, ox + way * (hw + 1), oy - wax * (hw + 1), ox + way * 1, oy - wax * 1, 1, '#e3b08a'); } // (her fingers)
+    disc(fistX - wax * (hw * 0.6) - way * (hw * 0.5), fistY - way * (hw * 0.6) + wax * (hw * 0.5), Math.max(2, Math.round(hw * 0.45)), '#ffe9d2'); // (and her thumb)
     // ---- splashes, sugar, drips
     for (const f of WV.fx) { if (f.life < 0.1 && Math.floor(f.life * 50) % 2) continue; R(f.col, f.x, f.y, f.size || 1, f.size || 1); }
     // ---- which one next: a bouncing arrow over it
@@ -1013,7 +1044,7 @@
   // x = centre, y = feet, in game pixels
   const ZE = { mode: 'off', x: 0, y: 0, vx: 0, vy: 0, tx: 0, face: 'happy', t: 0, fromX: 0, fromY: 0, quipT: 0, cheerT: 0, dizzyT: 0, panicT: 0, hug: false, reunite: false, heartT: 0, run: false, wriggle: false };
   const hugX = () => Math.round(iw / 2);
-  function zechReset() { Object.assign(ZE, { mode: 'off', vx: 0, vy: 0, face: 'happy', t: 0, quipT: 2, cheerT: 0, dizzyT: 0, panicT: 0, hug: false, reunite: false, heartT: 0, run: false, wriggle: false }); KN.t = -1; }
+  function zechReset() { Object.assign(ZE, { mode: 'off', vx: 0, vy: 0, face: 'happy', t: 0, quipT: 2, cheerT: 0, dizzyT: 0, panicT: 0, hug: false, reunite: false, heartT: 0, run: false, wriggle: false, jy: 0, jv: 0, danceT: 0 }); KN.t = -1; }
   function zechOnTop() { // stuck in the strawberry mountain on top of the cake, left of the bow
     const c = cakePosNow();
     return { x: c.x + 14, y: c.y + 18 };
@@ -1022,6 +1053,8 @@
     if (ZE.mode === 'off') return;
     ZE.t += dt; ZE.dizzyT -= dt; ZE.cheerT -= dt; ZE.panicT -= dt;
     if (KN.t >= 0) kidnapUpdate(dt);
+    if (ZE.jv || ZE.jy) { ZE.jv += 600 * dt; ZE.jy += ZE.jv * dt; if (ZE.jy >= 0) { ZE.jy = 0; ZE.jv = 0; } } // (a happy hop)
+    if (ZE.danceT > 0) ZE.danceT -= dt;
     if (ZE.mode === 'walk') {
       ZE.y = groundY();
       const sp = (ZE.reunite ? 70 : 60) * dt;
@@ -1052,10 +1085,11 @@
     if (ZE.mode === 'off') return;
     const face = ZE.panicT > 0 ? 'tired' : ZE.cheerT > 0 || ZE.hug ? 'happy' : ZE.face;
     let img = A.zech[face];
-    if (ZE.wriggle && Math.floor(time * 6) % 2) img = zechFlipped[face] || (zechFlipped[face] = A.flip(img)); // kicking and wriggling
+    if ((ZE.wriggle && Math.floor(time * 6) % 2) || (ZE.danceT > 0 && Math.floor(ZE.danceT * 8) % 2)) img = zechFlipped[face] || (zechFlipped[face] = A.flip(img)); // kicking and wriggling (or a happy little dance)
     let x = Math.round(ZE.x - img.width / 2), y = Math.round(ZE.y) - img.height + 1;
     if (ZE.run) y -= Math.floor(time * 16) % 2;
     if (ZE.mode === 'walk' && Math.abs(ZE.tx - ZE.x) > 1) y += Math.floor(ZE.t * 10) % 2 ? -1 : 0;
+    if (ZE.mode === 'walk') y += Math.round(ZE.jy || 0);
     if (ZE.hug) y += Math.floor(time * 2.5) % 2 ? -1 : 0;
     if (ZE.dizzyT > 0) x += Math.floor(time * 30) % 2 ? 1 : -1;
     if (ZE.panicT > 0) y -= Math.floor(time * 12) % 2 ? 1 : 0; // flustered little hops
@@ -2362,15 +2396,33 @@
   const STACK = CAKE.layerCuts.length - 1; // every layer but the strawberry top (that's for the icing stage)
   function addLayer() {
     if (K.sub !== 'build' || K.layers >= STACK) return;
-    K.layers++; K.dropT = 1; kid.hopT = 0.08; kid.happyT = 0.4;
+    K.layers++; K.dropT = 1; kid.happyT = 0.6;
     sfx.catch();
     const sp = bakeSpot(), cut = CAKE.layerCuts[K.layers - 1];
     popWord(iw / 2, sp.cy + cut - 6, LAYER_WORDS[K.layers - 1], false, '#ffffff');
+    later(260, () => celebrateLayer(K.layers, K.layers >= STACK)); // (once it's landed: a little celebration from both of them)
     for (let i = 0; i < 6; i++) parts.push({ x: iw / 2 + rand(-CAKE.w / 2, CAKE.w / 2), y: sp.cy + cut, vx: rand(-30, 30), vy: rand(-50, -20), g: 200, life: 0.6, col: pick(['#fffaf1', '#f7cf7d', '#e8405a']), size: 1, ground: sp.base });
     if (K.layers >= STACK) {
       K.sub = 'stacked'; hideCallout(); sfx.clear();
       later(700, () => say(['Looking good! Now for the icing on top…'], () => showCard(stageIndex('icing'))));
     }
+  }
+  const CHEERS = ['Yum!', 'Nice one!', 'So fluffy!', 'Looking tasty!', 'Teamwork!', 'Wow!'];
+  function celebrateLayer(n, last) { // each layer that lands gets a little celebration from both of them (a different one each time)
+    if (phase !== 'bake') return;
+    const sp = bakeSpot(), herX = kid.x, herY = kid.y - A.GIRL_H / 2, hisX = ZE.x, hisY = ZE.y - A.ZECH_H;
+    const heart = (x, y, vx) => parts.push({ img: A.HEART, x, y, vx, vy: -22, g: 0, life: 1.4, ground: 1e9 });
+    const sparkle = (x, y, n2) => { for (let i = 0; i < n2; i++) parts.push({ x, y, vx: rand(-45, 45), vy: rand(-55, -15), g: 90, life: 0.6, col: pick(['#ffd84a', '#ffffff', '#ffc2d6']), size: 1, ground: 1e9 }); };
+    const hopHer = (v = -110) => { if (!kid.jy) kid.jv = v; }, hopHim = (v = -110) => { if (!ZE.jy) ZE.jv = v; };
+    const kind = last ? 'last' : ['both', 'twirl', 'dance', 'five', 'hearts'][(n - 1) % 5];
+    ZE.cheerT = 1.2; kid.happyT = 1;
+    if (kind === 'both') { hopHer(); hopHim(); heart((herX + hisX) / 2, Math.min(herY, hisY) - 6, 0); }
+    else if (kind === 'twirl') { kid.twirlT = 0.6; hopHer(-80); sparkle(herX, herY, 6); later(150, hopHim); }
+    else if (kind === 'dance') { ZE.danceT = 0.8; hopHim(-80); sparkle(hisX, hisY, 6); later(200, () => hopHer()); }
+    else if (kind === 'five') { hopHer(); hopHim(); later(180, () => { sparkle(iw / 2, sp.cy - 6, 12); sfx.blip(); popWord(iw / 2, sp.cy - 14, 'HIGH FIVE!', false, '#ffd84a'); }); }
+    else if (kind === 'hearts') { for (let i = 0; i < 3; i++) later(i * 120, () => { heart(herX + rand(-4, 4), herY - 4, rand(-6, 6)); heart(hisX + rand(-4, 4), hisY - 4, rand(-6, 6)); }); hopHer(-70); hopHim(-70); }
+    else { hopHer(); hopHim(); ZE.danceT = 1; kid.twirlT = 0.8; later(420, () => { hopHer(); hopHim(); }); heart(iw / 2, sp.cy - 10, 0); sparkle(iw / 2, sp.cy - 4, 18); }
+    if (kind !== 'five') popWord(hisX, hisY - 4, pick(CHEERS), false, '#d6f5c4');
   }
   function aliveScene() { // the iced cake is finished… and then it starts to move
     clearStageUi();
@@ -2901,7 +2953,7 @@
         };
       },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
-      get letterStep() { return letterStep; }, get deco() { return deco; },
+      get letterStep() { return letterStep; }, get deco() { return deco; }, get audio() { return sfx.state(); },
       get zech() { return { mode: ZE.mode, x: ZE.x * S, y: ZE.y * S, hug: ZE.hug, face: ZE.face, kidnapT: KN.t, holding: KN.holding }; },
       get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps, ing: WV.ing, om: WV.om, shown: WV.shown, sub: W.sub }; },
       get catch() { return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S })) }; },

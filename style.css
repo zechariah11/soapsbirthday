@@ -121,6 +121,8 @@ body.boss .player-box { opacity: 1; transform: none; }
   width: 40px; height: 40px; font-size: 16px; font-family: var(--pixel);
 }
 .mute.off { color: #9aa8c8; text-decoration: line-through; }
+body.music-asleep .mute { animation: nudge 1s steps(2) infinite; } /* (the phone paused the music while she was away: a tap brings it back) */
+@keyframes nudge { 50% { transform: scale(1.15); background: #ffe27a; } }
 
 /* ---------- mini-game HUD ---------- */
 .stage-box {
