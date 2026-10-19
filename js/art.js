@@ -621,8 +621,6 @@ window.Art = (() => {
     // framed bread picture (she loves bread)
     if (plan) {
       const pw = 28, ph = 22, px = iw - pw - 7, py = win.y + Math.max(0, Math.round((win.h - ph) / 2) - 3);
-      R('#ffffff', px + pw / 2, py - 7, 1, 6); R('#ffffff', px + pw / 2 - 3, py - 2, 1, 1); R('#ffffff', px + pw / 2 + 3, py - 2, 1, 1);
-      R('#ffffff', px + pw / 2 - 2, py - 3, 1, 1); R('#ffffff', px + pw / 2 + 2, py - 3, 1, 1); R('#ffffff', px + pw / 2 - 1, py - 4, 3, 1);
       box(px, py, pw, ph, '#c9935a', '#7a5232');
       R('#e2b27b', px, py, pw, 1); R('#a8743e', px, py + ph - 1, pw, 1);
       R('#7a5232', px + 2, py + 2, pw - 4, ph - 4);
@@ -738,15 +736,15 @@ window.Art = (() => {
       const gapL = win.x + win.w + 3 + cur, gapR = iw - 35, mid = Math.round((gapL + gapR) / 2);
       const top = ban.y1 - 2;
       const hang = [[mid - 7, Math.round(win.y + win.h * 0.3 - top), STAR_BIG], [mid + 6, Math.round(win.y + win.h * 0.62 - top), STAR]];
-      (gapR - gapL >= 30 ? hang : hang.slice(0, 1)).forEach(([X, len, img]) => {
-        const sx = X + (img === STAR_BIG ? 6 : 5);
-        R('#ffffff', sx, top, 1, len); put(img, X, top + len);
+      (gapR - gapL >= 30 ? hang : hang.slice(0, 1)).forEach(([X, len, img]) => { // each on a string from the ceiling, tied to its top point
+        const sx = X + (img === STAR_BIG ? 7 : 5), sy = top + len;
+        R('#ffffff', sx, 0, 1, sy + 1); put(img, X, sy);
       });
     } else {
       const stars = portrait ? [[0.05, ban.y1, Math.round(ih * 0.2)], [0.86, ban.y1, Math.round(ih * 0.19)]] : [[0.335, 0, 18]];
-      stars.forEach(([f, top, len]) => {
-        const X = Math.round(iw * f);
-        R('#ffffff', X + 4, top, 1, len); put(STAR, X, top + len);
+      stars.forEach(([f, top, len]) => { // each on a string from the ceiling, tied to its top point
+        const X = Math.round(iw * f), sy = top + len;
+        R('#ffffff', X + 5, 0, 1, sy + 1); put(STAR, X, sy);
       });
     }
 
