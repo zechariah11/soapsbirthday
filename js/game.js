@@ -1290,7 +1290,7 @@
     if (cake.alive && !cake.landed && cake.rope >= ropeTarget) { cake.landed = true; shakeT = 0.25; shakeA = 1; sfx.thud(); }
     if (fighting) { // it swings itself from side to side: wider and faster the more it's been hurt
       const hurt = 1 - cake.hp / C.hitsToBreak, reach = Math.max(10, iw / 2 - CAKE.w / 2 - 6);
-      B.ph += dt * (1.3 + 1.1 * hurt) * (1 + 0.3 * Math.sin(time * 0.6));
+      B.ph += dt * (1.3 + 1.1 * hurt) * (1 + 0.3 * Math.sin(time * 0.6)) * clamp(36 / reach, 1, 1.5); // (narrow screens: less room to swing, so it swings faster)
       const amp = Math.asin(clamp(Math.min(reach, 16 + 26 * hurt) / Math.max(20, cake.rope), 0, 0.95));
       cake.omega += ((amp * Math.sin(B.ph) - cake.theta) * 22 - cake.omega * 3.2) * dt;
     } else cake.omega += (-7 * Math.sin(cake.theta) - 0.5 * cake.omega) * dt;

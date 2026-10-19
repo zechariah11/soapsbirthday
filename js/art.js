@@ -285,9 +285,34 @@ window.Art = (() => {
   const MINI_GOLD = { R: '#ffcf3a', r: '#c98a1a', h: '#fff4b8', y: '#fffbe6', g: '#3d9a52', G: '#7ad37a' };
   const MINI_ROWS = [['.gG.', 'RhRR', 'RyRr', '.Rr.'], ['..gG', '.hRR', 'RRyr', '.Rr.'], ['Gg..', 'RhRR', 'yRRr', '.rr.'], ['.Gg.', 'hRRR', 'RRyr', '.rR.']];
   const MINI_STRAWS = MINI_ROWS.map((r) => spr(r, MINI_PAL)), MINI_GOLDS = MINI_ROWS.map((r) => spr(r, MINI_GOLD));
-  const MIFFY_PAL = { W: '#ffffff', w: '#e3e6ee', E: '#2b2745', x: '#2b2745' };
-  const MIFFY = outline(spr(['.WW...WW.', '.WW...WW.', '.WW...WW.', '.WWWWWWW.', 'WWWWWWWWW', 'WWEWWWEWW', 'WWWxWxWWw', '.WWWxWWw.', '.WWWWWWw.', '.WW...Ww.'], MIFFY_PAL), '#8a90a8'); // (long upright ears, dot eyes, the little x mouth)
-  const MIFFY_S = outline(spr(['.W...W.', '.W...W.', '.W...W.', '.WWWWW.', 'WEWWWEW', 'WWxWxWw', '.WWxWw.', '.W...w.'], MIFFY_PAL), '#8a90a8');
+  // a little white Miffy plush: long upright ears, a round head, two dot eyes and her little x mouth
+  const MIFFY_PAL = { W: '#ffffff', w: '#e6e9f0', E: '#2b2745', x: '#9a9fb2' };
+  const MIFFY = outline(spr([
+    '..WW...WW..',
+    '..WW...WW..',
+    '..WW...Ww..',
+    '..WW...Ww..',
+    '.WWWWWWWWW.',
+    'WWWWWWWWWWw',
+    'WWWEWWWEWWw',
+    'WWWWWWWWWWw',
+    'WWWWxWxWWWw',
+    '.WWWWxWWWw.',
+    '..WWxWxWw..',
+    '.WWWWWWWww.',
+    '.WWW...Ww..',
+  ], MIFFY_PAL), '#7d8599');
+  const MIFFY_S = outline(spr([
+    '.WW...WW.',
+    '.WW...WW.',
+    '.WW...Ww.',
+    'WWWWWWWWw',
+    'WWEWWWEWw',
+    'WWWxWxWWw',
+    '.WWWxWWw.',
+    '.WWxWxWw.',
+    '..WWWWw..',
+  ], MIFFY_PAL), '#7d8599');
   const HALF_PAL = { R: '#e8405a', r: '#b8253f', p: '#ff8fa3', P: '#ffd3da', W: '#fff2f4' };
   const HALF = spr(['.RRR.', 'RpPpR', 'RpWpR', '.RpR.', '..R..'], HALF_PAL);
   const HALVES = [HALF, spr(['RRR', 'pPp', 'pWp', 'RpR', '.R.'], HALF_PAL), spr(['RR', 'pr', 'pr', 'Rr', '.r'], HALF_PAL)]; // face on, turning away, nearly edge-on
