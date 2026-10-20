@@ -1011,6 +1011,19 @@ window.Art = (() => {
     }
     // powdered sugar settling on a strawberry: its shape in white, drawn over it a little at a time
     const frost = (sr, kind, ang) => memo(`frost${sr}-${kind}-${ang.toFixed(2)}`, () => silhouette(berry(sr, kind, ang), '#ffffff'));
+    // where a strawberry goes in the pattern: a dotted outline of its shape, pressed into the cream
+    const berryMark = (sr, kind, ang, col) => memo(`bmark${sr}-${kind}-${ang.toFixed(2)}-${col}`, () => {
+      const src = silhouette(berry(sr, kind, ang), col), w = src.width, h = src.height;
+      const inner = mk(w, h), e = ctxOf(inner); // (the shape shrunk by a pixel: where it overlaps itself nudged every way)
+      e.drawImage(src, 0, 0); e.globalCompositeOperation = 'destination-in';
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) e.drawImage(src, dx, dy);
+      const dots = mk(w, h), d = ctxOf(dots); d.fillStyle = '#000';
+      for (let j = 0; j < h; j++) for (let i = j % 2; i < w; i += 2) d.fillRect(i, j, 1, 1);
+      const c = mk(w, h), x = ctxOf(c); // the shape minus its shrunk self = its edge, then every other pixel of it
+      x.drawImage(src, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(inner, 0, 0);
+      x.globalCompositeOperation = 'destination-in'; x.drawImage(dots, 0, 0);
+      return c;
+    });
     // the piping bag, put down on the counter on its side
     function bagDown(h) {
       return memo(`bagdown${h}`, () => {
@@ -1109,7 +1122,7 @@ window.Art = (() => {
         return outline(c, '#3b2416');
       });
     }
-    return { rosette, berry, bowl, pipingBag, sifter, shadow, frost, bagDown, chiffon, coolRack, knob, carton, sugarJar, vanilla };
+    return { rosette, berry, bowl, pipingBag, sifter, shadow, frost, berryMark, bagDown, chiffon, coolRack, knob, carton, sugarJar, vanilla };
   })();
   // little 3x5 pixel letters straight onto a canvas (the oven's temperature display)
   function pixText(x, str, X, Y, col, s = 1) {

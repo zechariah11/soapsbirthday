@@ -1936,10 +1936,10 @@
      pixels than the room: pipe cream swirls around the edge, place the strawberries (drag them out
      of the bowl, or tap a spot), then shake the sifter to dust it all with powdered sugar.
      ===================================================================== */
-  const BERRIES = 12, SUGAR_GOAL = 260;
+  const BERRIES = 12, HALVES = 9, SUGAR_GOAL = 260;
   const cuCv = $('#closeup'), cuG = cuCv.getContext('2d');
   const IC = { sub: 'idle', spots: [], piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], hud: null, t: 0, sq: 0, u: 0,
-    squeeze: false, lx: 0, ly: 0, used: 0, puff: 0, acc: 0, hudB: 110, hudR: 340, ghost: false, shown: false, base: null, baseKey: '', seq: 0, nudge: 0 };
+    squeeze: false, lx: 0, ly: 0, used: 0, puff: 0, acc: 0, hudB: 110, hudR: 340, ghost: false, shown: false, base: null, baseKey: '', taken: [], shine: -1, shineK: 0, nudge: 0 };
   let cuOwner = ''; // whose close-up is on that canvas: the oven's or the icing's
   function cuSize() { // the close-up's own pixel grid (finer than the room's)
     const W = Math.max(1, innerWidth), H = Math.max(1, innerHeight), P = clamp(Math.round(S * 0.6), 2, 4);
@@ -1993,7 +1993,31 @@
   const inOval = (o, p, k = 1) => ((p.x - o.cx) / o.rx) ** 2 + ((p.y - o.cy) / o.ry) ** 2 <= k * k;
   const inInner = (V, p) => inOval(V.inner, p);
   const inBowl = (V, p) => Math.hypot(p.x - V.bx, p.y - V.by) <= V.R + 4;
-  const nextBerry = () => { const k = IC.seq++; const rnd = ((k * 2654435761) >>> 0) / 4294967296; return { kind: rnd < 0.62 ? 'whole' : 'half', ang: Math.round(((k * 7 + 3) % 16) * 100 * Math.PI / 8) / 100 }; };
+  const onTop = (V, p, k = 1) => inOval({ cx: V.tcx, cy: V.tcy, rx: V.Wt / 2, ry: V.Ht / 2 }, p, k);
+  const qAng = (a) => { const st = Math.PI / 24, n = Math.round(a / st) % 48; return ((n + 48) % 48) * st; }; // (in steps, so the sprites get reused)
+  const berryKind = (k) => (k < HALVES ? 'half' : 'whole'); // the first ones she picks up are halves for the ring, the last few whole ones for the middle
+  function berrySlots(V) { // the pattern they snap into: halves round the edge, tips out like petals, and a little flower of whole ones in the middle
+    const I = V.inner, out = [], tipL = V.sr * 1.35;
+    for (let k = 0; k < HALVES; k++) { // (each one's tip just short of the swirls)
+      const a = -Math.PI / 2 + (k * 2 * Math.PI) / HALVES + Math.PI / HALVES, rx = V.ring.rx * Math.cos(a), ry = V.ring.ry * Math.sin(a), d = Math.hypot(rx, ry);
+      const back = V.r * 1.05 + tipL * 0.9 + 1, x = V.ring.cx + rx * (1 - back / d), y = V.ring.cy + ry * (1 - back / d);
+      out.push({ i: k, x, y, kind: 'half', ang: qAng(Math.atan2(ry, rx) + Math.PI) });
+    }
+    for (let k = 0; k < BERRIES - HALVES; k++) { // (leafy tops meeting in the middle)
+      const a = -Math.PI / 2 + (k * 2 * Math.PI) / (BERRIES - HALVES), d = V.sr * 1.15;
+      out.push({ i: HALVES + k, x: I.cx + Math.cos(a) * d, y: I.cy + Math.sin(a) * d * 0.85, kind: 'whole', ang: qAng(a + Math.PI) });
+    }
+    return out;
+  }
+  function freeSlot(V, kind, at) { // the empty spot for this kind of berry nearest a point (or the next one round, with no point)
+    let best = null, bd = Infinity;
+    for (const s of berrySlots(V)) {
+      if (s.kind !== kind || IC.taken.includes(s.i)) continue;
+      const d = at ? Math.hypot(s.x - at.x, s.y - at.y) : s.i;
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
   function showCloseup(on) {
     const sp = bakeSpot();
     zoomCloseup('icing', on, sp.cx + CAKE.w / 2, sp.cy + CAKE.h / 2); // zooms in from (and back out to) the cake in the room
@@ -2003,7 +2027,7 @@
   function icingReset() {
     IC.hudB = 110; IC.hudR = 340;
     const V = cuLayout(), a = V.ring.rx, b = V.ring.ry, per = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b))), n = clamp(Math.round(per / (V.r * 2 + 4)), 12, 24);
-    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0, done: false, ready: false })), cur: null, tgt: null, bx: 0, by: 0, kl: false, kr: false, piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, seq: 0 });
+    Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0, done: false, ready: false })), cur: null, tgt: null, bx: 0, by: 0, kl: false, kr: false, piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, taken: [], shine: -1, shineK: 0 });
     showCloseup(false);
     if (ZE.mode !== 'walk') { zechReset(); Object.assign(ZE, { mode: 'walk', x: bakeSpot().him, y: groundY(), tx: bakeSpot().him, face: 'happy' }); }
     kid.x = bakeSpot().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
@@ -2037,10 +2061,11 @@
     }
     else if (IC.sub === 'berries') {
       if (IC.used >= BERRIES || IC.held) return;
-      if (inBowl(V, p)) { IC.held = nextBerry(); IC.used++; sfx.blip(); }            // pick one up…
-      else if (inInner(V, p) || !coarse) { // …or tap the cake and one hops over from the bowl
-        const ra = rand(0, 6.283), rr = Math.sqrt(Math.random()) * 0.9, target = inInner(V, p) ? p : { x: V.inner.cx + Math.cos(ra) * rr * V.inner.rx, y: V.inner.cy + Math.sin(ra) * rr * V.inner.ry };
-        IC.hops.push({ ...nextBerry(), fx: (target.x - V.x0) / V.Wt, fy: (target.y - V.y0) / V.Ht, t: 0 }); IC.used++; sfx.whoosh();
+      const kind = berryKind(IC.used);
+      if (inBowl(V, p)) { IC.held = { kind, ang: freeSlot(V, kind, p).ang }; IC.used++; sfx.blip(); } // pick one up…
+      else if (onTop(V, p) || !coarse) { // …or tap the cake and one hops over from the bowl, into the spot nearest the tap
+        const s = freeSlot(V, kind, onTop(V, p) ? p : null);
+        IC.taken.push(s.i); IC.hops.push({ kind, ang: s.ang, si: s.i, fx: (s.x - V.x0) / V.Wt, fy: (s.y - V.y0) / V.Ht, t: 0 }); IC.used++; sfx.whoosh();
       }
     } else if (IC.sub === 'sugar') IC.puff += 16;
   }
@@ -2048,8 +2073,11 @@
     if (IC.sub === 'pipe') { IC.squeeze = false; if (IC.cur) finishSwirl(cuLayout(), IC.cur); }
     if (IC.held) {
       const V = cuLayout(), p = cuPtr(V), q = { x: p.x, y: p.y - V.lift * 0.5 };
-      if (inInner(V, q)) placeBerry(V, { ...IC.held, fx: (q.x - V.x0) / V.Wt, fy: (q.y - V.y0) / V.Ht });
-      else { IC.used--; sfx.splat(); } // dropped off the cake: back into the bowl it goes
+      if (onTop(V, q, 1.08)) { // anywhere on the cake: it slides into the nearest empty spot in the pattern
+        const s = freeSlot(V, IC.held.kind, q);
+        IC.taken.push(s.i);
+        placeBerry(V, { kind: s.kind, ang: s.ang, si: s.i, fx: (s.x - V.x0) / V.Wt, fy: (s.y - V.y0) / V.Ht, sx: (q.x - V.x0) / V.Wt, sy: (q.y - V.y0) / V.Ht, sa: IC.held.ang });
+      } else { IC.used--; sfx.splat(); } // dropped off the cake: back into the bowl it goes
       IC.held = null;
     }
   }
@@ -2074,25 +2102,22 @@
     sfx.pip(perfect ? 1 : 0.4); buzz(perfect ? 14 : 8);
     for (let i = 0; i < (perfect ? 8 : 3); i++) IC.fx.push({ x: q.x, y: q.y - V.r * 0.6, vx: rand(-35, 35), vy: rand(-45, -10), g: 50, life: 0.45, col: pick(perfect ? ['#ffffff', '#ffe9a0', '#ffd84a'] : ['#ffffff', '#fff3e0']) });
   }
-  function placeBerry(V, b) {
-    for (const o of IC.placed) { // don't land exactly on top of another one
-      const dx = (b.fx - o.fx) * V.Wt, dy = (b.fy - o.fy) * V.Ht, d = Math.hypot(dx, dy);
-      if (d < V.sr * 1.2) { const k = (V.sr * 1.2 - d) / Math.max(1, d); b.fx += (dx || 1) * k / V.Wt * 0.6; b.fy += (dy || 1) * k / V.Ht * 0.6; }
-    }
-    { // (pulled back inside the ring if it slid out)
-      const px = V.x0 + b.fx * V.Wt - V.inner.cx, py = V.y0 + b.fy * V.Ht - V.inner.cy, d = Math.hypot(px / V.inner.rx, py / V.inner.ry);
-      if (d > 1) { b.fx = (V.inner.cx + px / d - V.x0) / V.Wt; b.fy = (V.inner.cy + py / d - V.y0) / V.Ht; }
-    }
-    IC.placed.push({ ...b, t: 0 });
+  function placeBerry(V, b) { // (dropped ones glide the last bit into their spot, turning to face the right way)
+    const pb = { ...b, t: 0, g: b.sx === undefined ? 1 : 0 };
+    IC.placed.push(pb);
     setBar(IC.hud.b, IC.placed.length / BERRIES, `${IC.placed.length}/${BERRIES}`);
-    sfx.catch(); buzz(12);
-    const x = V.x0 + b.fx * V.Wt, y = V.y0 + b.fy * V.Ht;
-    for (let i = 0; i < 6; i++) IC.fx.push({ x, y, vx: rand(-30, 30), vy: rand(-30, 10), g: 60, life: 0.35, col: pick(['#ffffff', '#fff3e0']) });
+    if (pb.g >= 1) landBerry(V, pb);
     if (IC.placed.length >= BERRIES) {
       IC.sub = 'placed'; hideCallout(); kid.happyT = 1;
       popWord(iw / 2, ih * 0.22, 'SO PRETTY!', false, '#ffd84a'); sfx.gold();
+      IC.shine = 0; IC.shineK = 0; // (a sparkle runs round the finished pattern)
       later(900, () => { if (IC.sub === 'placed') { IC.sub = 'sugar'; document.body.classList.add('follow'); showCallout(coarse ? 'SHAKE TO DUST WITH SUGAR!' : 'SHAKE THE SIFTER OVER THE CAKE!'); } });
     }
+  }
+  function landBerry(V, b) { // settled into its spot: a soft squish into the cream
+    b.t = 0; sfx.catch(); buzz(12);
+    const x = V.x0 + b.fx * V.Wt, y = V.y0 + b.fy * V.Ht;
+    for (let i = 0; i < 6; i++) IC.fx.push({ x, y, vx: rand(-30, 30), vy: rand(-30, 10), g: 60, life: 0.35, col: pick(['#ffffff', '#fff3e0']) });
   }
   function icingUpdate(dt) {
     IC.t += dt;
@@ -2133,7 +2158,22 @@
       const h = IC.hops[i]; h.t += dt / 0.42;
       if (h.t >= 1) { IC.hops.splice(i, 1); placeBerry(V, h); }
     }
-    for (const b of IC.placed) if (b.t < 1) b.t = Math.min(1, b.t + dt / 0.3);
+    for (const b of IC.placed) {
+      if (b.g < 1) { if ((b.g = Math.min(1, b.g + dt / 0.17)) >= 1) landBerry(V, b); }
+      else if (b.t < 1) b.t = Math.min(1, b.t + dt / 0.3);
+    }
+    if (IC.held) { // the berry in her hand turns to face the way its spot on the cake does
+      const s = freeSlot(V, IC.held.kind, { x: p.x, y: p.y - V.lift * 0.5 });
+      if (s) { IC.hAng = IC.hAng ?? IC.held.ang; const d = ((s.ang - IC.hAng + Math.PI * 3) % (Math.PI * 2)) - Math.PI; IC.hAng += d * Math.min(1, dt * 14); IC.held.ang = qAng(IC.hAng); }
+    } else IC.hAng = null;
+    if (IC.shine >= 0 && IC.shineK < BERRIES) { // the sparkle running round the finished pattern
+      IC.shine += dt;
+      for (; IC.shineK < BERRIES && IC.shine >= IC.shineK * 0.055; IC.shineK++) {
+        const b = IC.placed.find((o) => o.si === IC.shineK); if (!b) continue;
+        const x = V.x0 + b.fx * V.Wt, y = V.y0 + b.fy * V.Ht - V.sr * 0.4;
+        for (let i = 0; i < 5; i++) IC.fx.push({ x: x + rand(-2, 2), y: y + rand(-2, 2), vx: rand(-18, 18), vy: rand(-34, -8), g: 30, life: rand(0.35, 0.6), col: pick(['#ffffff', '#ffe9a0', '#ffd84a']) });
+      }
+    }
     if (IC.sub === 'berries' && keys.left !== keys.right && Math.random() < dt * 3 && IC.used < BERRIES) icingTap(); // (keyboard: arrows keep them coming)
     if (IC.sub === 'sugar') {
       if (keys.left || keys.right) { const q = cuPtr(V); setCuPtr(V, clamp(q.x + ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 140 * dt, V.x0, V.x1), V.y0 + V.Ht * 0.5 + V.lift); IC.puff += dt * 40; }
@@ -2293,9 +2333,32 @@
         x.fillStyle = '#ffffff'; x.fillRect(gx, gy - 1, 1, 3); x.fillRect(gx - 1, gy, 3, 1); x.fillStyle = '#ffe9a0'; x.fillRect(gx, gy, 1, 1);
       }
     }
-    // strawberries on the cake (with a little squash as they land), frosting over as the sugar falls on them
+    // the pattern the strawberries go in: outlines pressed into the cream (the ring first, then the flower in the middle),
+    // and while she's carrying one over the cake, the spot it'll slide into
+    if (IC.sub === 'berries') {
+      const kind = IC.held ? IC.held.kind : berryKind(IC.used), q = { x: p.x, y: p.y - V.lift * 0.5 };
+      const tgt = IC.held && onTop(V, q, 1.08) ? freeSlot(V, kind, q) : null, blink = Math.floor(IC.t * 2) % 2;
+      for (const sl of berrySlots(V)) {
+        if (IC.taken.includes(sl.i) || sl.kind !== kind) continue;
+        const X = Math.round(sl.x), Y = Math.round(sl.y);
+        if (tgt && sl.i === tgt.i) {
+          const img = CU.berry(V.sr, sl.kind, sl.ang), mark = CU.berryMark(V.sr, sl.kind, sl.ang, blink ? '#ffcf4a' : '#ffe9a0');
+          x.globalAlpha = 0.35 + 0.15 * Math.sin(IC.t * 8); x.drawImage(img, Math.round(X - img.width / 2), Math.round(Y - img.height / 2)); x.globalAlpha = 1;
+          x.drawImage(mark, Math.round(X - mark.width / 2), Math.round(Y - mark.height / 2));
+          continue;
+        }
+        const mark = CU.berryMark(V.sr, sl.kind, sl.ang, IC.held && blink ? '#f0708a' : '#eb94a6');
+        x.drawImage(mark, Math.round(X - mark.width / 2), Math.round(Y - mark.height / 2));
+      }
+    }
+    // strawberries on the cake (gliding into place, then a little squash as they land), frosting over as the sugar falls on them
     for (const b of IC.placed.slice().sort((a, c) => a.fy - c.fy)) {
-      const img = CU.berry(V.sr, b.kind, b.ang), X = V.x0 + b.fx * V.Wt, Y = V.y0 + b.fy * V.Ht;
+      let X = V.x0 + b.fx * V.Wt, Y = V.y0 + b.fy * V.Ht, ang = b.ang;
+      if (b.g < 1) { // (from where she let go, with a little hop)
+        const e = 1 - (1 - b.g) ** 3, d = ((b.ang - b.sa + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        X = V.x0 + (b.sx + (b.fx - b.sx) * e) * V.Wt; Y = V.y0 + (b.sy + (b.fy - b.sy) * e) * V.Ht - Math.sin(b.g * Math.PI) * V.sr * 0.5; ang = qAng(b.sa + d * e);
+      }
+      const img = CU.berry(V.sr, b.kind, ang);
       const k = 1 + 0.22 * Math.sin(Math.min(1, b.t) * Math.PI) * (1 - b.t), w = Math.round(img.width * k), h = Math.round(img.height * (2 - k));
       shade(X + 2, Y + V.sr * 0.55, V.sr * 0.95, Math.max(2, V.sr * 0.3), '130,50,50');
       const ix = Math.round(X - w / 2), iy = Math.round(Y - h / 2);
@@ -2325,7 +2388,7 @@
     x.drawImage(bowl, V.bx - Math.floor(bowl.width / 2), V.by - Math.floor(bowl.height / 2));
     const left = BERRIES - IC.used, slots = [[0, 0], ...[0, 1, 2, 3, 4].map((i) => [0.32, i * 1.257 + 0.3]), ...[0, 1, 2, 3, 4, 5].map((i) => [0.62, i * 1.047])];
     for (let i = Math.min(left, slots.length) - 1; i >= 0; i--) {
-      const [rr, a] = slots[i], img = CU.berry(Math.max(3, V.sr - 1), 'whole', Math.round(((i * 5) % 16) * 100 * Math.PI / 8) / 100);
+      const [rr, a] = slots[i], img = CU.berry(Math.max(3, V.sr - 1), berryKind(BERRIES - 1 - i), Math.round(((i * 5) % 16) * 100 * Math.PI / 8) / 100); // (halves on top, the whole ones for the middle underneath)
       x.drawImage(img, Math.round(V.bx + Math.cos(a) * rr * V.R - img.width / 2), Math.round(V.by + Math.sin(a) * rr * V.R - img.height / 2));
     }
     if (IC.sub === 'berries' && !IC.held && IC.placed.length + IC.hops.length === 0) { // a bouncing arrow: start here!
@@ -2954,6 +3017,8 @@
           ring: IC.spots.map((s) => { const q = ringPos(V, s.u); return { ...sp(q.x, q.y), done: s.done, g: s.g, perfect: !!s.perfect, tgt: IC.tgt === s }; }),
           bowl: sp(V.bx, V.by), cake: { x0: V.x0 * k, y0: V.y0 * k, x1: V.x1 * k, y1: V.y1 * k },
           inner: { x0: V.inner.x0 * k, y0: V.inner.y0 * k, x1: V.inner.x1 * k, y1: V.inner.y1 * k },
+          slots: berrySlots(V).map((s) => ({ ...sp(s.x, s.y), kind: s.kind, taken: IC.taken.includes(s.i) })),
+          berries: IC.placed.map((b) => ({ ...sp(V.x0 + b.fx * V.Wt, V.y0 + b.fy * V.Ht), si: b.si, kind: b.kind, g: b.g })), sr: V.sr * k,
         };
       },
       get bake() { return { layers: K.layers, alive: K.alive, grabbed: K.grabbed }; },
