@@ -285,6 +285,8 @@ body.closeup .callout { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px)
 .intro h1 { font-family: var(--pixel); font-weight: 400; font-size: clamp(18px, 5.5vw, 26px); line-height: 1.5; text-transform: uppercase; }
 .intro h1 span { color: var(--blue); }
 .intro-text { font-size: 17px; line-height: 1.55; margin: 14px 0 26px; }
+.intro-btns { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.view-letter { font-size: 10px; }
 .start:not(:disabled) { animation: nudge 1s steps(1) infinite; }
 @keyframes nudge { 50% { transform: translateY(-3px); } }
 .notice { margin-top: 18px; font-size: 13px; line-height: 1.4; color: #b4234f; }

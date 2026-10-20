@@ -2622,6 +2622,31 @@
     sfx.init();
     newRun(startAt);
   }
+  let quick = false; // the letter was opened straight from the title screen, without playing
+  function viewLetter() { // skip the game: the real letter right away (with its song), over the room as it looks at the very end
+    if (phase !== 'title') return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    $('#intro').classList.add('hide');
+    sfx.init(); preloadSong();
+    quick = true; flowId++;
+    deco = 30; // (the TV's on and the banner's already up)
+    bossReset(false); zechReset();
+    Object.assign(ZE, { mode: 'walk', x: hugX() + 8, tx: hugX() + 8, y: groundY(), face: 'happy', reunite: true, hug: true });
+    Object.assign(kid, { x: hugX() - 7, y: groundY() - A.GIRL_H / 2 + 1, vx: 0, vy: 0, face: 1, hug: true });
+    for (let i = 0; i < 90; i++) {
+      parts.push({ x: rand(0, iw), y: rand(-ih * 0.9, -2), vx: 0, vy: rand(14, 30), g: 0, flutter: rand(0, 6), confetti: true, life: 9, size: 1,
+        col: pick(['#3d7bff', '#8ec5ff', '#ffffff', '#ff6b98', '#ffe27a', '#7ad37a']), ground: rand(groundY() + 2, ih - 2) });
+    }
+    $('#replay').textContent = '▶ PLAY THE GAME';
+    openLetter();
+  }
+  function leaveQuick() { // back to the title screen from the letter-only view
+    quick = false; deco = -1; parts.length = 0;
+    zechReset(); kid.hug = false;
+    $('#replay').textContent = '↺ PLAY AGAIN';
+    phase = 'title';
+    $('#intro').classList.remove('hide');
+  }
   function newRun(at) {
     flowId++; deco = -1;
     envWrap.classList.remove('show'); drawEnv(false);
@@ -2804,14 +2829,21 @@
   function closeLetter() {
     if (dialog.finishTyping) dialog.finishTyping();
     letter.classList.remove('show');
+    if (quick) { pauseSong(); leaveQuick(); return; } // (read from the title screen: back to it)
     if (phase === 'letter') phase = 'ready';   // tap the envelope (or anywhere) to read it again
   }
   dialog.addEventListener('click', (e) => { if (!e.target.closest('button') && !dialog.classList.contains('done') && dialog.finishTyping) dialog.finishTyping(); });
   letter.addEventListener('click', (e) => { if (e.target === letter) closeLetter(); });
   $('#closeLetter').addEventListener('click', closeLetter);
   $('#skip').addEventListener('click', () => dialog.finishTyping && dialog.finishTyping());
-  $('#replay').addEventListener('click', () => { closeLetter(); pauseSong(); songBox.hidden = true; newRun(0); });
+  $('#replay').addEventListener('click', () => {
+    const fromTitle = quick;
+    closeLetter(); pauseSong(); songBox.hidden = true;
+    if (fromTitle) $('#intro').classList.add('hide'); // (the letter-only view: this starts the game for real)
+    newRun(0);
+  });
   startBtn.addEventListener('click', startGame);
+  $('#viewLetter').addEventListener('click', viewLetter);
   $('#mute').addEventListener('click', (e) => {
     const off = sfx.toggle();
     e.currentTarget.classList.toggle('off', off); e.currentTarget.blur();
@@ -3055,5 +3087,6 @@
       phase = 'title';
       startBtn.disabled = false;
       startBtn.textContent = '▶ PRESS START';
+      $('#viewLetter').disabled = false;
     });
 })();

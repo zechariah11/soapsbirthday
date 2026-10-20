@@ -17,7 +17,8 @@ Sophia bakes a giant Sungsimdang strawberry cake:
    stiff peaks. It looks like a close race, but he's quietly rubber-banded so she always wins.
    Then a short **cutscene**: she stacks the round cake layer by layer, one tap per layer.
 4. **Icing on Top**: a close-up of the cake on the counter. Squeeze the piping bag on each dot round
-   the edge, one swirl at a time; drag twelve strawberries out of the bowl onto the top; then shake
+   the edge, one swirl at a time; drag twelve strawberries out of the bowl onto the top (they slide
+   into a pattern: halves round the edge like petals, a little flower of whole ones in the middle); then shake
    the sifter to dust it with sugar. Then the cake comes alive: Zech tries to run, a whipped-cream
    arm uncoils out of the cake, wraps round him, swings him up and drops him into the strawberries,
    and the cake gets hoisted up as a piñata.
@@ -30,6 +31,10 @@ Sophia bakes a giant Sungsimdang strawberry cake:
    up, and he hands her a letter… the wrong one (his whipping rematch request). Then the wrong one
    again (his denied leave request to come a week early). Then, finally, the real letter, with your
    song (see `song` below) or a little jazz-waltz "Happy Birthday".
+
+The title screen also has a **♥ JUST READ MY LETTER** button: it skips the game (and the joke
+letters) and opens the real letter straight away, with the same music, over the decorated room.
+Closing it goes back to the title screen; ▶ PLAY THE GAME at the bottom of the letter starts stage 1.
 
 Music is synthesised too (`js/music.js`) and loops seamlessly: a calm, Animal Crossing-ish room
 theme (cake building, rescue, envelopes), a bouncy marimba tune for the strawberry catch, a cosy
