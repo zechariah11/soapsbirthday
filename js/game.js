@@ -5,7 +5,7 @@
     age: 27,
     opponentName: 'Zech',
     whipTaps: 40,
-    strawberriesToCatch: 30,
+    strawberriesToCatch: 15,
     hitsToBreak: 8,
     bossName: 'Giant Strawberry Cake',
     startScreen: "I couldn't be there today, so little you is baking a giant 성심당딸기시루케이크: catch the strawberries, bake the sponges, beat me at whipping the cream, then stack it up and ice it (and deal with whatever happens next).",
@@ -58,7 +58,7 @@
     c.age = Number.isFinite(age) && age > 0 ? age : null;
     c.hitsToBreak = int(c.hitsToBreak, 1, 50, 8);
     c.whipTaps = int(c.whipTaps, 10, 200, 40);
-    c.strawberriesToCatch = int(c.strawberriesToCatch, 3, 60, 30);
+    c.strawberriesToCatch = int(c.strawberriesToCatch, 3, 60, 15);
     const fill = (s) => String(s ?? '')
       .replace(/\{NAME\}/g, c.name.toUpperCase()).replace(/\{OPPONENT\}/g, c.opponentName.toUpperCase())
       .replace(/\{name\}/g, c.name).replace(/\{age\}/g, c.age ?? '').replace(/\{opponent\}/g, c.opponentName);
@@ -941,16 +941,25 @@
   }
   function catchTap() { /* moving is all it takes: the tap already moved her (pointer position) */ }
   const bowlRim = () => Math.round(kid.y - A.GIRL_H / 2) + 23; // (she holds the bowl at her waist, so the pile doesn't hide her face)
-  // the twists, in order, each once she's caught enough (one at a time, with a breather in between); the storm is always the
-  // finale, for the last quarter or so of the bowl (anything she's raced past by then gets skipped)
-  const CATCH_EVENTS = [{ key: 'faster', at: 0.07 }, { key: 'miffy', at: 0.13 }, { key: 'wind', at: 0.27 }, { key: 'airdrop', at: 0.43 }, { key: 'conga', at: 0.6 }];
+  // the twists, in order, each once she's caught enough (one at a time, with a breather in between). The bowl is shared out
+  // between them: a few to start, then Miffy's throws, the rain in the wind, the crate, the conga line, and the rest in the
+  // storm, which is always the finale (anything she's raced past by then gets skipped)
+  function catchPlan(N) {
+    const d0 = Math.max(2, Math.round(N * 0.1)), m = Math.max(2, Math.round(N * 0.13));
+    let w = Math.max(2, Math.round(N * 0.15)), a = Math.max(3, Math.round(N * 0.15)), c = Math.max(3, Math.round(N * 0.17));
+    if (d0 + m + w + a + c > N - 3) { w = 1; a = 2; c = 2; } // (a small bowl: smaller shares, so the storm still gets a few)
+    const at = {};
+    at.faster = Math.max(1, d0 - 1); at.miffy = d0; at.wind = at.miffy + m; at.airdrop = at.wind + w; at.conga = at.airdrop + a;
+    return { at, stormAt: at.conga + c, miffy: m, crate: a, conga: c, on: N >= 10 && at.conga + c <= N - 3 };
+  }
+  const CATCH_EVENTS = ['faster', 'miffy', 'wind', 'airdrop', 'conga'];
   const storming = () => !!CT.ev && CT.ev.key === 'storm';
-  const stormAt = () => C.strawberriesToCatch - Math.max(5, Math.round(C.strawberriesToCatch * 0.24));
+  const plan = () => catchPlan(C.strawberriesToCatch);
   function rainTarget() { // the rain in between twists only brings enough to reach the next twist (the storm brings the rest)
-    const N = C.strawberriesToCatch;
-    if (N < 12 || storming()) return N;
-    const e = CATCH_EVENTS.find((q) => !CT.evs[q.key]);
-    return e ? Math.min(stormAt(), Math.ceil(e.at * N - 1e-9)) : stormAt();
+    const N = C.strawberriesToCatch, P = plan();
+    if (!P.on || storming()) return N;
+    const e = CATCH_EVENTS.find((k) => !CT.evs[k]);
+    return e ? Math.min(P.stormAt, P.at[e]) : P.stormAt;
   }
   const catchSpeed = () => 1 + (CT.evs.faster ? 0.18 : 0) + 0.22 * Math.min(1, CT.caught / C.strawberriesToCatch) + (storming() ? 0.15 : 0);
   const banner = (text, col = '#ffd84a') => popWord(iw / 2, Math.max(28, Math.round(ih * 0.3)), text, true, col);
@@ -978,12 +987,12 @@
     if (key === 'faster') { banner('FASTER!'); sfx.whoosh(); return; }
     if (key === 'miffy') { if (!miffy) return; CT.ev = { key, t: 0, n: 0, next: 1.2 }; banner('MIFFY WANTS TO HELP!', '#ffffff'); sfx.blip(); return; } // (no Miffy on this sofa: skip it)
     if (key === 'wind') { CT.ev = { key, t: 0, dur: 7 }; banner('WHOOSH! WINDY!', '#cfe8ff'); sfx.whoosh(); return; }
-    if (key === 'airdrop') { // a supply crate on a parachute (catch it whole for +5, or it bursts open when it lands)
+    if (key === 'airdrop') { // a supply crate on a parachute (catch it whole, or it bursts open when it lands)
       CT.ev = { key, t: 0 }; CT.crate = { x: clamp(kid.x + pick([-1, 1]) * rand(iw * 0.18, iw * 0.32), 20, iw - 20), y: -18, py: -18, vy: 0, t: 0, st: 'fall' };
       banner('AIRDROP FROM ZECH!', '#c8d98a'); sfx.whoosh(); return;
     }
-    if (key === 'conga') { // five in a row, sweeping across the room from the far side
-      const from = kid.x < iw / 2 ? iw - 16 : 16, to = iw - from, n = 5;
+    if (key === 'conga') { // a row of them, sweeping across the room from the far side
+      const from = kid.x < iw / 2 ? iw - 16 : 16, to = iw - from, n = plan().conga;
       CT.queue = Array.from({ length: n }, (_, k) => ({ t: 0.6 + k * 0.36, x: from + ((to - from) * k) / (n - 1) }));
       CT.ev = { key, t: 0 }; banner('BERRY CONGA LINE!', '#ffc2d6'); sfx.blip(); return;
     }
@@ -992,17 +1001,18 @@
   const endEvent = () => { CT.ev = null; CT.evGap = 1.6; };
   function catchEvents(dt) {
     const N = C.strawberriesToCatch;
-    if (!CT.ev && N >= 12 && (CT.evGap -= dt) <= 0) {
-      if (CT.caught >= stormAt()) { if (!CT.evs.storm) startEvent('storm'); }
-      else { const e = CATCH_EVENTS.find((q) => !CT.evs[q.key] && CT.caught / N >= q.at); if (e) startEvent(e.key); }
+    const P = plan();
+    if (!CT.ev && P.on && (CT.evGap -= dt) <= 0) {
+      if (CT.caught >= P.stormAt) { if (!CT.evs.storm) startEvent('storm'); }
+      else { const e = CATCH_EVENTS.find((k) => !CT.evs[k] && CT.caught >= P.at[k]); if (e) startEvent(e); }
     }
     const ev = CT.ev;
     if (!ev) return;
     ev.t += dt;
     if (ev.key === 'miffy') {
       ev.next -= dt;
-      if (ev.n < 4 && ev.next <= 0) { ev.next = 1.1; ev.n++; miffyToss(); }
-      if (ev.n >= 4 && ev.next <= -1.8) endEvent(); // (once the last one's had time to land)
+      if (ev.n < P.miffy && ev.next <= 0) { ev.next = 1.1; ev.n++; miffyToss(); }
+      if (ev.n >= P.miffy && ev.next <= -1.8) endEvent(); // (once the last one's had time to land)
     } else if (ev.key === 'wind') { // gusts, swapping direction halfway; little white streaks blow across the room
       const k = clamp(Math.min(ev.t / 0.8, (ev.dur - ev.t) / 0.8), 0, 1);
       CT.wind = k * (20 + 12 * Math.sin(ev.t * 2.3)) * (ev.t < ev.dur / 2 ? 1 : -1);
@@ -1053,10 +1063,11 @@
         if (CT.sub === 'play' && cr.py < rim - 3 && cr.y >= rim - 3 && Math.abs(cr.x - kid.x) <= 12) { // caught the whole crate!
           CT.crate = null; sfx.gold(); shakeT = 0.2; shakeA = 1;
           for (let k = 0; k < 12; k++) parts.push({ x: cr.x, y: rim - 4, vx: rand(-50, 50), vy: rand(-70, -20), g: 160, life: 0.7, col: pick(['#c8d98a', '#ffffff', '#ff8fa3']), size: 1, ground: rim + 6 });
-          addCaught(['straw', 'straw', 'straw', 'straw', 'straw'], cr.x, 'SUPPLIES! +5', '#c8d98a');
-        } else if (cr.y >= groundY() - 4) { // it lands and bursts open: five strawberries pop out to catch
+          const k = plan().crate; addCaught(Array(k).fill('straw'), cr.x, `SUPPLIES! +${k}`, '#c8d98a');
+        } else if (cr.y >= groundY() - 4) { // it lands and bursts open: its strawberries pop out to catch
           cr.st = 'open'; cr.t = 0; cr.y = groundY() - 4; sfx.thud(); popWord(cr.x, cr.y - 16, 'POP!', false, '#ffffff');
-          for (let k = 0; k < 5; k++) CT.items.push({ kind: 'straw', x: cr.x, y: cr.y - 6, py: cr.y - 6, vx: (k - 2) * rand(12, 18), vy: -ih * rand(0.5, 0.62), wob: 0, arc: true, ev: true });
+          const n = plan().crate;
+          for (let k = 0; k < n; k++) CT.items.push({ kind: 'straw', x: cr.x, y: cr.y - 6, py: cr.y - 6, vx: (k - (n - 1) / 2) * rand(12, 18), vy: -ih * rand(0.5, 0.62), wob: 0, arc: true, ev: true });
         }
       } else if (cr.t > 2.4) CT.crate = null;
     }

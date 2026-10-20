@@ -7,7 +7,7 @@ Sophia bakes a giant Sungsimdang strawberry cake:
    catch them (dodging burnt toast; a golden one counts for three). It gets wilder as the bowl fills:
    the drops speed up, Miffy hops up on the sofa and lobs strawberries across the room, a gust blows
    in through the window and pushes everything sideways, an airdrop from Zech's unit parachutes in
-   (catch the crate for +5, or it bursts open on the floor and five pop out), a conga line of berries
+   (catch the whole crate, or it bursts open on the floor and its strawberries pop out), a conga line of berries
    sweeps across the room, and a strawberry storm finishes it off. Catch a long streak and a strawberry
    magnet pulls them into her bowl for a few seconds. There's no timer and no way to lose: if she
    keeps missing, strawberries start falling closer to her. Every strawberry she catches goes on top
@@ -61,7 +61,7 @@ click the ✏️ pencil, then **Commit changes**). The live site updates a minut
 | `name`         | her name (title screen, battle text, letter) |
 | `age`          | the number on the TV, and she levels up to this age when she wins (set to `null` to hide) |
 | `opponentName` | your name in the whipping battle |
-| `strawberriesToCatch` | how many strawberries fill the bowl in stage 1, and so how many go on top of the cake (default 30) |
+| `strawberriesToCatch` | how many strawberries fill the bowl in stage 1, and so how many go on top of the cake (default 15) |
 | `whipTaps`     | how many taps it takes her to whip the cream in stage 2 (default 40) |
 | `hitsToBreak`  | how many baguette hits the cake boss can take (default 8) |
 | `bossName`     | the boss's name in the HP box |
