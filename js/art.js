@@ -891,16 +891,17 @@ window.Art = (() => {
       });
     }
     // a strawberry seen from above: whole (lying on its side, leafy top) or halved (cut side up), at any angle
-    function berry(sr, kind, ang) {
-      return memo(`berry${sr}-${kind}-${ang.toFixed(2)}`, () => {
-        const size = Math.ceil(sr * 3.2) + 4, c = mk(size, size), x = ctxOf(c), cx = size / 2 - 0.5, cy = size / 2 - 0.5;
+    // (sq < 1 foreshortens it, for lying on the cake top, which is seen at a slant)
+    function berry(sr, kind, ang, sq = 1) {
+      return memo(`berry${sr}-${kind}-${ang.toFixed(2)}-${sq}`, () => {
+        const size = Math.ceil(sr * 3.2) + 4, hgt = Math.ceil(size * sq) + 2, c = mk(size, hgt), x = ctxOf(c), cx = size / 2 - 0.5, cy = hgt / 2 - 0.5;
         const ca = Math.cos(ang), sa = Math.sin(ang), tipL = 1.35 * sr, topL = kind === 'half' ? 0.95 * sr : 0.85 * sr, W = 0.92 * sr;
         const hw = (u) => (u < 0 ? W * (1 - 0.62 * (-u / tipL)) * Math.sqrt(Math.max(0, 1 - (u / tipL) ** 6)) : W * Math.sqrt(Math.max(0, 1 - (u / topL) ** 2)));
-        const local = (i, j) => { const dx = i - cx, dy = j - cy; return [dx * ca + dy * sa, -dx * sa + dy * ca]; };
+        const local = (i, j) => { const dx = i - cx, dy = (j - cy) / sq; return [dx * ca + dy * sa, -dx * sa + dy * ca]; };
         const inside = (i, j) => { const [u, v] = local(i, j); return u >= -tipL && u <= topL && Math.abs(v) <= hw(u); };
-        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+        for (let j = 0; j < hgt; j++) for (let i = 0; i < size; i++) {
           if (!inside(i, j)) continue;
-          const [u, v] = local(i, j), e = Math.abs(v) / Math.max(0.5, hw(u)), nx = (i - cx) / sr, ny = (j - cy) / sr;
+          const [u, v] = local(i, j), e = Math.abs(v) / Math.max(0.5, hw(u)), nx = (i - cx) / sr, ny = (j - cy) / sq / sr;
           let col;
           if (kind === 'half') { // cut face: red skin at the rim, pink flesh, a pale heart down the middle
             const rim = e > 0.78 || u < -tipL + 1.4 || u > topL - 1.2;
@@ -915,26 +916,26 @@ window.Art = (() => {
           }
           x.fillStyle = col; x.fillRect(i, j, 1, 1);
         }
-        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) { // outline
+        for (let j = 0; j < hgt; j++) for (let i = 0; i < size; i++) { // outline
           if (inside(i, j)) continue;
           if (inside(i - 1, j) || inside(i + 1, j) || inside(i, j - 1) || inside(i, j + 1)) { x.fillStyle = kind === 'half' ? '#9a2234' : '#7a1828'; x.fillRect(i, j, 1, 1); }
         }
         if (kind !== 'half') {
           // a glossy highlight
-          const hx = Math.round(cx - sr * 0.35), hy = Math.round(cy - sr * 0.4);
+          const hx = Math.round(cx - sr * 0.35), hy = Math.round(cy - sr * 0.4 * sq);
           x.fillStyle = '#ffd3da'; x.fillRect(hx, hy, 2, 1); x.fillStyle = '#ffffff'; x.fillRect(hx, hy, 1, 1);
           // the leafy green top
-          const tx = cx + ca * topL * 0.85, ty = cy + sa * topL * 0.85;
+          const tx = cx + ca * topL * 0.85, ty = cy + sa * topL * 0.85 * sq;
           for (const da of [0, 0.95, -0.95, 2.1, -2.1]) {
             const a2 = ang + da, len = sr * (Math.abs(da) > 2 ? 0.55 : 0.7);
             for (let k = 0; k <= len; k += 0.5) {
-              const px = Math.round(tx + Math.cos(a2) * k), py = Math.round(ty + Math.sin(a2) * k);
+              const px = Math.round(tx + Math.cos(a2) * k), py = Math.round(ty + Math.sin(a2) * k * sq);
               x.fillStyle = k < len * 0.4 ? '#2f7a43' : '#43a85c'; x.fillRect(px, py, 1, 1);
               if (k < len * 0.6) { x.fillStyle = '#2f7a43'; x.fillRect(px + (Math.abs(Math.sin(a2)) > 0.7 ? 1 : 0), py + (Math.abs(Math.sin(a2)) > 0.7 ? 0 : 1), 1, 1); }
             }
           }
           x.fillStyle = '#7ad37a'; x.fillRect(Math.round(tx), Math.round(ty), 1, 1);
-          x.fillStyle = '#255c33'; x.fillRect(Math.round(tx + ca), Math.round(ty + sa), 1, 1);
+          x.fillStyle = '#255c33'; x.fillRect(Math.round(tx + ca), Math.round(ty + sa * sq), 1, 1);
         }
         return c;
       });
@@ -1010,10 +1011,10 @@ window.Art = (() => {
       });
     }
     // powdered sugar settling on a strawberry: its shape in white, drawn over it a little at a time
-    const frost = (sr, kind, ang) => memo(`frost${sr}-${kind}-${ang.toFixed(2)}`, () => silhouette(berry(sr, kind, ang), '#ffffff'));
+    const frost = (sr, kind, ang, sq = 1) => memo(`frost${sr}-${kind}-${ang.toFixed(2)}-${sq}`, () => silhouette(berry(sr, kind, ang, sq), '#ffffff'));
     // where a strawberry goes in the pattern: a dotted outline of its shape, pressed into the cream
-    const berryMark = (sr, kind, ang, col) => memo(`bmark${sr}-${kind}-${ang.toFixed(2)}-${col}`, () => {
-      const src = silhouette(berry(sr, kind, ang), col), w = src.width, h = src.height;
+    const berryMark = (sr, kind, ang, col, sq = 1) => memo(`bmark${sr}-${kind}-${ang.toFixed(2)}-${col}-${sq}`, () => {
+      const src = silhouette(berry(sr, kind, ang, sq), col), w = src.width, h = src.height;
       const inner = mk(w, h), e = ctxOf(inner); // (the shape shrunk by a pixel: where it overlaps itself nudged every way)
       e.drawImage(src, 0, 0); e.globalCompositeOperation = 'destination-in';
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) e.drawImage(src, dx, dy);
@@ -1024,6 +1025,41 @@ window.Art = (() => {
       x.globalCompositeOperation = 'destination-in'; x.drawImage(dots, 0, 0);
       return c;
     });
+    // the blue bow that goes on top of the finished cake (the same one it wears for the rest of the game):
+    // two loops pinched at a knot, and two tails cut in a V
+    function ribbonBow(L) {
+      return memo(`rbow${L}`, () => {
+        const w = L * 2 + 6, h = Math.round(L * 1.75) + 6, c = mk(w, h), x = ctxOf(c), cx = w / 2 - 0.5, cy = Math.round(L * 0.55) + 2;
+        const part = (i, j) => { // 4 = the knot, 1/2 = the left/right loop, 3 = a tail, 0 = nothing
+          const dx = i - cx, dy = j - cy, ax = Math.abs(dx);
+          if (ax <= 0.17 * L && Math.abs(dy) <= 0.22 * L) return 4;
+          if (ax <= L && Math.abs(dy + 0.04 * ax) <= 0.16 * L + 0.48 * ax * Math.sqrt(Math.max(0, 1 - (ax / L) ** 4))) return dx < 0 ? 1 : 2;
+          for (const sg of [-1, 1]) {
+            const t = dy / (L * 1.1); if (t <= 0 || t >= 1) continue;
+            const mx = sg * (0.1 + 0.42 * t) * L, hw = 0.12 * L + 0.05 * L * t, off = Math.abs(dx - mx);
+            if (off <= hw && !(t > 0.86 && off < ((t - 0.86) / 0.14) * hw)) return 3;
+          }
+          return 0;
+        };
+        for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+          const k = part(i, j); if (!k) continue;
+          const dx = i - cx, dy = j - cy, ax = Math.abs(dx), up = part(i, j - 1) !== k, dn = part(i, j + 1) !== k;
+          let col;
+          if (k === 4) col = dy < -0.08 * L && dx < 0.05 * L ? '#7fb2ff' : dy > 0.1 * L ? '#1d48c4' : '#2c62d6';
+          else if (k === 3) col = up && dy < 2 ? '#1d48c4' : (dx < 0 ? part(i - 1, j) !== 3 : part(i + 1, j) !== 3) ? '#8ec5ff' : '#3d7bff';
+          else {
+            const fold = Math.abs(dy - 0.1 * ax) < 0.06 * L + 0.5 && ax > 0.3 * L && ax < 0.8 * L; // (the crease inside each loop)
+            col = up ? '#a9d0ff' : dn ? '#1d48c4' : ax < 0.3 * L ? '#2c62d6' : fold ? '#2c62d6' : dy < -0.1 * L && ax > 0.4 * L ? '#6aa0ff' : '#3d7bff';
+          }
+          x.fillStyle = col; x.fillRect(i, j, 1, 1);
+        }
+        for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { // outline
+          if (part(i, j)) continue;
+          if (part(i - 1, j) || part(i + 1, j) || part(i, j - 1) || part(i, j + 1)) { x.fillStyle = '#16307a'; x.fillRect(i, j, 1, 1); }
+        }
+        return c;
+      });
+    }
     // the piping bag, put down on the counter on its side
     function bagDown(h) {
       return memo(`bagdown${h}`, () => {
@@ -1122,7 +1158,7 @@ window.Art = (() => {
         return outline(c, '#3b2416');
       });
     }
-    return { rosette, berry, bowl, pipingBag, sifter, shadow, frost, berryMark, bagDown, chiffon, coolRack, knob, carton, sugarJar, vanilla };
+    return { rosette, berry, bowl, pipingBag, sifter, shadow, frost, berryMark, ribbonBow, bagDown, chiffon, coolRack, knob, carton, sugarJar, vanilla };
   })();
   // little 3x5 pixel letters straight onto a canvas (the oven's temperature display)
   function pixText(x, str, X, Y, col, s = 1) {

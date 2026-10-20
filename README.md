@@ -17,9 +17,10 @@ Sophia bakes a giant Sungsimdang strawberry cake:
    stiff peaks. It looks like a close race, but he's quietly rubber-banded so she always wins.
    Then a short **cutscene**: she stacks the round cake layer by layer, one tap per layer.
 4. **Icing on Top**: a close-up of the cake on the counter. Squeeze the piping bag on each dot round
-   the edge, one swirl at a time; drag twelve strawberries out of the bowl onto the top (they slide
-   into a pattern: halves round the edge like petals, a little flower of whole ones in the middle); then shake
-   the sifter to dust it with sugar. Then the cake comes alive: Zech tries to run, a whipped-cream
+   the edge, one swirl at a time; cover the whole top with strawberries (drag them out of the bowl, tap
+   the cake, or hold on it to keep them coming: they slide into place like a strawberry tart, rings of
+   halves with whole ones tucked round the edge and in the middle); shake the sifter to dust it with
+   sugar; and last of all put the blue bow on top. Then the cake comes alive: Zech tries to run, a whipped-cream
    arm uncoils out of the cake, wraps round him, swings him up and drops him into the strawberries,
    and the cake gets hoisted up as a piñata.
 5. **Piñata Cake Monster**: run under the hanging cake and tap to jump and whack it with a baguette
