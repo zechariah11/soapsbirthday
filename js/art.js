@@ -478,6 +478,18 @@ window.Art = (() => {
   })();
   const GOLD_STRAW = outline(spr(['..gGg..', '.YgYgY.', 'YhYYYYY', 'YYwYYwY', 'YwYYYYY', '.YYYwY.', '..YYY..'],
     { Y: '#ffcf3a', h: '#fff4b8', w: '#fffbe6', g: '#3d9a52', G: '#7ad37a' }), '#9a6a1a');
+  const CRATE = outline(spr(['oooooooooo', 'oOOOOOOOOo', 'oOgOOOOgOo', 'oOOORROOOo', 'oOORrRROOo', 'oOOORROOOo', 'oOgOOOOgOo', 'oOOOOOOOOo', 'oooooooooo'],
+    { o: '#4e5a2c', O: '#6f7d3c', g: '#8c9a52', R: '#e8405a', r: '#ffffff' }), '#2b3218');
+  const CHUTE = (() => { // a round canopy in army olive and cream panels, with four lines down to the crate
+    const w = 19, h = 15, c = mk(w, h), x = ctxOf(c);
+    for (let j = 0; j < 7; j++) for (let i = 0; i < w; i++) {
+      const dx = (i - 9) / 9.5, dy = (j - 6.5) / 6.5; if (dx * dx + dy * dy > 1 || j > 6) continue;
+      x.fillStyle = j === 6 ? '#5b6630' : (Math.floor((i + 1) / 4) % 2 ? '#e9e2c8' : '#7c8a44'); x.fillRect(i, j, 1, 1);
+    }
+    x.fillStyle = '#c9c3a8';
+    for (const [x0, x1] of [[1, 6], [6, 8], [12, 10], [17, 12]]) for (let j = 7; j < h; j++) { const t = (j - 7) / (h - 8); x.fillRect(Math.round(x0 + (x1 - x0) * t), j, 1, 1); }
+    return outline(c, '#3c4322');
+  })();
   const TOAST = outline(spr(['.dddddd.', 'dTTTTTTd', 'dTkTTkTd', 'dTTkkTTd', 'dTkTTTTd', 'dTTTTkTd', '.dddddd.'],
     { d: '#4a2a14', T: '#6b3a1c', k: '#231510' }), '#120a06');
   const counterCache = new Map();
@@ -541,6 +553,8 @@ window.Art = (() => {
     const R = (col, X, Y, w = 1, h = 1) => { if (w > 0 && h > 0) { x.fillStyle = col; x.fillRect(Math.round(X), Math.round(Y), Math.round(w), Math.round(h)); } };
     const put = (img, X, Y) => x.drawImage(img, Math.round(X), Math.round(Y));
     const box = (X, Y, w, h, fillCol, line) => { R(line, X - 1, Y - 1, w + 2, h + 2); R(fillCol, X, Y, w, h); };
+    let miffy = null; // (with opt.liveMiffy the game draws her itself, so she can hop about)
+    const putMiffy = (img, X, Y) => { miffy = { img, x: Math.round(X), y: Math.round(Y) }; if (!opt.liveMiffy) put(img, X, Y); };
     const portrait = ih > iw * 1.1;
     const T = Math.max(0, opt.top | 0);   // rows hidden behind the HUD boxes at the top
     const floorY = Math.round(ih * (portrait ? 0.7 : 0.67));
@@ -798,7 +812,7 @@ window.Art = (() => {
       const pl = sx0 + 13 + bw0 + 4;                                                                  // a square grey cushion
       box(pl, sTop + 3, 14, 14, '#8f9298', '#585b63'); R('#a5a8ae', pl + 1, sTop + 4, 12, 1); R('#7f8288', pl + 1, sTop + 15, 12, 1);
       const mx = pl + 16 + MIFFY.width < Math.min(sx1 - 9, iw - 2) ? pl + 16 : pl - MIFFY.width + 1; // a little white Miffy next to it (on the other side if the sofa runs off the screen)
-      put(MIFFY, mx, sTop + 17 - MIFFY.height + 1);
+      putMiffy(MIFFY, mx, sTop + 17 - MIFFY.height + 1);
     } else {
       const sW = Math.min(Math.round(iw * (portrait ? 0.4 : 0.3)), 84), sx0 = iw - sW - 3, sx1 = sx0 + sW;
       const sBottom = feet - 3, sTop = sBottom - 26, seatY = sTop + 12, baseY = sTop + 19, legY = sBottom - 3;
@@ -815,7 +829,7 @@ window.Art = (() => {
       for (let j = 0; j < 15; j++) for (let i = 0; i < bw0; i++) R(((i / 3 | 0) + (j / 3 | 0)) % 2 ? '#f6f1dd' : '#a6cf8b', bx0 + i, sTop + 1 + j);
       for (let i = 0; i < bw0; i += 2) R('#f6f1dd', bx0 + i, sTop + 16);
       if (sW - 30 - bw0 > 14) { box(sx1 - 21, sTop + 2, 10, 10, '#8f9298', '#585b63'); R('#a5a8ae', sx1 - 20, sTop + 3, 8, 1); R('#7f8288', sx1 - 20, sTop + 10, 8, 1); } // a square grey cushion
-      if (sW - 30 - bw0 > 14 && sx1 - 23 - MIFFY_S.width > bx0 + bw0 + 1) put(MIFFY_S, sx1 - 23 - MIFFY_S.width, sTop + 12 - MIFFY_S.height + 1); // and a little white Miffy next to it
+      if (sW - 30 - bw0 > 14 && sx1 - 23 - MIFFY_S.width > bx0 + bw0 + 1) putMiffy(MIFFY_S, sx1 - 23 - MIFFY_S.width, sTop + 12 - MIFFY_S.height + 1); // and a little white Miffy next to it
     }
 
     // balloons are drawn every frame so they can bob (sx/sy: where the string starts on the sprite)
@@ -836,7 +850,7 @@ window.Art = (() => {
       });
     }
     balloons.sort((p, q) => p.y - q.y);
-    return { canvas: c, floorY, balloons, tinsel: ban, letters, tvPic, tv: { x: tx0 + 2, y: ty0 + 2, w: tw - 4, h: th - 4 } };
+    return { canvas: c, floorY, balloons, tinsel: ban, letters, tvPic, tv: { x: tx0 + 2, y: ty0 + 2, w: tw - 4, h: th - 4 }, miffy };
   }
 
   /* ---------------- envelope ---------------- */
@@ -909,16 +923,17 @@ window.Art = (() => {
             col = rim ? (e > 0.9 ? '#c22a44' : '#e8405a') : core ? '#fff1f3' : e > 0.55 ? '#ff8fa3' : e > 0.3 ? '#ffb3c1' : '#ffd6dc';
             if (!rim && !core && ((Math.round(u * 1.7) + Math.round(v * 1.7)) % 7 === 0)) col = '#ffc4cf';
           } else {
-            const b = 0.62 - 0.22 * nx - 0.26 * ny - 0.3 * e * e;
-            col = pick(b, [[0.78, '#ff7a8c'], [0.6, '#f04a63'], [0.42, '#d93450'], [0.26, '#bd2741'], [-9, '#9c1d36']]);
+            const b = 0.62 - 0.22 * nx - 0.26 * ny - 0.3 * e * e, gold = kind === 'gold';
+            col = pick(b, gold ? [[0.78, '#fff4b8'], [0.6, '#ffe27a'], [0.42, '#ffcf3a'], [0.26, '#e8a82a'], [-9, '#b8801a']]
+              : [[0.78, '#ff7a8c'], [0.6, '#f04a63'], [0.42, '#d93450'], [0.26, '#bd2741'], [-9, '#9c1d36']]);
             const gu = (u + tipL) / 2.3, gv = v / 2.3; // seeds in a little diamond lattice
-            if (Math.abs(gu - Math.round(gu)) < 0.22 && Math.abs(gv - Math.round(gv) - (Math.round(gu) % 2) * 0.5) < 0.22 && e < 0.85) col = b > 0.55 ? '#ffe9a0' : '#e8c048';
+            if (Math.abs(gu - Math.round(gu)) < 0.22 && Math.abs(gv - Math.round(gv) - (Math.round(gu) % 2) * 0.5) < 0.22 && e < 0.85) col = gold ? (b > 0.55 ? '#ffffff' : '#fffbe6') : b > 0.55 ? '#ffe9a0' : '#e8c048';
           }
           x.fillStyle = col; x.fillRect(i, j, 1, 1);
         }
         for (let j = 0; j < hgt; j++) for (let i = 0; i < size; i++) { // outline
           if (inside(i, j)) continue;
-          if (inside(i - 1, j) || inside(i + 1, j) || inside(i, j - 1) || inside(i, j + 1)) { x.fillStyle = kind === 'half' ? '#9a2234' : '#7a1828'; x.fillRect(i, j, 1, 1); }
+          if (inside(i - 1, j) || inside(i + 1, j) || inside(i, j - 1) || inside(i, j + 1)) { x.fillStyle = kind === 'half' ? '#9a2234' : kind === 'gold' ? '#9a6a1a' : '#7a1828'; x.fillRect(i, j, 1, 1); }
         }
         if (kind !== 'half') {
           // a glossy highlight
@@ -1175,6 +1190,6 @@ window.Art = (() => {
     OUT, mk, spr, outline, flip, silhouette, foil, textWidth, pixText, seeded,
     girl, GIRL_W, GIRL_H, GRIP, baguette, buildCake, buildRoom, envelope,
     STRAW, HEART, STAR, CREAM_HAND, MINI_STRAWS, MINI_GOLDS,
-    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, counter, SPONGE, CU,
+    zech, zechWhisk, ZECH_W, ZECH_H, BOWLS, WHISKS, STRAW_O, GOLD_STRAW, TOAST, CRATE, CHUTE, counter, SPONGE, CU,
   };
 })();

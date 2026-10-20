@@ -5,7 +5,7 @@
     age: 27,
     opponentName: 'Zech',
     whipTaps: 40,
-    strawberriesToCatch: 15,
+    strawberriesToCatch: 30,
     hitsToBreak: 8,
     bossName: 'Giant Strawberry Cake',
     startScreen: "I couldn't be there today, so little you is baking a giant 성심당딸기시루케이크: catch the strawberries, bake the sponges, beat me at whipping the cream, then stack it up and ice it (and deal with whatever happens next).",
@@ -58,7 +58,7 @@
     c.age = Number.isFinite(age) && age > 0 ? age : null;
     c.hitsToBreak = int(c.hitsToBreak, 1, 50, 8);
     c.whipTaps = int(c.whipTaps, 10, 200, 40);
-    c.strawberriesToCatch = int(c.strawberriesToCatch, 3, 60, 15);
+    c.strawberriesToCatch = int(c.strawberriesToCatch, 3, 60, 30);
     const fill = (s) => String(s ?? '')
       .replace(/\{NAME\}/g, c.name.toUpperCase()).replace(/\{OPPONENT\}/g, c.opponentName.toUpperCase())
       .replace(/\{name\}/g, c.name).replace(/\{age\}/g, c.age ?? '').replace(/\{opponent\}/g, c.opponentName);
@@ -250,7 +250,7 @@
   })();
 
   /* ================= layout: a low-res canvas scaled up with crisp pixels ================= */
-  let S = 4, iw = 0, ih = 0, room = null, roomTin = null, floorY = 0, balloons = [], tinsel = null, letters = [], tv = null, tvPic = null, ropeTarget = 30;
+  let S = 4, iw = 0, ih = 0, room = null, roomTin = null, floorY = 0, balloons = [], tinsel = null, letters = [], tv = null, tvPic = null, ropeTarget = 30, miffy = null;
   // the birthday decorations: the TV is off and there's no HAPPY BIRTHDAY banner until the monster's beaten (deco = seconds since then)
   let deco = -1;
   const ptr = { x: 0, y: 0 };
@@ -265,10 +265,10 @@
     iw = Math.ceil(W / S); ih = Math.ceil(H / S);
     cv.width = iw; cv.height = ih;
     cv.style.width = iw * S + 'px'; cv.style.height = ih * S + 'px';
-    const ro = { age: C.age, top: Math.ceil(80 / S), letters: false, tvOn: false }; // (the HUD boxes cover roughly the top 80px)
+    const ro = { age: C.age, top: Math.ceil(80 / S), letters: false, tvOn: false, liveMiffy: true }; // (the HUD boxes cover roughly the top 80px; Miffy's drawn live)
     const r = A.buildRoom(iw, ih, ro); // the room with the tinsel curtain (it unrolls down the wall when the banner comes)…
     room = A.buildRoom(iw, ih, { ...ro, tinsel: false }).canvas; // …and without it
-    roomTin = r.canvas; floorY = r.floorY; balloons = r.balloons; tinsel = r.tinsel; letters = r.letters; tv = r.tv; tvPic = r.tvPic;
+    roomTin = r.canvas; floorY = r.floorY; balloons = r.balloons; tinsel = r.tinsel; letters = r.letters; tv = r.tv; tvPic = r.tvPic; miffy = r.miffy;
     ropeTarget = Math.max(4, groundY() - 38 - CAKE.h); // the piñata hangs just above her crown: jump to whack it
     document.documentElement.style.setProperty('--env-w', 34 * Math.max(4, S) + 'px');
     if (oldW > 0 && oldH > 0) {
@@ -347,6 +347,9 @@
     ptr.x = e.clientX / S; ptr.y = e.clientY / S;
   }
   addEventListener('pointermove', toGame, { passive: true });
+  // a drag in the game must never turn into a pull-to-refresh (or a page scroll / zoom), which would reload the page mid-game;
+  // only the letter, the joke letters and the title card scroll
+  document.addEventListener('touchmove', (e) => { if (!(e.target && e.target.closest && e.target.closest('#intro, #letter, #wrong'))) e.preventDefault(); }, { passive: false });
   addEventListener('pointerdown', (e) => {
     sfx.init();
     if (e.target && e.target.closest && e.target.closest('#mute, #intro, #letter, #wrong')) return;
@@ -910,11 +913,16 @@
   }
 
   /* =====================================================================
-     STAGE 1: strawberry catch (no timer, no way to lose)
+     STAGE 1: strawberry catch (no timer, no way to lose). It gets livelier as the bowl fills: the drops speed up, Miffy
+     joins in from the sofa, a gust blows in through the window, an airdrop comes in from Zech's unit, a conga line of
+     berries, and a strawberry storm to finish; with combos (and a strawberry magnet for a long streak) along the way.
+     Every strawberry she catches ends up on top of the cake (CT.pile: in the order caught, golden ones and all).
      ===================================================================== */
-  Object.assign(CT, { sub: 'idle', caught: 0, spawnT: 0, missStreak: 0, dizzyT: 0, spawned: 0, hud: null, moved: false, pile: [], landT: 0 });
+  const ctFresh = () => ({ sub: 'idle', caught: 0, spawnT: 0.6, missStreak: 0, dizzyT: 0, spawned: 0, moved: false, pile: [], landT: 0,
+    ev: null, evs: {}, evGap: 0, combo: 0, magT: 0, wind: 0, crate: null, queue: [], miffyHop: 0 });
+  Object.assign(CT, ctFresh(), { hud: null });
   function catchReset() {
-    Object.assign(CT, { sub: 'idle', caught: 0, spawnT: 0.6, missStreak: 0, dizzyT: 0, spawned: 0, moved: false, pile: [], landT: 0 });
+    Object.assign(CT, ctFresh());
     CT.items.length = 0;
   }
   function catchBegin() {
@@ -925,7 +933,7 @@
     say([
       `Let's bake ${NAME()} a giant strawberry cake!`,
       'First, strawberries… oh! They\'re raining from the ceiling!',
-      `Catch ${C.strawberriesToCatch} for the cake! (Watch out for burnt toast.)`,
+      `Catch ${C.strawberriesToCatch} for the top of the cake! (Watch out for burnt toast.)`,
     ], () => {
       CT.sub = 'play'; lockT = 0.2;
       showCallout(coarse ? 'DRAG LEFT & RIGHT!' : 'MOVE LEFT & RIGHT!');
@@ -933,58 +941,151 @@
   }
   function catchTap() { /* moving is all it takes: the tap already moved her (pointer position) */ }
   const bowlRim = () => Math.round(kid.y - A.GIRL_H / 2) + 23; // (she holds the bowl at her waist, so the pile doesn't hide her face)
-  function spawnItem() {
+  // the twists, in order, each once she's caught enough (one at a time, with a breather in between); the storm is always the
+  // finale, for the last quarter or so of the bowl (anything she's raced past by then gets skipped)
+  const CATCH_EVENTS = [{ key: 'faster', at: 0.07 }, { key: 'miffy', at: 0.13 }, { key: 'wind', at: 0.27 }, { key: 'airdrop', at: 0.43 }, { key: 'conga', at: 0.6 }];
+  const storming = () => !!CT.ev && CT.ev.key === 'storm';
+  const stormAt = () => C.strawberriesToCatch - Math.max(5, Math.round(C.strawberriesToCatch * 0.24));
+  function rainTarget() { // the rain in between twists only brings enough to reach the next twist (the storm brings the rest)
+    const N = C.strawberriesToCatch;
+    if (N < 12 || storming()) return N;
+    const e = CATCH_EVENTS.find((q) => !CT.evs[q.key]);
+    return e ? Math.min(stormAt(), Math.ceil(e.at * N - 1e-9)) : stormAt();
+  }
+  const catchSpeed = () => 1 + (CT.evs.faster ? 0.18 : 0) + 0.22 * Math.min(1, CT.caught / C.strawberriesToCatch) + (storming() ? 0.15 : 0);
+  const banner = (text, col = '#ffd84a') => popWord(iw / 2, Math.max(28, Math.round(ih * 0.3)), text, true, col);
+  function dropItem(kind, x, o = {}) { CT.items.push({ kind, x: clamp(x, 10, iw - 10), y: -8, py: -8, vy: ih * 0.08, vx: 0, wob: rand(0, 6), ...o }); }
+  function spawnItem(room) {
     CT.spawned++;
-    const r = Math.random();
-    const kind = CT.caught >= 2 && r < 0.14 ? 'toast' : r > 0.92 ? 'gold' : 'straw';
+    const r = Math.random(), st = storming();
+    const kind = CT.caught >= 2 && r < (st ? 0.1 : 0.14) ? 'toast' : r > (st ? 0.9 : 0.95) && room >= 3 ? 'gold' : 'straw';
     let x;
     if (CT.spawned <= 2) x = kid.x + rand(-30, 30);                         // gentle start
     else if (kind !== 'toast' && CT.missStreak >= 2) x = kid.x + rand(-22, 22); // she's struggling: help her out
     else if (kind === 'toast') x = Math.abs(rand(-1, 1)) < 0.5 ? kid.x + pick([-1, 1]) * rand(25, 60) : rand(12, iw - 12);
     else x = rand(12, iw - 12);
-    CT.items.push({ kind, x: clamp(x, 10, iw - 10), y: -8, py: -8, vy: ih * 0.08, wob: rand(0, 6) });
+    dropItem(kind, x);
+  }
+  function miffyToss() { // Miffy hops up on the sofa and lobs one across the room, to land near-ish to her
+    const x0 = miffy.x + miffy.img.width / 2, y0 = miffy.y, T = 1.7, g0 = ih * 0.32 * catchSpeed();
+    const tx = clamp(kid.x + rand(-iw * 0.28, iw * 0.28), 14, iw - 14), rim = bowlRim();
+    CT.items.push({ kind: 'straw', x: x0, y: y0, py: y0, vx: (tx - x0) / T, vy: (rim - y0 - 0.5 * g0 * T * T) / T, wob: 0, arc: true, ev: true });
+    CT.miffyHop = 0.4; sfx.blip();
+    popWord(x0, y0 - 8, pick(['HUP!', 'CATCH!', 'HERE!', 'WHEE!']), false, '#ffffff');
+  }
+  function startEvent(key) {
+    CT.evs[key] = true;
+    if (key === 'faster') { banner('FASTER!'); sfx.whoosh(); return; }
+    if (key === 'miffy') { if (!miffy) return; CT.ev = { key, t: 0, n: 0, next: 1.2 }; banner('MIFFY WANTS TO HELP!', '#ffffff'); sfx.blip(); return; } // (no Miffy on this sofa: skip it)
+    if (key === 'wind') { CT.ev = { key, t: 0, dur: 7 }; banner('WHOOSH! WINDY!', '#cfe8ff'); sfx.whoosh(); return; }
+    if (key === 'airdrop') { // a supply crate on a parachute (catch it whole for +5, or it bursts open when it lands)
+      CT.ev = { key, t: 0 }; CT.crate = { x: clamp(kid.x + pick([-1, 1]) * rand(iw * 0.18, iw * 0.32), 20, iw - 20), y: -18, py: -18, vy: 0, t: 0, st: 'fall' };
+      banner('AIRDROP FROM ZECH!', '#c8d98a'); sfx.whoosh(); return;
+    }
+    if (key === 'conga') { // five in a row, sweeping across the room from the far side
+      const from = kid.x < iw / 2 ? iw - 16 : 16, to = iw - from, n = 5;
+      CT.queue = Array.from({ length: n }, (_, k) => ({ t: 0.6 + k * 0.36, x: from + ((to - from) * k) / (n - 1) }));
+      CT.ev = { key, t: 0 }; banner('BERRY CONGA LINE!', '#ffc2d6'); sfx.blip(); return;
+    }
+    if (key === 'storm') { CT.ev = { key, t: 0 }; banner('STRAWBERRY STORM!', '#ff6b98'); sfx.gold(); shakeT = 0.35; shakeA = 1; }
+  }
+  const endEvent = () => { CT.ev = null; CT.evGap = 1.6; };
+  function catchEvents(dt) {
+    const N = C.strawberriesToCatch;
+    if (!CT.ev && N >= 12 && (CT.evGap -= dt) <= 0) {
+      if (CT.caught >= stormAt()) { if (!CT.evs.storm) startEvent('storm'); }
+      else { const e = CATCH_EVENTS.find((q) => !CT.evs[q.key] && CT.caught / N >= q.at); if (e) startEvent(e.key); }
+    }
+    const ev = CT.ev;
+    if (!ev) return;
+    ev.t += dt;
+    if (ev.key === 'miffy') {
+      ev.next -= dt;
+      if (ev.n < 4 && ev.next <= 0) { ev.next = 1.1; ev.n++; miffyToss(); }
+      if (ev.n >= 4 && ev.next <= -1.8) endEvent(); // (once the last one's had time to land)
+    } else if (ev.key === 'wind') { // gusts, swapping direction halfway; little white streaks blow across the room
+      const k = clamp(Math.min(ev.t / 0.8, (ev.dur - ev.t) / 0.8), 0, 1);
+      CT.wind = k * (20 + 12 * Math.sin(ev.t * 2.3)) * (ev.t < ev.dur / 2 ? 1 : -1);
+      if (k > 0.2 && Math.random() < dt * 40) { const r = CT.wind > 0; parts.push({ x: r ? -4 : iw + 4, y: rand(ih * 0.12, groundY() - 6), vx: CT.wind * 5, vy: 0, g: 0, life: rand(0.7, 1.3), col: 'rgba(255,255,255,.85)', size: 1, streak: true, ground: 1e9 }); }
+      if (ev.t >= ev.dur || (ev.t > 3.5 && CT.caught >= rainTarget() && !CT.items.length)) { endEvent(); CT.wind = 0; } // (it dies down once its berries are in)
+    } else if (ev.key === 'airdrop') {
+      if (!CT.crate) endEvent();
+    } else if (ev.key === 'conga') {
+      for (let i = CT.queue.length - 1; i >= 0; i--) if (ev.t >= CT.queue[i].t) { dropItem('straw', CT.queue[i].x, { ev: true }); CT.queue.splice(i, 1); }
+      if (!CT.queue.length && !CT.items.some((it) => it.ev)) endEvent();
+    } else if (ev.key === 'storm' && Math.random() < dt * 14) { // (pink sparkles in the air)
+      parts.push({ x: rand(0, iw), y: rand(-4, ih * 0.4), vx: rand(-6, 6), vy: rand(20, 40), g: 0, life: rand(0.8, 1.4), col: pick(['#ffc2d6', '#ffffff', '#ff8fa3']), size: 1, ground: 1e9 });
+    }
+  }
+  function addCaught(kinds, x, label, col) { // into the bowl: the count, the pile, the combo
+    const N = C.strawberriesToCatch, rim = bowlRim(), add = kinds.slice(0, N - CT.caught);
+    CT.caught += add.length; CT.pile.push(...add); CT.missStreak = 0; CT.landT = 0.13; kid.happyT = 0.35;
+    CT.combo++;
+    popWord(kid.x, rim - 18, label, false, col);
+    if (CT.combo >= 5 && CT.combo % 5 === 0) later(180, () => popWord(kid.x, bowlRim() - 30, `COMBO x${CT.combo}!`, false, '#ffe9a0'));
+    if (CT.combo >= 10 && CT.combo % 10 === 0 && CT.magT <= 0 && CT.caught < N) { CT.magT = 4; later(350, () => { if (CT.sub === 'play') { banner('STRAWBERRY MAGNET!', '#ff8fa3'); sfx.levelUp(); } }); }
+    for (let k = 0; k < 5; k++) parts.push({ x, y: rim - 2, vx: rand(-30, 30), vy: rand(-50, -20), g: 160, life: 0.5, col: add.length > 1 ? '#ffd84a' : '#ffffff', size: 1, ground: rim + 6 });
+    setBar(CT.hud.b, CT.caught / N, `${CT.caught}/${N}`);
+    if (CT.caught >= N) catchWin();
   }
   function catchUpdate(dt) {
     if (CT.dizzyT > 0) CT.dizzyT -= dt;
     if (CT.landT > 0) CT.landT = Math.max(0, CT.landT - dt);
+    if (CT.miffyHop > 0) CT.miffyHop = Math.max(0, CT.miffyHop - dt);
+    if (CT.magT > 0) CT.magT -= dt;
     if (CT.sub !== 'play' && CT.sub !== 'done') return;
     if (CT.sub === 'play') {
       if (Math.abs(kid.vx) > 30) { CT.moved = true; }
       if (CT.moved && CT.caught > 0) hideCallout();
-      const maxItems = Math.min(4, 2 + Math.floor(CT.caught / 5));
-      if ((CT.spawnT -= dt) <= 0 && CT.items.length < maxItems) { spawnItem(); CT.spawnT = rand(0.55, 0.95); }
+      catchEvents(dt);
+      const loose = CT.items.filter((it) => !it.ev).length, k = CT.ev ? CT.ev.key : '';
+      const maxItems = storming() ? 6 : k === 'wind' ? 2 : k ? 0 : Math.min(4, 2 + Math.floor(CT.caught / 5)); // (the rain stops while Miffy, the airdrop or the conga line have the stage)
+      const inAir = CT.items.reduce((t, it) => t + (it.ev || it.kind === 'toast' ? 0 : it.kind === 'gold' ? 3 : 1), 0), room = rainTarget() - CT.caught - inAir;
+      if ((CT.spawnT -= dt) <= 0 && loose < maxItems && room > 0) { spawnItem(room); CT.spawnT = storming() ? rand(0.2, 0.36) : rand(0.55, 0.95) / Math.sqrt(catchSpeed()); }
     }
-    const grav = ih * 0.32, vmax = ih * 0.45, rim = bowlRim();
+    const spd = catchSpeed(), grav = ih * 0.32 * spd, vmax = ih * 0.45 * spd, rim = bowlRim();
+    const cr = CT.crate;
+    if (cr) { // the airdrop: drifting down under its parachute
+      cr.t += dt;
+      if (cr.st === 'fall') {
+        cr.vy = Math.min(ih * 0.12, cr.vy + ih * 0.2 * dt); cr.py = cr.y; cr.y += cr.vy * dt;
+        cr.x = clamp(cr.x + (Math.sin(cr.t * 1.6) * 10 + CT.wind * 0.5) * dt, 12, iw - 12);
+        if (CT.sub === 'play' && cr.py < rim - 3 && cr.y >= rim - 3 && Math.abs(cr.x - kid.x) <= 12) { // caught the whole crate!
+          CT.crate = null; sfx.gold(); shakeT = 0.2; shakeA = 1;
+          for (let k = 0; k < 12; k++) parts.push({ x: cr.x, y: rim - 4, vx: rand(-50, 50), vy: rand(-70, -20), g: 160, life: 0.7, col: pick(['#c8d98a', '#ffffff', '#ff8fa3']), size: 1, ground: rim + 6 });
+          addCaught(['straw', 'straw', 'straw', 'straw', 'straw'], cr.x, 'SUPPLIES! +5', '#c8d98a');
+        } else if (cr.y >= groundY() - 4) { // it lands and bursts open: five strawberries pop out to catch
+          cr.st = 'open'; cr.t = 0; cr.y = groundY() - 4; sfx.thud(); popWord(cr.x, cr.y - 16, 'POP!', false, '#ffffff');
+          for (let k = 0; k < 5; k++) CT.items.push({ kind: 'straw', x: cr.x, y: cr.y - 6, py: cr.y - 6, vx: (k - 2) * rand(12, 18), vy: -ih * rand(0.5, 0.62), wob: 0, arc: true, ev: true });
+        }
+      } else if (cr.t > 2.4) CT.crate = null;
+    }
     for (let i = CT.items.length - 1; i >= 0; i--) {
       const it = CT.items[i];
       it.py = it.y;
-      it.vy = Math.min(vmax, it.vy + grav * dt);
+      it.vy = it.arc ? it.vy + grav * dt : Math.min(vmax, it.vy + grav * dt);
       it.y += it.vy * dt;
       it.wob += dt * 4;
-      if (it.kind !== 'toast') it.x += Math.sin(it.wob) * 4 * dt;
+      it.x += (it.vx || 0) * dt;
+      if (it.kind !== 'toast' && !it.arc) it.x += Math.sin(it.wob) * 4 * dt;
+      if (CT.wind) it.x += CT.wind * (it.kind === 'toast' ? 0.6 : 1) * dt;
+      if (CT.magT > 0 && it.kind !== 'toast' && it.y < rim) { const dx = kid.x - it.x; if (Math.abs(dx) < 70) it.x += Math.sign(dx) * Math.min(Math.abs(dx), 80 * dt); } // (the magnet pulls them in)
+      it.x = clamp(it.x, 6, iw - 6);
       // caught: it crossed the bowl's rim inside the bowl
       if (CT.sub === 'play' && it.py < rim && it.y >= rim - 1 && Math.abs(it.x - kid.x) <= 9) {
         CT.items.splice(i, 1);
         if (it.kind === 'toast') {
-          CT.dizzyT = 0.9; sfx.toast(); popWord(kid.x, rim - 20, 'BURNT TOAST!', false, '#c9a27a');
+          CT.dizzyT = 0.9; CT.combo = 0; sfx.toast(); popWord(kid.x, rim - 20, 'BURNT TOAST!', false, '#c9a27a');
           for (let k = 0; k < 6; k++) parts.push({ x: it.x, y: rim - 2, vx: rand(-20, 20), vy: rand(-30, -10), g: 0, life: 0.8, col: '#8a8a96', size: 2, ground: 1e9 });
-        } else {
-          const n = it.kind === 'gold' ? 3 : 1;
-          CT.caught = Math.min(C.strawberriesToCatch, CT.caught + n); CT.missStreak = 0;
-          CT.pile.push(...(n > 1 ? ['straw', 'gold', 'straw'] : ['straw'])); CT.landT = 0.13;
-          kid.happyT = 0.35;
-          if (n > 1) { sfx.gold(); popWord(kid.x, rim - 20, 'GOLDEN! +3', false, '#ffd84a'); } else { sfx.catch(); popWord(kid.x, rim - 18, '+1', false, '#ffc2d6'); }
-          for (let k = 0; k < 5; k++) parts.push({ x: it.x, y: rim - 2, vx: rand(-30, 30), vy: rand(-50, -20), g: 160, life: 0.5, col: n > 1 ? '#ffd84a' : '#ffffff', size: 1, ground: rim + 6 });
-          setBar(CT.hud.b, CT.caught / C.strawberriesToCatch, `${CT.caught}/${C.strawberriesToCatch}`);
-          if (CT.caught >= C.strawberriesToCatch) catchWin();
-        }
+        } else if (it.kind === 'gold') { sfx.gold(); addCaught(['straw', 'gold', 'straw'], it.x, 'GOLDEN! +3', '#ffd84a'); }
+        else { sfx.catch(); addCaught(['straw'], it.x, '+1', '#ffc2d6'); }
         continue;
       }
       // missed: it splats on the floor
       if (it.y > groundY() - 2) {
         CT.items.splice(i, 1);
         if (it.kind !== 'toast') {
-          if (CT.sub === 'play') CT.missStreak++;
+          if (CT.sub === 'play') { CT.missStreak++; CT.combo = 0; }
           sfx.splat();
           for (let k = 0; k < 6; k++) parts.push({ x: it.x, y: it.y, vx: rand(-30, 30), vy: rand(-40, -10), g: 200, life: rand(0.8, 1.6), col: pick(['#e8405a', '#ff8fa3']), size: 1, ground: it.y + rand(0, 3) });
         } else {
@@ -995,10 +1096,13 @@
   }
   function catchWin() {
     CT.sub = 'done'; hideCallout();
+    CT.ev = null; CT.wind = 0; CT.queue = []; CT.magT = 0;
     kid.happyT = 99; sfx.clear();
     popWord(kid.x, bowlRim() - 24, 'BOWL FULL!', true, '#ffc2d6');
+    const golds = CT.pile.filter((k) => k === 'gold').length;
     later(1300, () => say([
       `${NAME()} caught ${C.strawberriesToCatch} strawberries!`,
+      `Every single one of them is going on top of the cake${golds ? ` (golden ${golds > 1 ? 'ones' : 'one'} too)` : ''}.`,
       `Next up: ${STAGES[stageIdx + 1].next}!`,
     ], () => stageClear()));
   }
@@ -1010,13 +1114,16 @@
     });
     return out;
   })();
+  const PILE_SHOWN = 17; // (any higher and the heap hides her face)
   function catchRenderBowl(pose) {
     const bowl = A.BOWLS.sophia, bx = Math.round(kid.x - bowl.width / 2) + (pose.sx - Math.round(kid.x - A.GIRL_W / 2)), by = pose.sy + 22, mx = bx + bowl.width / 2;
     g.fillStyle = '#5b7fc0'; g.fillRect(bx + 2, by - 1, bowl.width - 4, 1); g.fillStyle = '#9fc0f0'; g.fillRect(bx + 3, by, bowl.width - 6, 1); // the inside of the bowl
-    // the strawberries she's caught, heaped up (the newest one drops in with a bounce, and the pile jiggles)
-    const n = Math.min(CT.pile.length, PILE.length), jig = CT.landT > 0 ? Math.round(Math.sin(CT.landT * 40)) : 0;
+    // the strawberries she's caught, heaped up (the newest one drops in with a bounce, and the pile jiggles); the heap grows
+    // with how full the bowl is, up to the height that still leaves her face in view
+    const full = Math.min(1, CT.pile.length / C.strawberriesToCatch), n = Math.min(CT.pile.length, Math.round(PILE_SHOWN * full));
+    const jig = CT.landT > 0 ? Math.round(Math.sin(CT.landT * 40)) : 0;
     for (let i = 0; i < n; i++) {
-      const s = PILE[i], gold = CT.pile[i] === 'gold', img = (gold ? A.MINI_GOLDS : A.MINI_STRAWS)[s.v];
+      const s = PILE[i], gold = CT.pile[Math.floor((i * CT.pile.length) / Math.max(1, n))] === 'gold', img = (gold ? A.MINI_GOLDS : A.MINI_STRAWS)[s.v];
       const drop = i === n - 1 && CT.landT > 0 ? -Math.round(CT.landT * CT.landT * 60) : 0;
       const X = Math.round(mx + s.x - 2) + (i % 2 ? jig : 0), Y = Math.round(by + s.y - 2) + drop;
       g.drawImage(img, X, Y);
@@ -1025,6 +1132,16 @@
     g.drawImage(bowl, bx, by);
   }
   function catchRenderItems() {
+    const cr = CT.crate;
+    if (cr) { // the airdrop: the crate under its parachute (or burst open on the floor, fading away)
+      const X = Math.round(cr.x), Y = Math.round(cr.y), tilt = cr.st === 'fall' ? Math.round(Math.sin(cr.t * 1.6) * 1.5) : 0;
+      if (cr.st === 'fall') g.drawImage(A.CHUTE, X - 9 + tilt, Y - 4 - A.CHUTE.height + 1);
+      if (cr.st === 'open' && cr.t > 1.6 && Math.floor(cr.t * 10) % 2) { /* (blinking out) */ } else g.drawImage(A.CRATE, X - 5, Y - 4);
+    }
+    if (CT.magT > 0) { // the strawberry magnet: pink sparkles circling her bowl
+      const mx = kid.x, my = bowlRim() - 1;
+      for (let k = 0; k < 6; k++) { const a = time * 5 + (k * Math.PI) / 3; g.fillStyle = k % 2 ? '#ff8fa3' : '#ffffff'; g.fillRect(Math.round(mx + Math.cos(a) * 13), Math.round(my + Math.sin(a) * 4), 1, 1); }
+    }
     for (const it of CT.items) {
       const img = it.kind === 'toast' ? A.TOAST : it.kind === 'gold' ? A.GOLD_STRAW : A.STRAW_O;
       g.drawImage(img, Math.round(it.x - img.width / 2), Math.round(it.y - img.height / 2));
@@ -1470,7 +1587,7 @@
     const x0 = cakeX(), y0 = cakeY();
     // the cake shatters into chunky pixel tiles
     const comp = A.mk(CAKE.w, CAKE.h), cx = comp.getContext('2d');
-    cx.drawImage(CAKE.img, 0, 0); cx.drawImage(CAKE.faces.ko, CAKE.faceX, CAKE.faceY);
+    cx.drawImage(CAKE.img, 0, 0); drawGolds(cx, 0, 0); cx.drawImage(CAKE.faces.ko, CAKE.faceX, CAKE.faceY);
     const T = 6, mx = x0 + CAKE.w / 2, my = y0 + CAKE.h / 2;
     for (let ty = 0; ty < CAKE.h; ty += T) for (let tx = 0; tx < CAKE.w; tx += T) {
       const tile = A.mk(T, T); tile.getContext('2d').drawImage(comp, tx, ty, T, T, 0, 0, T, T);
@@ -1939,7 +2056,7 @@
   const SUGAR_GOAL = 260, BSQ = 0.72; // (strawberries on the cake top are drawn a bit foreshortened, like the top itself)
   const cuCv = $('#closeup'), cuG = cuCv.getContext('2d');
   const IC = { sub: 'idle', spots: [], piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], hud: null, t: 0, sq: 0, u: 0,
-    squeeze: false, lx: 0, ly: 0, used: 0, puff: 0, acc: 0, hudB: 110, hudR: 340, ghost: false, shown: false, base: null, baseKey: '', taken: [], shine: -1, shineK: 0, pat: [], nh: 0, down: false, rep: 0, bow: { st: 'off', t: 0 }, nudge: 0 };
+    squeeze: false, lx: 0, ly: 0, used: 0, puff: 0, acc: 0, hudB: 110, hudR: 340, ghost: false, shown: false, base: null, baseKey: '', taken: [], shine: -1, shineK: 0, pat: [], kinds: [], brf: 0, golds: 0, down: false, rep: 0, bow: { st: 'off', t: 0 }, nudge: 0 };
   let cuOwner = ''; // whose close-up is on that canvas: the oven's or the icing's
   function cuSize() { // the close-up's own pixel grid (finer than the room's)
     const W = Math.max(1, innerWidth), H = Math.max(1, innerHeight), P = clamp(Math.round(S * 0.6), 2, 4);
@@ -1973,7 +2090,7 @@
     let x0, y0, bx, by;
     if (side) { const tot = Wt + 14 + R * 2; x0 = Math.round(mid - tot / 2); y0 = Math.round(T + (ah - Ht - Hf) / 2); bx = x0 + Wt + 14 + R; by = y0 + Math.round((Ht + Hf) * 0.55); }
     else { const tot = Ht + Hf + 12 + R * 2; x0 = Math.round(mid - Wt / 2); y0 = Math.round(T + (ah - tot) / 2); bx = Math.round(mid + Wt * 0.2); by = y0 + Ht + Hf + 12 + R; }
-    const r = clamp(Math.round(Wt * 0.052), 4, 12), sr = clamp(Math.round(Wt * 0.048), 4, 11), br = clamp(Math.round(Wt * 0.076), 5, 28); // (br: the strawberries on top)
+    const r = clamp(Math.round(Wt * 0.052), 4, 12), sr = clamp(Math.round(Wt * 0.048), 4, 11), br = IC.brf ? clamp(Math.round(Wt * IC.brf), 3, 48) : clamp(Math.round(Wt * 0.076), 5, 28); // (br: the strawberries on top, sized to fit however many she caught)
     const ins = r + 4, tcx = x0 + Wt / 2, tcy = y0 + Ht / 2; // (the round cake's oval top)
     const ring = { cx: tcx, cy: tcy, rx: Wt / 2 - ins, ry: Ht / 2 - ins * 0.85 };
     const irx = ring.rx - r - sr * 0.6, iry = ring.ry - r * 0.8 - sr * 0.4; // where strawberries can go: inside the ring of swirls
@@ -1996,33 +2113,41 @@
   const inBowl = (V, p) => Math.hypot(p.x - V.bx, p.y - V.by) <= V.R + 4;
   const onTop = (V, p, k = 1) => inOval({ cx: V.tcx, cy: V.tcy, rx: V.Wt / 2, ry: V.Ht / 2 }, p, k);
   const qAng = (a) => { const st = Math.PI / 24, n = Math.round(a / st) % 48; return ((n + 48) % 48) * st; }; // (in steps, so the sprites get reused)
-  const berryKind = (k) => (k < IC.nh ? 'half' : 'whole'); // the halves come first, the whole ones for the middle last
-  function buildPattern(V) { // the pattern they snap into, like a strawberry tart: rings of halves with their tips pointing out (each ring
-    // tucked over the one outside it) from the swirls right in to the middle, and a little flower of whole ones in the very middle
-    const br = V.br, tipL = br * 1.35, ky = V.ring.ry / V.ring.rx, step = br * 1.62, out = [];
-    const add = (x, y, kind, ang, layer) => out.push({ i: out.length, fx: x / V.Wt, fy: (y * ky) / V.Ht, kind, ang: qAng(ang), layer });
-    const R0 = V.ring.rx - V.r * 0.7 - tipL * 0.88; // (the outer tips tuck right up against the swirls)
-    let R = R0, layer = 0, n0 = 0;
-    for (; R >= br * 1.3; R -= step, layer++) {
-      const n = Math.max(5, Math.round((2 * Math.PI * R) / (br * 1.72)));
-      if (!layer) n0 = n;
-      for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + ((k + (layer % 2) * 0.5) * 2 * Math.PI) / n; add(Math.cos(a) * R, Math.sin(a) * R, 'half', a + Math.PI, layer); }
-    }
-    const fill = []; // whole ones tucked in between the outer halves' tips (under them), so no cream shows at the edge
-    for (let k = 0; k < n0; k++) { const a = -Math.PI / 2 + ((k + 0.5) * 2 * Math.PI) / n0; fill.push([Math.cos(a) * R0, Math.sin(a) * R0, a + Math.PI]); }
-    for (const [fx, fy, fa] of fill) add(fx, fy, 'whole', fa, -1);
-    if (R + step - br * 0.95 >= br * 1.4) { // (leafy tops meeting in the middle)
-      for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + (k * 2 * Math.PI) / 3; add(Math.cos(a) * br * 1.1, Math.sin(a) * br * 1.1, 'whole', a + Math.PI, 99); }
-    } else add(0, 0, 'whole', -Math.PI / 2 + 0.5, 99);
+  const berryKind = (k) => IC.kinds[k] || 'whole'; // the strawberries in her bowl, in the order she'll pick them up (golden ones last)
+  function buildPattern(V, N) { // where the strawberries go: one spot for every one she caught, covering the top. Rings of them from the
+    // swirls in to the middle (tips out, each ring tucked over the one outside it), more tucked in between the outer tips, and one or
+    // three in the middle; the berry size is whatever makes exactly N of them fill it
+    const ky = V.ring.ry / V.ring.rx, Rout = V.ring.rx - V.r * 0.7;
+    const plan = (br) => {
+      const tipL = br * 1.35, step = br * 1.62, R0 = Rout - tipL * 0.88, rings = [];
+      for (let R = R0; R >= br * 1.3; R -= step) rings.push({ R, n: Math.max(4, Math.round((2 * Math.PI * R) / (br * 1.72))) });
+      const inner = rings.length ? rings[rings.length - 1].R : 0, p = { br, R0, rings, fill: rings.length ? rings[0].n : 0, mid: !rings.length || inner - br * 0.95 >= br * 1.4 ? 3 : 1 };
+      p.total = rings.reduce((t, r) => t + r.n, 0) + p.fill + p.mid;
+      return p;
+    };
+    let p = null;
+    for (let br = Math.max(6, Rout * 0.5); br >= 3; br -= 0.25) { p = plan(br); if (p.total >= N) break; }
+    let d = p.total - N; // (then take away the extras, from the middle outwards, so it's exactly N)
+    if (d >= 2 && p.mid === 3) { p.mid = 1; d -= 2; }
+    for (let k = p.rings.length - 1; k >= 0 && d > 0; k--) { const take = Math.min(d, p.rings[k].n - 4); p.rings[k].n -= take; d -= take; }
+    if (d > 0) { const take = Math.min(d, p.fill); p.fill -= take; d -= take; }
+    if (d > 0) { const take = Math.min(d, p.mid); p.mid -= take; d -= take; }
+    const out = [], add = (x, y, ang, layer) => out.push({ i: out.length, fx: x / V.Wt, fy: (y * ky) / V.Ht, ang: qAng(ang), layer });
+    p.rings.forEach(({ R, n }, k) => { for (let j = 0; j < n; j++) { const a = -Math.PI / 2 + ((j + (k % 2) * 0.5) * 2 * Math.PI) / n; add(Math.cos(a) * R, Math.sin(a) * R, a + Math.PI, k); } });
+    const n0 = p.rings.length ? p.rings[0].n : 0;
+    for (let j = 0; j < p.fill; j++) { const a = -Math.PI / 2 + ((Math.floor((j * n0) / p.fill) + 0.5) * 2 * Math.PI) / n0; add(Math.cos(a) * p.R0, Math.sin(a) * p.R0, a + Math.PI, -1); }
+    if (p.mid >= 2) for (let k = 0; k < p.mid; k++) { const a = -Math.PI / 2 + (k * 2 * Math.PI) / p.mid; add(Math.cos(a) * p.br * 1.1, Math.sin(a) * p.br * 1.1, a + Math.PI, 99); } // (leafy tops meeting in the middle)
+    else if (p.mid === 1) add(0, 0, -Math.PI / 2 + 0.5, 99);
+    IC.brf = p.br / V.Wt;
     return out;
   }
   const slotsOf = (V) => IC.pat.map((s) => ({ ...s, x: V.tcx + s.fx * V.Wt, y: V.tcy + s.fy * V.Ht }));
-  const bowAt = (V) => ({ x: V.tcx, y: V.tcy - V.br * 0.55 }); // where the bow sits: on top, right in the middle
-  const bowL = (V) => clamp(Math.round(V.br * 1.5), 7, 40);
+  const bowAt = (V) => ({ x: V.tcx, y: V.tcy - V.Wt * 0.035 }); // where the bow sits: on top, right in the middle
+  const bowL = (V) => clamp(Math.round(V.Wt * 0.11), 7, 40);
   function freeSlot(V, kind, at) { // the empty spot for this kind of berry nearest a point (or the next one round, with no point)
     let best = null, bd = Infinity;
     for (const s of slotsOf(V)) {
-      if (s.kind !== kind || IC.taken.includes(s.i)) continue;
+      if (IC.taken.includes(s.i)) continue;
       const d = at ? Math.hypot(s.x - at.x, s.y - at.y) : s.i;
       if (d < bd) { bd = d; best = s; }
     }
@@ -2038,7 +2163,10 @@
     IC.hudB = 110; IC.hudR = 340;
     const V = cuLayout(), a = V.ring.rx, b = V.ring.ry, per = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b))), n = clamp(Math.round(per / (V.r * 2 + 4)), 12, 24);
     Object.assign(IC, { sub: 'idle', spots: Array.from({ length: n }, (_, i) => ({ u: i / n, g: 0, done: false, ready: false })), cur: null, tgt: null, bx: 0, by: 0, kl: false, kr: false, piped: 0, placed: [], hops: [], held: null, specks: [], flakes: [], fx: [], t: 0, sq: 0, u: 0, squeeze: false, used: 0, puff: 0, acc: 0, taken: [], shine: -1, shineK: 0, down: false, rep: 0, bow: { st: 'off', t: 0 } });
-    IC.pat = buildPattern(V); IC.nh = IC.pat.filter((b) => b.kind === 'half').length;
+    const N = C.strawberriesToCatch, caught = CT.pile.slice(0, N).map((k) => (k === 'gold' ? 'gold' : 'whole'));
+    while (caught.length < N) caught.push('whole'); // (straight into this stage, with nothing caught: plain ones)
+    IC.kinds = [...caught.filter((k) => k !== 'gold'), ...caught.filter((k) => k === 'gold')]; IC.golds = N - caught.filter((k) => k !== 'gold').length;
+    IC.brf = 0; IC.pat = buildPattern(V, N);
     showCloseup(false);
     if (ZE.mode !== 'walk') { zechReset(); Object.assign(ZE, { mode: 'walk', x: bakeSpot().him, y: groundY(), tx: bakeSpot().him, face: 'happy' }); }
     kid.x = bakeSpot().her; kid.y = groundY() - A.GIRL_H / 2 + 1; kid.vx = kid.vy = 0;
@@ -2099,7 +2227,7 @@
       if (onTop(V, q, 1.08)) { // anywhere on the cake: it slides into the nearest empty spot in the pattern
         const s = freeSlot(V, IC.held.kind, q);
         IC.taken.push(s.i);
-        placeBerry(V, { kind: s.kind, ang: s.ang, si: s.i, layer: s.layer, fx: (s.x - V.x0) / V.Wt, fy: (s.y - V.y0) / V.Ht, sx: (q.x - V.x0) / V.Wt, sy: (q.y - V.y0) / V.Ht, sa: IC.held.ang });
+        placeBerry(V, { kind: IC.held.kind, ang: s.ang, si: s.i, layer: s.layer, fx: (s.x - V.x0) / V.Wt, fy: (s.y - V.y0) / V.Ht, sx: (q.x - V.x0) / V.Wt, sy: (q.y - V.y0) / V.Ht, sa: IC.held.ang });
       } else { IC.used--; sfx.splat(); } // dropped off the cake: back into the bowl it goes
       IC.held = null;
     }
@@ -2373,26 +2501,26 @@
       }
     };
     for (const sp of spots) if (sp.q.y < V.tcy) drawSpot(sp); // (the back half now; the front half goes in front of the strawberries)
-    // where the strawberries go: little pink rings on the cream (with ~30 spots, whole outlines would just be a tangle),
+    // where the strawberries go: little pink rings on the cream (with this many spots, whole outlines would just be a tangle),
     // and while she's carrying one over the cake, a see-through berry in the spot it'll slide into
     if (IC.sub === 'berries') {
       const kind = IC.held ? IC.held.kind : berryKind(IC.used), q = { x: p.x, y: p.y - V.lift * 0.5 };
       const tgt = IC.held && onTop(V, q, 1.08) ? freeSlot(V, kind, q) : null, blink = Math.floor(IC.t * 2) % 2;
       for (const sl of slotsOf(V)) {
-        if (IC.taken.includes(sl.i) || sl.kind !== kind || (tgt && sl.i === tgt.i)) continue;
+        if (IC.taken.includes(sl.i) || (tgt && sl.i === tgt.i)) continue;
         const rx = Math.max(2, V.br * 0.32), ry = rx * 0.7;
         x.fillStyle = IC.held && blink ? '#f0708a' : '#eb94a6';
         for (let a = 0; a < 6.28; a += 0.9) x.fillRect(Math.round(sl.x + Math.cos(a) * rx), Math.round(sl.y + Math.sin(a) * ry), 1, 1);
       }
       if (tgt) {
-        const img = CU.berry(V.br, tgt.kind, tgt.ang, BSQ), mark = CU.berryMark(V.br, tgt.kind, tgt.ang, blink ? '#ffcf4a' : '#ffe9a0', BSQ);
+        const img = CU.berry(V.br, kind, tgt.ang, BSQ), mark = CU.berryMark(V.br, kind, tgt.ang, blink ? '#ffcf4a' : '#ffe9a0', BSQ);
         x.globalAlpha = 0.4 + 0.15 * Math.sin(IC.t * 8); x.drawImage(img, Math.round(tgt.x - img.width / 2), Math.round(tgt.y - img.height / 2)); x.globalAlpha = 1;
         x.drawImage(mark, Math.round(tgt.x - mark.width / 2), Math.round(tgt.y - mark.height / 2));
       }
     }
     // strawberries on the cake, ring by ring from the outside in (gliding into place, then a little squash as they land),
     // frosting over as the sugar falls on them
-    for (const b of IC.placed.slice().sort((a, c) => (a.layer - c.layer) || (a.fy - c.fy))) {
+    for (const b of IC.placed.slice().sort((a, c) => ((a.kind === 'gold') - (c.kind === 'gold')) || (a.layer - c.layer) || (a.fy - c.fy))) { // (golden ones sit on top of the heap)
       let X = V.x0 + b.fx * V.Wt, Y = V.y0 + b.fy * V.Ht, ang = b.ang;
       if (b.g < 1) { // (from where she let go, with a little hop)
         const e = 1 - (1 - b.g) ** 3, d = ((b.ang - b.sa + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
@@ -2403,7 +2531,7 @@
       shade(X + 2, Y + V.br * 0.4, V.br * 0.9, Math.max(2, V.br * 0.25), '130,50,50');
       const ix = Math.round(X - w / 2), iy = Math.round(Y - h / 2);
       x.drawImage(img, ix, iy, w, h);
-      if (b.dust) { x.globalAlpha = Math.min(0.5, b.dust / 50); x.drawImage(CU.frost(V.br, b.kind, b.ang, BSQ), ix, iy, w, h); x.globalAlpha = 1; }
+      if (b.dust) { x.globalAlpha = Math.min(0.28, b.dust / 90); x.drawImage(CU.frost(V.br, b.kind, b.ang, BSQ), ix, iy, w, h); x.globalAlpha = 1; }
     }
     for (const sp of spots) if (sp.q.y >= V.tcy) drawSpot(sp);
     // powdered sugar where it landed: tiny grains, white on the berries, a soft sparkle on the cream
@@ -2486,7 +2614,7 @@
     const sp = bakeSpot();
     g.fillStyle = 'rgba(43,39,69,.2)'; g.fillRect(Math.round(iw / 2 - sp.table.width / 2) - 1, sp.base + 1, sp.table.width + 2, 2);
     g.drawImage(sp.table, Math.round(iw / 2 - sp.table.width / 2), sp.base - sp.table.height + 2);
-    if (IC.sub === 'done') g.drawImage(CAKE.img, sp.cx, sp.cy);
+    if (IC.sub === 'done') { g.drawImage(CAKE.img, sp.cx, sp.cy); drawGolds(g, sp.cx, sp.cy); }
     else g.drawImage(CAKE.stack[STACK], sp.cx, sp.cy);
     drawZech(); drawGirl();
   }
@@ -2502,6 +2630,7 @@
     return { base, table, cx: Math.round(iw / 2 - CAKE.w / 2), cy: base - table.height + 2 - CAKE.h, her: Math.round(iw / 2 - CAKE.w / 2 - 14), him: Math.round(iw / 2 + CAKE.w / 2 + 14) };
   };
   function startBake() {
+    saveProgress('bake');
     clearStageUi();
     parts.length = 0;
     phase = 'bake';
@@ -2511,6 +2640,7 @@
     kid.happyT = 0;
     say([
       'Strawberries, sponges, whipped cream: check!',
+      `${OPP()}: I sliced some extra strawberries for the filling. The ones you caught are all going on top!`,
       coarse ? 'Time to build the cake! Tap to stack each layer.' : 'Time to build the cake! Click to stack each layer.',
     ], () => { K.sub = 'build'; lockT = 0.2; showCallout(coarse ? 'TAP TO STACK!' : 'CLICK TO STACK!'); });
   }
@@ -2546,6 +2676,7 @@
     if (kind !== 'five') popWord(hisX, hisY - 4, pick(CHEERS), false, '#d6f5c4');
   }
   function aliveScene() { // the iced cake is finished… and then it starts to move
+    saveProgress('alive');
     clearStageUi();
     phase = 'bake';
     Object.assign(K, { sub: 'done', layers: CAKE.layerCuts.length, dropT: 0, t: 0, liftT: 0, ropeT: 0, alive: false, grabbed: false, shakeT: 0 });
@@ -2593,7 +2724,7 @@
     if (n > 0) {
       // everything already stacked, and the newest layer dropping into place (once it lands, it's all one cake)
       const drop = Math.round(K.dropT * K.dropT * -10);
-      if (drop === 0) g.drawImage(CAKE.stack[Math.min(n, CAKE.stack.length - 1)], pos.x + dx, pos.y);
+      if (drop === 0) { g.drawImage(CAKE.stack[Math.min(n, CAKE.stack.length - 1)], pos.x + dx, pos.y); if (n >= CAKE.layerCuts.length) drawGolds(g, pos.x + dx, pos.y); }
       else { g.drawImage(CAKE.stack[n - 1], pos.x + dx, pos.y); g.drawImage(CAKE.layerImg[n - 1], pos.x + dx, pos.y + drop); }
       if (K.alive) g.drawImage(CAKE.faces[K.sub === 'lift' || K.sub === 'handoff' || KN.t >= 0 ? 'angry' : (Math.floor(K.t * 4) % 2 ? 'angry' : 'hurt')], pos.x + dx + CAKE.faceX, pos.y + CAKE.faceY);
     }
@@ -2605,10 +2736,10 @@
   // the story, in order: catch strawberries → bake the sponges → whip the cream → (cutscene: stack the layers) → ice the top
   // → (cutscene: the cake comes alive and kidnaps Zech) → whack the piñata cake
   const STAGES = [
-    { key: 'catch', title: 'Strawberry Catch', next: 'catching strawberries', how: () => (coarse ? 'Drag left & right to catch!' : 'Move left & right to catch!'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
+    { key: 'catch', title: 'Strawberry Catch', next: 'catching strawberries', how: () => (coarse ? 'Drag left & right to catch! It gets wilder as the bowl fills…' : 'Move left & right to catch! It gets wilder as the bowl fills…'), reset: catchReset, begin: catchBegin, update: catchUpdate, tap: catchTap },
     { key: 'sponge', title: 'Fluffy Sponge', next: 'baking the fluffy sponges', how: () => (coarse ? 'Press and hold to bake, let go at the line!' : 'Hold to bake, let go at the line!'), reset: spongeReset, begin: spongeBegin, update: spongeUpdate, tap: spongeTap, release: spongeRelease },
     { key: 'whip', title: 'Whipped Cream Showdown', next: 'the whipped cream showdown', how: () => (coarse ? 'Add the ingredients, then tap as fast as you can!' : 'Add the ingredients, then click as fast as you can!'), reset: whipReset, begin: whipBegin, update: whipUpdate, tap: whipTap },
-    { key: 'icing', title: 'Icing on Top', next: 'icing the cake', how: () => 'Squeeze cream swirls one by one, cover the top with strawberries, dust it with sugar, and finish with the bow!', reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap, release: icingRelease },
+    { key: 'icing', title: 'Icing on Top', next: 'icing the cake', how: () => 'Squeeze cream swirls one by one, put every strawberry you caught on top, dust it with sugar, and finish with the bow!', reset: icingReset, begin: icingBegin, update: icingUpdate, tap: icingTap, release: icingRelease },
     { key: 'boss', title: 'Piñata Cake Monster', next: 'the piñata cake monster', how: () => `${coarse ? 'Tap' : 'Click'} to jump & swing your baguette and rescue ${C.opponentName}!`, reset: bossReset, begin: bossBegin, update: bossUpdate, tap: bossTap },
   ];
   const stageIndex = (key) => STAGES.findIndex((st) => st.key === key);
@@ -2621,6 +2752,7 @@
   function showCard(i, keepCake) {
     clearStageUi();
     stageIdx = i;
+    if (i > 0) saveProgress(STAGES[i].key);
     parts.length = 0;
     kid.happyT = 0; kid.hopT = 0; kid.jy = kid.jv = 0;
     STAGES[i].reset(keepCake);
@@ -2673,12 +2805,39 @@
   // ?stage=2 (or ?stage=sponge, whip, bake, icing, boss…) jumps straight there (handy for testing)
   const stageParam = (new URLSearchParams(location.search).get('stage') || '').toLowerCase();
   const startAt = stageParam === 'bake' ? 'bake' : stageIndex(stageParam) >= 0 ? stageIndex(stageParam) : clamp((parseInt(stageParam, 10) || 1) - 1, 0, STAGES.length - 1);
+  // progress is saved at the start of every stage, so if the page gets reloaded mid-game (the phone drops the tab while she's in
+  // another app, a pull-to-refresh, an in-app browser refreshing itself…) the title screen offers to carry on from there,
+  // with the very same strawberries (only in this browser; a finished game or START OVER clears it)
+  const SAVE_KEY = 'soapsbirthday.save';
+  const CONTINUE_AT = ['sponge', 'whip', 'bake', 'icing', 'alive', 'boss'];
+  function saveProgress(at) {
+    try {
+      if (at && !stageParam) localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, at, pile: CT.pile.slice(0, 60), golds: IC.golds, t: Date.now() }));
+      else if (!at) localStorage.removeItem(SAVE_KEY);
+    } catch (e) { /* private mode / storage off: no saves, that's all */ }
+  }
+  function loadProgress() {
+    try {
+      const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+      if (!d || d.v !== 1 || !CONTINUE_AT.includes(d.at) || !(Date.now() - d.t < 7 * 864e5)) return null;
+      return { at: d.at, pile: Array.isArray(d.pile) ? d.pile.filter((k) => k === 'straw' || k === 'gold') : [], golds: d.golds | 0 };
+    } catch (e) { return null; }
+  }
   function startGame() {
     if (phase !== 'title') return;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     $('#intro').classList.add('hide');
     sfx.init();
+    if (!stageParam) saveProgress(null); // (a fresh start)
     newRun(startAt);
+  }
+  function continueGame() {
+    const d = loadProgress();
+    if (phase !== 'title' || !d) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    $('#intro').classList.add('hide');
+    sfx.init();
+    newRun(d.at === 'alive' ? 'alive' : d.at === 'bake' ? 'bake' : stageIndex(d.at), d);
   }
   let quick = false; // the letter was opened straight from the title screen, without playing
   function viewLetter() { // skip the game: the real letter right away (with its song), over the room as it looks at the very end
@@ -2704,17 +2863,22 @@
     $('#replay').textContent = '↺ PLAY AGAIN';
     phase = 'title';
     $('#intro').classList.remove('hide');
+    showContinue();
   }
-  function newRun(at) {
+  function newRun(at, from) {
     flowId++; deco = -1;
     envWrap.classList.remove('show'); drawEnv(false);
     // wipe every stage's leftovers from the previous run up front
     Object.assign(W, { sub: 'idle', p: 0, z: 0, taps: 0, zFace: 'normal', said: {} });
     catchReset(); bossReset(false); zechReset(); kid.hug = false;
     letterStep = 0; letterSeen = false; wrongEl.classList.remove('show');
-    if (at === 'bake') { stageIdx = stageIndex('whip'); startBake(); } else showCard(at);
+    if (from) { CT.pile = from.pile.slice(); IC.golds = from.golds; } // (carrying on from a save: the strawberries she caught)
+    if (at === 'bake') { stageIdx = stageIndex('whip'); startBake(); }
+    else if (at === 'alive') { stageIdx = stageIndex('icing'); aliveScene(); }
+    else showCard(at);
   }
   function showEnvelope() {
+    saveProgress(null); // (she's beaten it: no need to carry on next time, the letter's on the title screen anyway)
     preloadSong();
     clearStageUi();
     document.body.classList.add('boss'); // keep the Lv box up so she can see her new level
@@ -2901,6 +3065,17 @@
     newRun(0);
   });
   startBtn.addEventListener('click', startGame);
+  $('#continue').addEventListener('click', continueGame);
+  function showContinue() { // a saved game: CONTINUE comes first, and PRESS START becomes START OVER
+    const d = stageParam ? null : loadProgress(), btn = $('#continue');
+    btn.hidden = !d;
+    if (d) {
+      const n = d.at === 'bake' ? stageIndex('whip') + 1 : d.at === 'alive' ? stageIndex('icing') + 1 : stageIndex(d.at) + 1;
+      btn.textContent = `▶ CONTINUE · STAGE ${n}`; btn.disabled = false;
+    }
+    startBtn.textContent = d ? '↺ START OVER' : '▶ PRESS START';
+    startBtn.classList.toggle('ghost', !!d); startBtn.classList.toggle('start', !d);
+  }
   $('#viewLetter').addEventListener('click', viewLetter);
   $('#mute').addEventListener('click', (e) => {
     const off = sfx.toggle();
@@ -2953,7 +3128,7 @@
   function drawParticle(p) {
     if (p.life < 0.6 && Math.floor(p.life * 12) % 2) return;
     if (p.img) g.drawImage(p.img, Math.round(p.x - p.img.width / 2), Math.round(p.y - p.img.height / 2));
-    else { g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size); }
+    else { g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), p.streak ? 9 : p.size, p.size); } // (streak: a gust of wind)
   }
   function bossCakePos() {
     const x0 = cakeX(), y0 = cakeY();
@@ -2967,6 +3142,13 @@
     if (phase === 'bake') { const p = bakeCakePos(); return { x: p.x + bakeShakeDx(), y: p.y }; }
     return bossCakePos();
   }
+  const GOLD_SPOTS = [[22, 4], [38, 6], [29, 9], [45, 9], [14, 9], [33, 2]]; // (in the strawberry mountain on top of the cake sprite)
+  function drawGolds(ctx, X, Y) { // the golden strawberries she caught, on top of the finished cake wherever it shows up
+    for (let k = 0; k < Math.min(IC.golds, GOLD_SPOTS.length); k++) {
+      const [gx, gy] = GOLD_SPOTS[k]; ctx.drawImage(A.MINI_GOLDS[k % 4], X + gx, Y + gy);
+      if (Math.floor(time * 5 + k * 1.7) % 6 === 0) { ctx.fillStyle = '#ffffff'; ctx.fillRect(X + gx + 3, Y + gy - 1, 1, 1); }
+    }
+  }
   function drawCake() {
     if (!cake.show || cake.rope <= -CAKE.h - 8) return;
     const { x0, y0, dx, bob } = bossCakePos();
@@ -2978,7 +3160,7 @@
     const hidden = cake.blinkT > 0 && Math.floor(cake.blinkT * 16) % 2 === 0;
     if ((cake.alive || cake.faintT > 0) && !hidden) {
       const X = x0 + dx, Y = y0 + bob;
-      g.drawImage(CAKE.img, X, Y);
+      g.drawImage(CAKE.img, X, Y); drawGolds(g, X, Y);
       const face = cake.faintT > 0 ? 'ko' : cake.hurtT > 0 ? 'hurt' : cake.hp / C.hitsToBreak <= 0.4 ? 'worried' : 'angry';
       g.drawImage(CAKE.faces[face], X + CAKE.faceX, Y + CAKE.faceY);
       if (cake.flashT > 0 || (cake.faintT > 0 && Math.floor(time * 10) % 2)) g.drawImage(CAKE.white, X, Y);
@@ -3041,6 +3223,10 @@
     g.translate(sh ? Math.round(rand(-sh, sh)) : 0, sh ? Math.round(rand(-sh, sh)) : 0);
     if (room) g.drawImage(room, 0, 0);
     if (deco >= 0) drawDeco();
+    if (miffy) { // the Miffy plush on the sofa (she hops when she tosses a strawberry in the catch stage)
+      const hop = CT.miffyHop > 0 ? -Math.round(Math.sin((1 - CT.miffyHop / 0.4) * Math.PI) * 4) : 0;
+      g.drawImage(miffy.img, miffy.x, miffy.y + hop);
+    }
 
     if (tinsel && deco > 2.6) { // twinkles on the tinsel curtain
       const k = Math.floor(time * 6), w = Math.max(1, tinsel.x1 - tinsel.x0), h = Math.max(1, tinsel.y1 - tinsel.y0);
@@ -3107,7 +3293,7 @@
           ring: IC.spots.map((s) => { const q = ringPos(V, s.u); return { ...sp(q.x, q.y), done: s.done, g: s.g, perfect: !!s.perfect, tgt: IC.tgt === s }; }),
           bowl: sp(V.bx, V.by), cake: { x0: V.x0 * k, y0: V.y0 * k, x1: V.x1 * k, y1: V.y1 * k },
           inner: { x0: V.inner.x0 * k, y0: V.inner.y0 * k, x1: V.inner.x1 * k, y1: V.inner.y1 * k },
-          slots: slotsOf(V).map((s) => ({ ...sp(s.x, s.y), kind: s.kind, layer: s.layer, taken: IC.taken.includes(s.i) })), total: IC.pat.length,
+          slots: slotsOf(V).map((s) => ({ ...sp(s.x, s.y), layer: s.layer, taken: IC.taken.includes(s.i) })), total: IC.pat.length, golds: IC.golds,
           berries: IC.placed.map((b) => ({ ...sp(V.x0 + b.fx * V.Wt, V.y0 + b.fy * V.Ht), si: b.si, kind: b.kind, g: b.g })), sr: V.br * k,
           bow: IC.bow.st, bowAt: sp(bowAt(V).x, bowAt(V).y),
         };
@@ -3116,7 +3302,11 @@
       get letterStep() { return letterStep; }, get deco() { return deco; }, get audio() { return sfx.state(); },
       get zech() { return { mode: ZE.mode, x: ZE.x * S, y: ZE.y * S, hug: ZE.hug, face: ZE.face, kidnapT: KN.t, holding: KN.holding }; },
       get whip() { return { p: W.p, z: W.z, face: W.zFace, taps: W.taps, ing: WV.ing, om: WV.om, shown: WV.shown, sub: W.sub }; },
-      get catch() { return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S })) }; },
+      get catch() {
+        return { caught: CT.caught, dizzy: CT.dizzyT > 0, items: CT.items.map((i) => ({ kind: i.kind, x: i.x * S, y: i.y * S, vy: i.vy * S, ev: !!i.ev })),
+          ev: CT.ev ? CT.ev.key : null, evT: CT.ev ? CT.ev.t : 0, evs: Object.keys(CT.evs), combo: CT.combo, magnet: CT.magT > 0, wind: CT.wind, pile: CT.pile.slice(), speed: catchSpeed(),
+          crate: CT.crate ? { x: CT.crate.x * S, y: CT.crate.y * S, st: CT.crate.st } : null, miffy: !!miffy, rim: bowlRim() * S, kid: kid.x * S };
+      },
       get kid() { return { x: kid.x * S, y: kid.y * S }; }, get cakeHp() { return cake.hp; },
       get boss() { return { hp: cake.hp, x: (cakeX() + CAKE.w / 2) * S, y: (cakeY() + CAKE.h) * S, armor: B.armorT > 0, stun: B.stunT > 0, yank: B.yank, blobs: B.blobs.length, sub: B.sub }; },
       get music() { return { kind: music.kind, uri: music.uri, playing: music.playing, want: music.want, shown: !songBox.hidden }; }, get tune() { return sfx.songOn(); }, get track() { return sfx.bgmName(); },
@@ -3147,5 +3337,6 @@
       startBtn.disabled = false;
       startBtn.textContent = '▶ PRESS START';
       $('#viewLetter').disabled = false;
+      showContinue();
     });
 })();

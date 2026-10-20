@@ -21,7 +21,7 @@
 @media (max-width: 600px) { :root { --b: 3px; } }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; } /* (no pull-to-refresh or rubber-banding mid-game) */
 body {
   background: #cfe3ff;
   color: var(--navy);
@@ -287,6 +287,7 @@ body.closeup .callout { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px)
 .intro-text { font-size: 17px; line-height: 1.55; margin: 14px 0 26px; }
 .intro-btns { display: flex; flex-direction: column; align-items: center; gap: 22px; }
 .view-letter { font-size: 10px; }
+#continue[hidden] { display: none; }
 .start:not(:disabled) { animation: nudge 1s steps(1) infinite; }
 @keyframes nudge { 50% { transform: translateY(-3px); } }
 .notice { margin-top: 18px; font-size: 13px; line-height: 1.4; color: #b4234f; }
